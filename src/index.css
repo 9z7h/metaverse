@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable.css";
 
 /* 디자인 토큰 (Figma에서 추출) */
 @import "./tokens/colors.css";

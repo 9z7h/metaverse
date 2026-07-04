@@ -84,9 +84,7 @@ export const LARGE: SizeConfig = {
   // 사용자 승인하에 Figma 원본과 1:1 일치를 위해 직접 지정.
   paddingInline: "20px",
   gap: "var(--spacing-8)",
-  // ⚠️ 누락된 토큰: body/lg/bold에 대응하는 --text-body-lg-bold가 typography.css에 없음
-  // (body-lg는 regular만 정의됨). Figma 값 미확인 상태라 추측해서 만들지 않음.
-  font: "var(--body-lg-bold)",
+  font: "var(--text-body-lg-bold)",
   iconSize: 24,
   radius: "var(--radius-md)",
 };
@@ -106,9 +104,7 @@ export const SMALL: SizeConfig = {
   paddingBlock: "var(--spacing-8)",
   paddingInline: "var(--spacing-12)",
   gap: "var(--spacing-4)",
-  // ⚠️ 누락된 토큰: caption/lg/bold에 대응하는 --text-caption-lg-bold가 typography.css에 없음
-  // (caption-lg는 medium만 정의됨). Figma 값 미확인 상태라 추측해서 만들지 않음.
-  font: "var(--caption-lg-bold)",
+  font: "var(--text-caption-lg-bold)",
   iconSize: 16,
   radius: "var(--radius-md)",
 };

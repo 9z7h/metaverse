@@ -47,7 +47,7 @@ const postStyle: CSSProperties = {
  */
 export function View() {
   const navigate = useNavigate();
-  const { state, signOut } = useAuthSession();
+  const { state, user, signOut } = useAuthSession();
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
 
@@ -61,7 +61,11 @@ export function View() {
 
   return (
     <div style={pageStyle}>
-      <NavigationBar state={state} onAuthClick={handleAuthClick} />
+      <NavigationBar
+        state={state}
+        user={user ?? undefined}
+        onAuthClick={handleAuthClick}
+      />
 
       <div style={feedStyle}>
         <div style={postStyle}>

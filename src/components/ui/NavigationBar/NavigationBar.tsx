@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { Category } from "../Category";
 import { ButtonMedium } from "../Button";
+import { Icon } from "../Icon";
 
 /** Auth state. Maps 1:1 to the Figma `state` variant — only the right-side button label changes. */
 export type NavigationBarState = "login" | "logout";
@@ -11,6 +12,13 @@ const AUTH_LABEL: Record<NavigationBarState, string> = {
   logout: "로그아웃",
 };
 
+export interface NavigationBarUser {
+  /** 표시할 이름 (소셜 로그인 시 provider가 제공하는 이름, 없으면 이메일). */
+  name: string;
+  /** 프로필 이미지 URL. 없으면 기본 사용자 아이콘으로 대체. */
+  avatarUrl?: string;
+}
+
 export interface NavigationBarProps {
   /** Auth state. Toggles the right-side button label. Defaults to `login`. */
   state?: NavigationBarState;
@@ -20,9 +28,36 @@ export interface NavigationBarProps {
   onCategoryClick?: MouseEventHandler<HTMLButtonElement>;
   /** Click handler for the auth (login/logout) button. */
   onAuthClick?: MouseEventHandler<HTMLButtonElement>;
+  /** 로그인된 사용자 정보. `state="logout"`(로그인됨)일 때만 아바타+이름으로 표시된다. */
+  user?: NavigationBarUser;
   /** Extra class forwarded to the root `<nav>`. */
   className?: string;
 }
+
+const avatarStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  width: "32px",
+  height: "32px",
+  borderRadius: "var(--radius-circle)",
+  overflow: "hidden",
+  backgroundColor: "var(--color-background-muted)",
+  color: "var(--color-text-tertiary)",
+};
+
+const userAreaStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-8)",
+};
+
+const userNameStyle: CSSProperties = {
+  font: "var(--text-body-sm-bold)",
+  color: "var(--color-text-primary)",
+  whiteSpace: "nowrap",
+};
 
 /**
  * Top navigation bar: a selected `Category` tab on the left and a `corelight`
@@ -37,6 +72,7 @@ export function NavigationBar({
   category = "커뮤니티",
   onCategoryClick,
   onAuthClick,
+  user,
   className,
 }: NavigationBarProps) {
   const rootStyle: CSSProperties = {
@@ -69,9 +105,31 @@ export function NavigationBar({
         <Category state="selected" onClick={onCategoryClick}>
           {category}
         </Category>
-        <ButtonMedium style="corelight" onClick={onAuthClick}>
-          {AUTH_LABEL[state]}
-        </ButtonMedium>
+        <div style={userAreaStyle}>
+          {state === "logout" && user && (
+            <>
+              <span style={avatarStyle} aria-hidden="true">
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <Icon name="user" size={16} color="currentColor" />
+                )}
+              </span>
+              <span style={userNameStyle}>{user.name}</span>
+            </>
+          )}
+          <ButtonMedium style="corelight" onClick={onAuthClick}>
+            {AUTH_LABEL[state]}
+          </ButtonMedium>
+        </div>
       </div>
     </nav>
   );

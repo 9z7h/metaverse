@@ -54,7 +54,7 @@ const formGroupStyle: CSSProperties = {
  */
 export function Write() {
   const navigate = useNavigate();
-  const { state, signOut } = useAuthSession();
+  const { state, user, signOut } = useAuthSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -89,7 +89,11 @@ export function Write() {
 
   return (
     <div style={pageStyle}>
-      <NavigationBar state={state} onAuthClick={handleAuthClick} />
+      <NavigationBar
+        state={state}
+        user={user ?? undefined}
+        onAuthClick={handleAuthClick}
+      />
 
       <div style={feedStyle}>
         <div style={postStyle}>

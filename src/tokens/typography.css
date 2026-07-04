@@ -11,8 +11,8 @@
    * Primitive — Font family / weight
    * ============================================================ */
   --font-family-base:
-    "Pretendard", -apple-system, BlinkMacSystemFont, "system-ui", "Segoe UI",
-    sans-serif;
+    "Pretendard Variable", -apple-system, BlinkMacSystemFont, "system-ui",
+    "Segoe UI", sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 700;
@@ -54,8 +54,16 @@
   --text-body-sm-bold: var(--font-weight-bold) var(--font-size-14) /
     var(--line-height-21) var(--font-family-base);
 
+  /* body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24) */
+  --text-body-lg-bold: var(--font-weight-bold) var(--font-size-16) /
+    var(--line-height-24) var(--font-family-base);
+
   /* caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20) */
   --text-caption-lg-medium: var(--font-weight-medium) var(--font-size-13) /
+    var(--line-height-20) var(--font-family-base);
+
+  /* caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20) */
+  --text-caption-lg-bold: var(--font-weight-bold) var(--font-size-13) /
     var(--line-height-20) var(--font-family-base);
 
   /* body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21) */

@@ -74,7 +74,7 @@ const listStyle: CSSProperties = {
  */
 export function HomeDesign() {
   const navigate = useNavigate();
-  const { state, signOut } = useAuthSession();
+  const { state, user, signOut } = useAuthSession();
   const [sortValue, setSortValue] = useState(SORT_OPTIONS[0].value);
   const [searchValue, setSearchValue] = useState("");
 
@@ -91,6 +91,7 @@ export function HomeDesign() {
       <NavigationBar
         state={state}
         category="디자인 팁"
+        user={user ?? undefined}
         onAuthClick={handleAuthClick}
       />
 

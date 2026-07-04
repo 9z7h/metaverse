@@ -100,7 +100,7 @@ const listStyle: CSSProperties = {
  */
 export function Home() {
   const navigate = useNavigate();
-  const { state, signOut } = useAuthSession();
+  const { state, user, signOut } = useAuthSession();
   const [sortValue, setSortValue] = useState(SORT_OPTIONS[0].value);
   const [searchValue, setSearchValue] = useState("");
 
@@ -114,7 +114,11 @@ export function Home() {
 
   return (
     <div style={pageStyle}>
-      <NavigationBar state={state} onAuthClick={handleAuthClick} />
+      <NavigationBar
+        state={state}
+        user={user ?? undefined}
+        onAuthClick={handleAuthClick}
+      />
 
       <div style={contentStyle}>
         <PostFilterHeader
