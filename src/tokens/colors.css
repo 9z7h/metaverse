@@ -1,0 +1,123 @@
+/**
+ * Figma에서 자동 추출됨, node-id: 4035-1488
+ * get_variable_defs 응답은 평면(flat) 구조로, color 변수에 대한 alias/참조 메타데이터는 없음.
+ * 아래 Semantic 섹션의 var() 참조는, 추출된 hex 값이 Primitive 값과 정확히 일치하는 경우에 한해
+ * 참조 관계를 재구성한 것임 (원본 응답에 명시적 alias 정보는 없었음).
+ */
+:root {
+  /* ============================================================
+   * Primitive — Gray
+   * ============================================================ */
+  --color-gray-100: #ffffff;
+  --color-Gray-100: #f9fafb;
+  --color-Gray-200: #f3f4f6;
+  --color-gray-300: #f5f7fa;
+  --color-gray-305: #f1f5f9;
+  --color-gray-340: #e2e8f0;
+  --color-gray-360: #e5e7eb;
+  --color-gray-400: #d1d5db;
+  --color-gray-490: #94a3b8;
+  --color-gray-500: #9ca3af;
+  --color-gray-540: #7c8484;
+  --color-gray-600: #6b7280;
+  --color-gray-610: #64748b;
+  --color-gray-700: #4b5563;
+  --color-gray-800: #374151;
+  --color-gray-850: #2c3030;
+  --color-gray-900: #262626;
+  --color-gray-1000: #161c1c;
+  --color-gray-1050: #0f172a;
+
+  /* ============================================================
+   * Primitive — Blue
+   * ============================================================ */
+  --color-blue-20: #f7faff;
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #f1f8fe;
+  --color-blue-120: #dbeafe;
+  --color-blue-200: #b8dcfc;
+  --color-blue-280: #93c5fd;
+  --color-blue-300: #91caff;
+  --color-blue-400: #69b1ff;
+  --color-blue-440: #63a3fb;
+  --color-blue-500: #4096ff;
+  --color-blue-540: #3b82f6;
+  --color-blue-600: #1289f6;
+  --color-blue-680: #1d4ed8;
+  --color-blue-700: #0958d9;
+  --color-blue-800: #003eb3;
+  --color-blue-900: #002c8c;
+  --color-blue-1000: #001d66;
+
+  /* ============================================================
+   * Primitive — Red
+   * ============================================================ */
+  --color-red-100: #fffbfc;
+  --color-red-200: #fff2f5;
+  --color-red-300: #ffccc7;
+  --color-red-400: #ffa39e;
+  --color-red-500: #ff4d4f;
+  --color-red-600: #fc2a55;
+  --color-red-700: #cf1322;
+  --color-red-800: #a8071a;
+  --color-red-900: #820014;
+  --color-red-1000: #5c0011;
+
+  /* ============================================================
+   * Semantic — Text
+   * (값이 Primitive와 정확히 일치하는 경우 var() 참조로 재구성)
+   * ============================================================ */
+  --color-text-primary: var(--color-gray-1000); /* #161c1c */
+  --color-text-secondary: var(--color-gray-600); /* #6b7280 */
+  --color-text-tertiary: var(--color-gray-500); /* #9ca3af */
+  --color-text-disabled: var(--color-gray-400); /* #d1d5db */
+  --color-text-onbrand: var(--color-gray-100); /* #ffffff */
+  --color-text-Danger: var(--color-red-600); /* #fc2a55 */
+
+  /* ============================================================
+   * Semantic — Background
+   * ============================================================ */
+  --color-background-default: var(--color-gray-100); /* #ffffff */
+  --color-background-Subtle: #fafafa; /* Primitive 매칭 없음 (raw 값) */
+  --color-background-muted: #f5f7fa; /* = gray/300 값과 동일하나 표기 보존 */
+  --color-background-brand: var(--color-blue-600); /* #1289f6 */
+  --color-background-brandsubtle: var(--color-blue-100); /* #f1f8fe */
+  --color-background-danger: var(--color-red-200); /* #fff2f5 */
+  --color-background-dangersubtle: var(--color-red-100); /* #fffbfc */
+
+  /* ============================================================
+   * Semantic — Border
+   * ============================================================ */
+  --color-border-default: var(--color-gray-400); /* #d1d5db */
+  --color-border-strong: var(--color-gray-700); /* #4b5563 */
+  --color-border-brand: var(--color-blue-600); /* #1289f6 */
+  --color-border-danger: var(--color-red-600); /* #fc2a55 */
+
+  /* ============================================================
+   * Semantic — Interactive
+   * ============================================================ */
+  --color-interactive-primary: var(--color-blue-600); /* #1289f6 */
+  --color-interactive-primaryhover: var(--color-blue-700); /* #0958d9 */
+  --color-interactive-destructive: var(--color-red-600); /* #fc2a55 */
+  --color-interactive-destructivehover: var(--color-red-700); /* #cf1322 */
+
+  /* ============================================================
+   * Semantic — Content
+   * ============================================================ */
+  --color-content-strong: var(--color-gray-900); /* #262626 */
+  --color-content-default: var(--color-gray-800); /* #374151 */
+  --color-content-muted: var(--color-gray-700); /* #4b5563 */
+
+  /* ============================================================
+   * Brand — Google (멀티컬러 브랜드 아이콘 전용, 디자인 토큰화 불가한 서드파티 고정 색상)
+   * ============================================================ */
+  --color-brand-google-red: #f44336;
+  --color-brand-google-yellow: #ffc107;
+  --color-brand-google-blue: #448aff;
+  --color-brand-google-green: #43a047;
+
+  /* ============================================================
+   * 기타 (원본 응답에 포함된 SDS 토큰)
+   * ============================================================ */
+  --sds-color-background-neutral-default: #5a5a5a;
+}

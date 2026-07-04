@@ -1,0 +1,20 @@
+/**
+ * Figma에서 자동 추출됨, node-id: 4035-1488
+ * get_variable_defs 응답은 평면(flat) 구조이며, spacing 변수는 모두 raw 값(참조 없음).
+ * Figma 원본 값은 단위 없는 숫자이므로 px 단위를 부여함.
+ */
+:root {
+  --spacing-0: 0;
+  --spacing-2: 2px;
+  --spacing-4: 4px;
+  --spacing-6: 6px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-40: 40px;
+  --spacing-48: 48px;
+  --spacing-64: 64px;
+}

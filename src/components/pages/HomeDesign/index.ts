@@ -1,0 +1,1 @@
+export { HomeDesign } from "./HomeDesign";

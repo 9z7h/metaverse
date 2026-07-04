@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* 디자인 토큰 (Figma에서 추출) */
+@import "./tokens/colors.css";
+@import "./tokens/spacing.css";
+@import "./tokens/radius.css";
+@import "./tokens/typography.css";
