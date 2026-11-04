@@ -183,3 +183,45 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 1. Figma MCP가 hex 색상 반환 → 이 테이블에서 찾아서 `var(--color-*)` 사용
 2. Figma가 스페이싱 숫자 반환 → `var(--spacing-*)` 매핑
 3. 테이블에 없는 값 → 새 변수 만들지 말고 `/* ⚠️ 누락된 토큰 */` 플래그
+
+## Primitive — 마법 도서관 팔레트 (library 테마 전용)
+
+> 원본: `tokens/color.json`. Figma 변수 없음 — 코드에서 먼저 정의. 대비는 WCAG AA 검증 완료.
+
+| CSS Property          | 값      | 용도                            |
+| --------------------- | ------- | ------------------------------- |
+| --color-mahogany-900  | #16100d | 테마 기본 배경                  |
+| --color-mahogany-800  | #21180f | 카드 표면                       |
+| --color-mahogany-700  | #2e2219 | 한 단계 올라온 표면             |
+| --color-mahogany-600  | #463428 | (예비)                          |
+| --color-mahogany-500  | #5e4737 | 테두리, 비활성 텍스트           |
+| --color-parchment-100 | #f5ecd9 | 본문 텍스트 (16.05:1)           |
+| --color-parchment-300 | #d8c8a6 | 보조 텍스트 (11.43:1)           |
+| --color-parchment-500 | #a8977a | 3차 텍스트 (6.62:1)             |
+| --color-candle-300    | #ffd98a | 강조 hover                      |
+| --color-candle-400    | #f2bf55 | 강조/브랜드 (배경 대비 11.09:1) |
+| --color-candle-500    | #d9a03a | (예비)                          |
+| --color-candle-900    | #3b2a12 | 강조 subtle 배경                |
+
+## 테마 — `[data-theme="library"]`
+
+> 원본: `tokens/themes/library.json` → 빌드 결과 `src/tokens/_theme-library.css`.
+> 새 변수를 만들지 않고 **기존 시맨틱 토큰 이름을 재정의**한다. 그래서 Button/Chip/Input 등
+> 기존 컴포넌트를 수정 없이 `data-theme="library"` 하위에 두기만 하면 어두운 도서관 테마가 적용된다.
+
+| 시맨틱 토큰                    | 기본 테마 | library 테마  |
+| ------------------------------ | --------- | ------------- |
+| --color-background-default     | gray-100  | mahogany-900  |
+| --color-background-Subtle      | #fafafa   | mahogany-800  |
+| --color-background-muted       | #f5f7fa   | mahogany-700  |
+| --color-background-brandsubtle | blue-100  | candle-900    |
+| --color-text-primary           | gray-1000 | parchment-100 |
+| --color-text-secondary         | gray-600  | parchment-300 |
+| --color-text-tertiary          | gray-500  | parchment-500 |
+| --color-text-onbrand           | gray-100  | mahogany-900  |
+| --color-interactive-primary    | blue-600  | candle-400    |
+| --color-border-default         | gray-400  | mahogany-500  |
+| --color-border-brand           | blue-600  | candle-400    |
+| --color-content-strong         | gray-900  | parchment-100 |
+
+전체 목록은 `tokens/themes/library.json` 참고. 테마 추가 시 `style-dictionary.config.mjs`의 `themes` 배열에 이름을 추가한다.

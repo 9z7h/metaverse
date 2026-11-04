@@ -1,8 +1,7 @@
 @import "tailwindcss";
 @import "pretendard/dist/web/variable/pretendardvariable.css";
 
-/* 디자인 토큰 (Figma에서 추출) */
-@import "./tokens/colors.css";
-@import "./tokens/spacing.css";
-@import "./tokens/radius.css";
-@import "./tokens/typography.css";
+/* 디자인 토큰 — Style Dictionary 자동 생성 (원본: tokens/*.json, 직접 수정 금지) */
+@import "./tokens/_generated.css";
+/* 테마 토큰 — [data-theme="library"] 범위에서 시맨틱 토큰 재정의 */
+@import "./tokens/_theme-library.css";

@@ -1,0 +1,303 @@
+{
+  "color": {
+    "gray": {
+      "100": {
+        "$value": "#ffffff"
+      },
+      "300": {
+        "$value": "#f5f7fa"
+      },
+      "305": {
+        "$value": "#f1f5f9"
+      },
+      "340": {
+        "$value": "#e2e8f0"
+      },
+      "360": {
+        "$value": "#e5e7eb"
+      },
+      "400": {
+        "$value": "#d1d5db"
+      },
+      "490": {
+        "$value": "#94a3b8"
+      },
+      "500": {
+        "$value": "#9ca3af"
+      },
+      "540": {
+        "$value": "#7c8484"
+      },
+      "600": {
+        "$value": "#6b7280"
+      },
+      "610": {
+        "$value": "#64748b"
+      },
+      "700": {
+        "$value": "#4b5563"
+      },
+      "800": {
+        "$value": "#374151"
+      },
+      "850": {
+        "$value": "#2c3030"
+      },
+      "900": {
+        "$value": "#262626"
+      },
+      "1000": {
+        "$value": "#161c1c"
+      },
+      "1050": {
+        "$value": "#0f172a"
+      }
+    },
+    "Gray": {
+      "100": {
+        "$value": "#f9fafb"
+      },
+      "200": {
+        "$value": "#f3f4f6"
+      }
+    },
+    "blue": {
+      "20": {
+        "$value": "#f7faff"
+      },
+      "50": {
+        "$value": "#eff6ff"
+      },
+      "100": {
+        "$value": "#f1f8fe"
+      },
+      "120": {
+        "$value": "#dbeafe"
+      },
+      "200": {
+        "$value": "#b8dcfc"
+      },
+      "280": {
+        "$value": "#93c5fd"
+      },
+      "300": {
+        "$value": "#91caff"
+      },
+      "400": {
+        "$value": "#69b1ff"
+      },
+      "440": {
+        "$value": "#63a3fb"
+      },
+      "500": {
+        "$value": "#4096ff"
+      },
+      "540": {
+        "$value": "#3b82f6"
+      },
+      "600": {
+        "$value": "#1289f6"
+      },
+      "680": {
+        "$value": "#1d4ed8"
+      },
+      "700": {
+        "$value": "#0958d9"
+      },
+      "800": {
+        "$value": "#003eb3"
+      },
+      "900": {
+        "$value": "#002c8c"
+      },
+      "1000": {
+        "$value": "#001d66"
+      }
+    },
+    "red": {
+      "100": {
+        "$value": "#fffbfc"
+      },
+      "200": {
+        "$value": "#fff2f5"
+      },
+      "300": {
+        "$value": "#ffccc7"
+      },
+      "400": {
+        "$value": "#ffa39e"
+      },
+      "500": {
+        "$value": "#ff4d4f"
+      },
+      "600": {
+        "$value": "#fc2a55"
+      },
+      "700": {
+        "$value": "#cf1322"
+      },
+      "800": {
+        "$value": "#a8071a"
+      },
+      "900": {
+        "$value": "#820014"
+      },
+      "1000": {
+        "$value": "#5c0011"
+      }
+    },
+    "mahogany": {
+      "500": {
+        "$value": "#5e4737"
+      },
+      "600": {
+        "$value": "#463428"
+      },
+      "700": {
+        "$value": "#2e2219"
+      },
+      "800": {
+        "$value": "#21180f"
+      },
+      "900": {
+        "$value": "#16100d"
+      }
+    },
+    "parchment": {
+      "100": {
+        "$value": "#f5ecd9"
+      },
+      "300": {
+        "$value": "#d8c8a6"
+      },
+      "500": {
+        "$value": "#a8977a"
+      }
+    },
+    "candle": {
+      "300": {
+        "$value": "#ffd98a"
+      },
+      "400": {
+        "$value": "#f2bf55"
+      },
+      "500": {
+        "$value": "#d9a03a"
+      },
+      "900": {
+        "$value": "#3b2a12"
+      }
+    },
+    "text": {
+      "primary": {
+        "$value": "{color.gray.1000}"
+      },
+      "secondary": {
+        "$value": "{color.gray.600}"
+      },
+      "tertiary": {
+        "$value": "{color.gray.500}"
+      },
+      "disabled": {
+        "$value": "{color.gray.400}"
+      },
+      "onbrand": {
+        "$value": "{color.gray.100}"
+      },
+      "Danger": {
+        "$value": "{color.red.600}"
+      }
+    },
+    "background": {
+      "default": {
+        "$value": "{color.gray.100}"
+      },
+      "Subtle": {
+        "$value": "#fafafa",
+        "comment": "Primitive 매칭 없음 (raw 값)"
+      },
+      "muted": {
+        "$value": "#f5f7fa",
+        "comment": "= gray/300 값과 동일하나 표기 보존"
+      },
+      "brand": {
+        "$value": "{color.blue.600}"
+      },
+      "brandsubtle": {
+        "$value": "{color.blue.100}"
+      },
+      "danger": {
+        "$value": "{color.red.200}"
+      },
+      "dangersubtle": {
+        "$value": "{color.red.100}"
+      }
+    },
+    "border": {
+      "default": {
+        "$value": "{color.gray.400}"
+      },
+      "strong": {
+        "$value": "{color.gray.700}"
+      },
+      "brand": {
+        "$value": "{color.blue.600}"
+      },
+      "danger": {
+        "$value": "{color.red.600}"
+      }
+    },
+    "interactive": {
+      "primary": {
+        "$value": "{color.blue.600}"
+      },
+      "primaryhover": {
+        "$value": "{color.blue.700}"
+      },
+      "destructive": {
+        "$value": "{color.red.600}"
+      },
+      "destructivehover": {
+        "$value": "{color.red.700}"
+      }
+    },
+    "content": {
+      "strong": {
+        "$value": "{color.gray.900}"
+      },
+      "default": {
+        "$value": "{color.gray.800}"
+      },
+      "muted": {
+        "$value": "{color.gray.700}"
+      }
+    },
+    "brand": {
+      "google": {
+        "red": {
+          "$value": "#f44336"
+        },
+        "yellow": {
+          "$value": "#ffc107"
+        },
+        "blue": {
+          "$value": "#448aff"
+        },
+        "green": {
+          "$value": "#43a047"
+        }
+      }
+    }
+  },
+  "sds": {
+    "color": {
+      "background": {
+        "neutral": {
+          "default": {
+            "$value": "#5a5a5a"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+/**
+ * Do not edit directly, this file was auto-generated.
+ */
+
+[data-theme="library"] {
+  --color-text-primary: var(--color-parchment-100); /** library 테마 — 본문 (16.05:1 on background.default) */
+  --color-text-secondary: var(--color-parchment-300);
+  --color-text-tertiary: var(--color-parchment-500); /** 6.62:1 on background.default */
+  --color-text-disabled: var(--color-mahogany-500);
+  --color-text-onbrand: var(--color-mahogany-900); /** 촛불색 배경 위 텍스트 (11.09:1) */
+  --color-text-Danger: var(--color-red-400);
+  --color-background-default: var(--color-mahogany-900);
+  --color-background-Subtle: var(--color-mahogany-800); /** library 테마 — 카드 표면 */
+  --color-background-muted: var(--color-mahogany-700); /** library 테마 — 한 단계 올라온 표면 */
+  --color-background-brand: var(--color-candle-400);
+  --color-background-brandsubtle: var(--color-candle-900);
+  --color-background-danger: var(--color-red-1000);
+  --color-background-dangersubtle: var(--color-red-1000);
+  --color-border-default: var(--color-mahogany-500);
+  --color-border-strong: var(--color-parchment-500);
+  --color-border-brand: var(--color-candle-400);
+  --color-border-danger: var(--color-red-400);
+  --color-interactive-primary: var(--color-candle-400);
+  --color-interactive-primaryhover: var(--color-candle-300);
+  --color-interactive-destructive: var(--color-red-500);
+  --color-interactive-destructivehover: var(--color-red-400);
+  --color-content-strong: var(--color-parchment-100);
+  --color-content-default: var(--color-parchment-300);
+  --color-content-muted: var(--color-parchment-500);
+}

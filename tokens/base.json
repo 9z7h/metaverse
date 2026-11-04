@@ -1,0 +1,202 @@
+{
+  "spacing": {
+    "0": {
+      "$value": "0"
+    },
+    "2": {
+      "$value": "2px"
+    },
+    "4": {
+      "$value": "4px"
+    },
+    "6": {
+      "$value": "6px"
+    },
+    "8": {
+      "$value": "8px"
+    },
+    "12": {
+      "$value": "12px"
+    },
+    "16": {
+      "$value": "16px"
+    },
+    "20": {
+      "$value": "20px"
+    },
+    "24": {
+      "$value": "24px"
+    },
+    "32": {
+      "$value": "32px"
+    },
+    "40": {
+      "$value": "40px"
+    },
+    "48": {
+      "$value": "48px"
+    },
+    "64": {
+      "$value": "64px"
+    }
+  },
+  "radius": {
+    "none": {
+      "$value": "0px"
+    },
+    "xs": {
+      "$value": "2px"
+    },
+    "sm": {
+      "$value": "4px"
+    },
+    "md": {
+      "$value": "8px"
+    },
+    "lg": {
+      "$value": "12px"
+    },
+    "xl": {
+      "$value": "16px"
+    },
+    "2xl": {
+      "$value": "24px"
+    },
+    "3xl": {
+      "$value": "32px"
+    },
+    "circle": {
+      "$value": "9999px"
+    }
+  },
+  "font": {
+    "family": {
+      "base": {
+        "$value": "\"Pretendard Variable\", -apple-system, BlinkMacSystemFont, \"system-ui\", \"Segoe UI\", sans-serif"
+      }
+    },
+    "weight": {
+      "regular": {
+        "$value": "400"
+      },
+      "medium": {
+        "$value": "500"
+      },
+      "bold": {
+        "$value": "700"
+      }
+    },
+    "size": {
+      "13": {
+        "$value": "13px"
+      },
+      "14": {
+        "$value": "14px"
+      },
+      "16": {
+        "$value": "16px"
+      },
+      "18": {
+        "$value": "18px"
+      },
+      "20": {
+        "$value": "20px"
+      },
+      "24": {
+        "$value": "24px"
+      },
+      "32": {
+        "$value": "32px"
+      }
+    }
+  },
+  "line": {
+    "height": {
+      "20": {
+        "$value": "20px"
+      },
+      "21": {
+        "$value": "21px"
+      },
+      "24": {
+        "$value": "24px"
+      },
+      "27": {
+        "$value": "27px"
+      },
+      "30": {
+        "$value": "30px"
+      },
+      "36": {
+        "$value": "36px"
+      },
+      "48": {
+        "$value": "48px"
+      }
+    }
+  },
+  "text": {
+    "title": {
+      "sm": {
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.18} / {line.height.27} {font.family.base}",
+          "comment": "title/sm/bold — 제목 (Pretendard Bold 18/27)"
+        }
+      },
+      "lg": {
+        "regular": {
+          "$value": "{font.weight.regular} {font.size.20} / {line.height.30} {font.family.base}",
+          "comment": "title/lg/regular — PostWriteHeader 서브타이틀, TitleInputBox (Pretendard Regular 20/30)"
+        }
+      }
+    },
+    "body": {
+      "lg": {
+        "regular": {
+          "$value": "{font.weight.regular} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "body/lg/regular — 본문 (Pretendard Regular 16/24)"
+        },
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24)"
+        }
+      },
+      "sm": {
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.14} / {line.height.21} {font.family.base}",
+          "comment": "body/sm/bold — Chip 라벨 (Pretendard Bold 14/21)"
+        },
+        "regular": {
+          "$value": "{font.weight.regular} {font.size.14} / {line.height.21} {font.family.base}",
+          "comment": "body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21)"
+        }
+      }
+    },
+    "caption": {
+      "lg": {
+        "medium": {
+          "$value": "{font.weight.medium} {font.size.13} / {line.height.20} {font.family.base}",
+          "comment": "caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20)"
+        },
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.13} / {line.height.20} {font.family.base}",
+          "comment": "caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20)"
+        }
+      }
+    },
+    "display": {
+      "sm": {
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.24} / {line.height.36} {font.family.base}",
+          "comment": "display/sm/bold — Category 선택 탭 (Pretendard Bold 24/36)"
+        }
+      },
+      "lg": {
+        "bold": {
+          "$value": "{font.weight.bold} {font.size.32} / {line.height.48} {font.family.base}",
+          "comment": "display/lg/bold — PostFilterHeader/PostWriteHeader 타이틀 (Pretendard Bold 32/48)"
+        }
+      }
+    }
+  }
+}

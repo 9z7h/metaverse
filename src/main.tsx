@@ -7,6 +7,7 @@ import { View } from "./components/pages/View";
 import { HomeDesign } from "./components/pages/HomeDesign";
 import { Login } from "./components/pages/Login";
 import { Write } from "./components/pages/Write";
+import { Library } from "./components/pages/Library";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -17,6 +18,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/home-design" element={<HomeDesign />} />
         <Route path="/login" element={<Login />} />
         <Route path="/write" element={<Write />} />
+        <Route path="/library" element={<Library />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
