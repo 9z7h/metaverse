@@ -101,6 +101,13 @@
   --color-candle-400: #f2bf55;
   --color-candle-500: #d9a03a;
   --color-candle-900: #3b2a12;
+  --color-wood-300: #a8784a;
+  --color-wood-500: #7a4f2e;
+  --color-wood-700: #4e321d;
+  --color-wood-900: #2a1b10;
+  --color-moss-600: #3f5e3a;
+  --color-plum-600: #5b3a6b;
+  --color-skin-300: #f1c7a0;
   --color-background-Subtle: #fafafa; /** Primitive 매칭 없음 (raw 값) */
   --color-background-muted: #f5f7fa; /** = gray/300 값과 동일하나 표기 보존 */
   --color-brand-google-red: #f44336;

@@ -224,4 +224,25 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 | --color-border-brand           | blue-600  | candle-400    |
 | --color-content-strong         | gray-900  | parchment-100 |
 
+### 3D 장면 토큰 (`--color-scene-*`, library 테마 전용)
+
+> three.js 재질은 CSS를 직접 쓸 수 없으므로 `readSceneColors()`(`src/components/pages/Library/scene/sceneLayout.ts`)가
+> `data-theme="library"` 요소의 computed style에서 이 토큰을 읽어 재질 색으로 넘긴다. 3D 코드에 hex를 쓰지 않는다.
+
+| CSS Property                        | 참조                                  | 용도               |
+| ----------------------------------- | ------------------------------------- | ------------------ |
+| --color-scene-floor                 | wood-900                              | 바닥               |
+| --color-scene-wall                  | mahogany-800                          | 벽                 |
+| --color-scene-fog                   | mahogany-900                          | 원경 안개          |
+| --color-scene-wood / -dark / -light | wood-500 / 700 / 300                  | 책상·책장·펼친 책  |
+| --color-scene-flame                 | candle-300                            | 촛불(발광), 점광원 |
+| --color-scene-light                 | candle-400                            | 환경광             |
+| --color-scene-skin                  | skin-300                              | 아바타 얼굴        |
+| --color-scene-hat                   | mahogany-900                          | 고깔모자, 눈       |
+| --color-scene-robe-1 ~ 4            | blue-800, red-800, moss-600, plum-600 | 다른 학생 로브, 책 |
+| --color-scene-robe-me               | candle-500                            | 내 아바타 로브     |
+| --color-scene-rug                   | red-1000                              | 중앙 통로 러그     |
+
+새 프리미티브: `--color-wood-300/500/700/900`, `--color-moss-600`, `--color-plum-600`, `--color-skin-300` (`tokens/color.json`).
+
 전체 목록은 `tokens/themes/library.json` 참고. 테마 추가 시 `style-dictionary.config.mjs`의 `themes` 배열에 이름을 추가한다.

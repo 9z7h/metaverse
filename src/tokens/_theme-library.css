@@ -27,4 +27,20 @@
   --color-content-strong: var(--color-parchment-100);
   --color-content-default: var(--color-parchment-300);
   --color-content-muted: var(--color-parchment-500);
+  --color-scene-floor: var(--color-wood-900); /** 3D — 바닥 */
+  --color-scene-wall: var(--color-mahogany-800);
+  --color-scene-fog: var(--color-mahogany-900); /** 3D — 원경 안개 (배경과 동일) */
+  --color-scene-wood: var(--color-wood-500);
+  --color-scene-wood-dark: var(--color-wood-700);
+  --color-scene-wood-light: var(--color-wood-300);
+  --color-scene-flame: var(--color-candle-300); /** 3D — 촛불 (발광 재질) */
+  --color-scene-light: var(--color-candle-400); /** 3D — 점광원 색 */
+  --color-scene-skin: var(--color-skin-300);
+  --color-scene-hat: var(--color-mahogany-900);
+  --color-scene-robe-1: var(--color-blue-800);
+  --color-scene-robe-2: var(--color-red-800);
+  --color-scene-robe-3: var(--color-moss-600);
+  --color-scene-robe-4: var(--color-plum-600);
+  --color-scene-robe-me: var(--color-candle-500); /** 3D — 내 아바타 로브 (강조) */
+  --color-scene-rug: var(--color-red-1000); /** 3D — 중앙 통로 러그 (채도 낮은 짙은 적색) */
 }

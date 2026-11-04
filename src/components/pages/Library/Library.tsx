@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../ui/Button";
 import { FocusTimer } from "../../ui/FocusTimer";
@@ -11,7 +11,13 @@ import {
 } from "./libraryPresence";
 import { useFocusTimer } from "./useFocusTimer";
 
-type Step = "entrance" | "seats" | "studying";
+// three.js 번들(수백 KB)은 3D 모드에 들어갈 때만 내려받는다
+const LibraryWorld = lazy(() =>
+  import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
+);
+
+/** entrance → (world | seats → studying). world = 3D, seats/studying = 2D 간편 모드 */
+type Step = "entrance" | "world" | "seats" | "studying";
 
 export interface LibraryProps {
   /** 한 세션 길이(초). 기본 25분. 스토리/데모에서 짧게 줄일 수 있다. */
@@ -179,7 +185,8 @@ function OtherSeat({
 
 /**
  * 마법학교 대도서관 — 함께 공부하는 모바일 페이지.
- * 입장(과목 입력) → 좌석 선택 → 집중 타이머 3단계.
+ * 입장(과목 입력) → 3D 도서관(기본) 또는 2D 간편 모드(좌석 선택 → 집중 타이머).
+ * 두 모드는 같은 presence/timer 상태를 공유해서 언제든 전환할 수 있다.
  * `data-theme="library"`로 시맨틱 토큰을 재정의해 기존 UI 컴포넌트를 그대로 테마링한다.
  */
 export function Library({
@@ -202,20 +209,20 @@ export function Library({
     presence.seats.length - presence.others.length - (presence.me ? 1 : 0);
   const mySubject = subject.trim() || DEFAULT_SUBJECT;
 
-  const handleSit = (seatId: string) => {
+  const handleSit = (seatId: string, next: Step = "studying") => {
     presence.join({
       seatId,
       subject: mySubject,
       focusing: false,
       focusSeconds: timer.focusedSeconds,
     });
-    setStep("studying");
+    setStep(next);
   };
 
-  const handleLeave = () => {
+  const handleLeave = (next: Step = "seats") => {
     if (timer.status !== "idle") timer.reset();
     presence.leave();
-    setStep("seats");
+    setStep(next);
   };
 
   const handleStart = () => {
@@ -230,6 +237,36 @@ export function Library({
     timer.reset();
     presence.update({ focusing: false });
   };
+
+  if (step === "world") {
+    return (
+      <div data-theme="library" style={pageStyle}>
+        <Suspense
+          fallback={
+            <p style={{ ...captionStyle, padding: "var(--spacing-24)" }}>
+              도서관 문을 여는 중…
+            </p>
+          }
+        >
+          <LibraryWorld
+            presence={presence}
+            timer={timer}
+            sessionSeconds={sessionSeconds}
+            subject={mySubject}
+            onSit={(seatId) => handleSit(seatId, "world")}
+            onStandUp={() => handleLeave("world")}
+            onStart={handleStart}
+            onPause={handlePause}
+            onReset={handleReset}
+            onExit={() =>
+              presence.me ? handleLeave("entrance") : setStep("entrance")
+            }
+            onSimpleMode={() => setStep(presence.me ? "studying" : "seats")}
+          />
+        </Suspense>
+      </div>
+    );
+  }
 
   return (
     <div data-theme="library" style={pageStyle}>
@@ -279,7 +316,7 @@ export function Library({
               }}
               onSubmit={(e) => {
                 e.preventDefault();
-                setStep("seats");
+                setStep("world");
               }}
             >
               <Input
@@ -289,8 +326,11 @@ export function Library({
                 maxLength={20}
                 onChange={(e) => setSubject(e.target.value)}
               />
-              <ButtonLarge onClick={() => setStep("seats")}>
+              <ButtonLarge onClick={() => setStep("world")}>
                 도서관 입장
+              </ButtonLarge>
+              <ButtonLarge style="outline" onClick={() => setStep("seats")}>
+                간편 모드로 입장
               </ButtonLarge>
             </form>
           </>
@@ -308,6 +348,14 @@ export function Library({
               <Header
                 title="자리를 골라주세요"
                 onBack={() => setStep("entrance")}
+                action={
+                  <ButtonSmall
+                    style="monolight"
+                    onClick={() => setStep("world")}
+                  >
+                    3D로 보기
+                  </ButtonSmall>
+                }
               />
               <LiveCount online={presence.onlineCount} free={freeSeats} />
             </div>
@@ -337,7 +385,7 @@ export function Library({
             <Header
               title={`${seatLabel(presence.me.seatId)} 자리`}
               action={
-                <ButtonSmall style="monolight" onClick={handleLeave}>
+                <ButtonSmall style="monolight" onClick={() => handleLeave()}>
                   자리 비우기
                 </ButtonSmall>
               }

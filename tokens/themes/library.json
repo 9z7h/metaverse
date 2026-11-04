@@ -5,20 +5,28 @@
         "$value": "{color.parchment.100}",
         "comment": "library 테마 — 본문 (16.05:1 on background.default)"
       },
-      "secondary": { "$value": "{color.parchment.300}" },
+      "secondary": {
+        "$value": "{color.parchment.300}"
+      },
       "tertiary": {
         "$value": "{color.parchment.500}",
         "comment": "6.62:1 on background.default"
       },
-      "disabled": { "$value": "{color.mahogany.500}" },
+      "disabled": {
+        "$value": "{color.mahogany.500}"
+      },
       "onbrand": {
         "$value": "{color.mahogany.900}",
         "comment": "촛불색 배경 위 텍스트 (11.09:1)"
       },
-      "Danger": { "$value": "{color.red.400}" }
+      "Danger": {
+        "$value": "{color.red.400}"
+      }
     },
     "background": {
-      "default": { "$value": "{color.mahogany.900}" },
+      "default": {
+        "$value": "{color.mahogany.900}"
+      },
       "Subtle": {
         "$value": "{color.mahogany.800}",
         "comment": "library 테마 — 카드 표면"
@@ -27,27 +35,113 @@
         "$value": "{color.mahogany.700}",
         "comment": "library 테마 — 한 단계 올라온 표면"
       },
-      "brand": { "$value": "{color.candle.400}" },
-      "brandsubtle": { "$value": "{color.candle.900}" },
-      "danger": { "$value": "{color.red.1000}" },
-      "dangersubtle": { "$value": "{color.red.1000}" }
+      "brand": {
+        "$value": "{color.candle.400}"
+      },
+      "brandsubtle": {
+        "$value": "{color.candle.900}"
+      },
+      "danger": {
+        "$value": "{color.red.1000}"
+      },
+      "dangersubtle": {
+        "$value": "{color.red.1000}"
+      }
     },
     "border": {
-      "default": { "$value": "{color.mahogany.500}" },
-      "strong": { "$value": "{color.parchment.500}" },
-      "brand": { "$value": "{color.candle.400}" },
-      "danger": { "$value": "{color.red.400}" }
+      "default": {
+        "$value": "{color.mahogany.500}"
+      },
+      "strong": {
+        "$value": "{color.parchment.500}"
+      },
+      "brand": {
+        "$value": "{color.candle.400}"
+      },
+      "danger": {
+        "$value": "{color.red.400}"
+      }
     },
     "interactive": {
-      "primary": { "$value": "{color.candle.400}" },
-      "primaryhover": { "$value": "{color.candle.300}" },
-      "destructive": { "$value": "{color.red.500}" },
-      "destructivehover": { "$value": "{color.red.400}" }
+      "primary": {
+        "$value": "{color.candle.400}"
+      },
+      "primaryhover": {
+        "$value": "{color.candle.300}"
+      },
+      "destructive": {
+        "$value": "{color.red.500}"
+      },
+      "destructivehover": {
+        "$value": "{color.red.400}"
+      }
     },
     "content": {
-      "strong": { "$value": "{color.parchment.100}" },
-      "default": { "$value": "{color.parchment.300}" },
-      "muted": { "$value": "{color.parchment.500}" }
+      "strong": {
+        "$value": "{color.parchment.100}"
+      },
+      "default": {
+        "$value": "{color.parchment.300}"
+      },
+      "muted": {
+        "$value": "{color.parchment.500}"
+      }
+    },
+    "scene": {
+      "floor": {
+        "$value": "{color.wood.900}",
+        "comment": "3D — 바닥"
+      },
+      "wall": {
+        "$value": "{color.mahogany.800}"
+      },
+      "fog": {
+        "$value": "{color.mahogany.900}",
+        "comment": "3D — 원경 안개 (배경과 동일)"
+      },
+      "wood": {
+        "$value": "{color.wood.500}"
+      },
+      "wood-dark": {
+        "$value": "{color.wood.700}"
+      },
+      "wood-light": {
+        "$value": "{color.wood.300}"
+      },
+      "flame": {
+        "$value": "{color.candle.300}",
+        "comment": "3D — 촛불 (발광 재질)"
+      },
+      "light": {
+        "$value": "{color.candle.400}",
+        "comment": "3D — 점광원 색"
+      },
+      "skin": {
+        "$value": "{color.skin.300}"
+      },
+      "hat": {
+        "$value": "{color.mahogany.900}"
+      },
+      "robe-1": {
+        "$value": "{color.blue.800}"
+      },
+      "robe-2": {
+        "$value": "{color.red.800}"
+      },
+      "robe-3": {
+        "$value": "{color.moss.600}"
+      },
+      "robe-4": {
+        "$value": "{color.plum.600}"
+      },
+      "robe-me": {
+        "$value": "{color.candle.500}",
+        "comment": "3D — 내 아바타 로브 (강조)"
+      },
+      "rug": {
+        "$value": "{color.red.1000}",
+        "comment": "3D — 중앙 통로 러그 (채도 낮은 짙은 적색)"
+      }
     }
   }
 }

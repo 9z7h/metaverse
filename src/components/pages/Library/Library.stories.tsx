@@ -27,7 +27,7 @@ export const Entrance: Story = {
   },
 };
 
-/** 과목 입력 → 입장 → 빈 자리 착석 → 집중 시작까지 전체 흐름 */
+/** [간편 모드] 과목 입력 → 입장 → 빈 자리 착석 → 집중 시작까지 전체 흐름 */
 export const FullFlow: Story = {
   args: { presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
@@ -36,7 +36,9 @@ export const FullFlow: Story = {
       canvas.getByLabelText("오늘 공부할 과목"),
       "UX 리서치",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "간편 모드로 입장" }),
+    );
 
     await expect(
       canvas.getByRole("heading", { name: "자리를 골라주세요" }),
@@ -62,7 +64,9 @@ export const SessionComplete: Story = {
   args: { sessionSeconds: 2, presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "간편 모드로 입장" }),
+    );
     await userEvent.click(
       canvas.getAllByRole("button", { name: "여기 앉기" })[0],
     );
@@ -78,7 +82,9 @@ export const LeaveSeat: Story = {
   args: { presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "간편 모드로 입장" }),
+    );
     await userEvent.click(
       canvas.getAllByRole("button", { name: "여기 앉기" })[0],
     );
@@ -86,5 +92,25 @@ export const LeaveSeat: Story = {
     await expect(
       canvas.getAllByRole("button", { name: "여기 앉기" }),
     ).toHaveLength(3);
+  },
+};
+
+/** [3D] 입장 → 3D 도서관 로드, 조이스틱·간편 모드 전환 버튼 노출 */
+export const World3D: Story = {
+  args: { presenceOptions: { simulate: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
+    await waitFor(
+      () =>
+        expect(
+          canvas.getByRole("application", { name: /이동 조이스틱/ }),
+        ).toBeInTheDocument(),
+      { timeout: 10000 },
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "간편 모드" }));
+    await expect(
+      canvas.getByRole("heading", { name: "자리를 골라주세요" }),
+    ).toBeInTheDocument();
   },
 };
