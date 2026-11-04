@@ -10,10 +10,11 @@ import {
   deskLayout,
   nearestFreeSeat,
   resolveCollision,
-  robeToken,
 } from "./sceneLayout";
 import type { DeskLayout, SceneColors, Vec2 } from "./sceneLayout";
 import type { PresenceStudent } from "../libraryPresence";
+import { houseToken } from "../houses";
+import type { HouseId } from "../houses";
 
 const WALK_SPEED = 2.6; // m/s
 const BOT_SPEED = 1.4;
@@ -31,6 +32,8 @@ export interface PlayerProps {
   seat: DeskLayout | null;
   focusing: boolean;
   subject: string;
+  /** 내 기숙사 — 로브·모자 띠 색 */
+  house: HouseId;
   /** 근처 빈 좌석이 바뀔 때만 호출 */
   onNearSeatChange: (seatId: string | null) => void;
 }
@@ -43,6 +46,7 @@ export function Player({
   seat,
   focusing,
   subject,
+  house,
   onNearSeatChange,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
@@ -124,7 +128,8 @@ export function Player({
   return (
     <Avatar
       ref={ref}
-      robe={colors["--color-scene-robe-me"]}
+      robe={colors[houseToken(house, "primary")]}
+      band={colors[houseToken(house, "accent")]}
       skin={colors["--color-scene-skin"]}
       hat={colors["--color-scene-hat"]}
       pose={pose}
@@ -187,13 +192,17 @@ export function Bot({ student, colors, entering }: BotProps) {
   return (
     <Avatar
       ref={ref}
-      robe={colors[robeToken(student.id)]}
+      robe={colors[houseToken(student.house, "primary")]}
+      band={colors[houseToken(student.house, "accent")]}
+      houseDot={colors[houseToken(student.house, "accent")]}
       skin={colors["--color-scene-skin"]}
       hat={colors["--color-scene-hat"]}
       pose={pose}
       focusing={student.focusing}
       name={student.name}
       subject={student.subject}
+      // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
+      showLabel={pose === "sit"}
     />
   );
 }

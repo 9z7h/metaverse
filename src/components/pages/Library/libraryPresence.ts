@@ -8,6 +8,7 @@
  * 지금은 타이머로 다른 학생들의 집중/휴식 전환과 입·퇴장을 시뮬레이션한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { HouseId } from "./houses";
 
 export interface LibrarySeat {
   id: string;
@@ -23,6 +24,8 @@ export interface PresenceStudent {
   focusing: boolean;
   /** 오늘 누적 집중 시간(초) */
   focusSeconds: number;
+  /** 소속 기숙사 */
+  house: HouseId;
 }
 
 export type MyPresence = Omit<PresenceStudent, "id" | "name">;
@@ -51,6 +54,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "A1",
     focusing: true,
     focusSeconds: 95 * 60,
+    house: "ember",
   },
   {
     id: "s2",
@@ -59,6 +63,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "A2",
     focusing: false,
     focusSeconds: 40 * 60,
+    house: "gold",
   },
   {
     id: "s3",
@@ -67,6 +72,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "B2",
     focusing: true,
     focusSeconds: 130 * 60,
+    house: "azure",
   },
 ];
 
@@ -78,6 +84,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     subject: "통계학",
     focusing: true,
     focusSeconds: 15 * 60,
+    house: "verdant",
   },
   {
     id: "v2",
@@ -85,6 +92,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     subject: "한국사",
     focusing: true,
     focusSeconds: 55 * 60,
+    house: "ember",
   },
 ];
 

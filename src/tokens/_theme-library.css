@@ -41,6 +41,23 @@
   --color-scene-robe-2: var(--color-red-800);
   --color-scene-robe-3: var(--color-moss-600);
   --color-scene-robe-4: var(--color-plum-600);
-  --color-scene-robe-me: var(--color-candle-500); /** 3D — 내 아바타 로브 (강조) */
   --color-scene-rug: var(--color-red-1000); /** 3D — 중앙 통로 러그 (채도 낮은 짙은 적색) */
+  --color-scene-moonlight: var(--color-moon-300); /** 3D — 창호 달빛 */
+  --color-scene-dancheong: var(--color-dancheong-500); /** 3D — 단청 들보 바탕(뇌록) */
+  --color-house-ember-primary: var(--color-ember-600); /** 기숙사 대표색 — 로브, 깃발, 배정 연출 배경 */
+  --color-house-ember-accent: var(--color-ember-300); /** 어두운 배경 위 기숙사 글자색 (≥7.8:1) */
+  --color-house-ember-subtle: var(--color-ember-900); /** 기숙사 배지 배경 */
+  --color-house-ember-on: var(--color-parchment-100); /** primary 위 글자색 (≥4.5:1) */
+  --color-house-azure-primary: var(--color-azure-600); /** 기숙사 대표색 — 로브, 깃발, 배정 연출 배경 */
+  --color-house-azure-accent: var(--color-azure-300); /** 어두운 배경 위 기숙사 글자색 (≥7.8:1) */
+  --color-house-azure-subtle: var(--color-azure-900); /** 기숙사 배지 배경 */
+  --color-house-azure-on: var(--color-parchment-100); /** primary 위 글자색 (≥4.5:1) */
+  --color-house-gold-primary: var(--color-gold-600); /** 기숙사 대표색 — 로브, 깃발, 배정 연출 배경 */
+  --color-house-gold-accent: var(--color-gold-300); /** 어두운 배경 위 기숙사 글자색 (≥7.8:1) */
+  --color-house-gold-subtle: var(--color-gold-900); /** 기숙사 배지 배경 */
+  --color-house-gold-on: var(--color-mahogany-900); /** primary 위 글자색 (≥4.5:1) */
+  --color-house-verdant-primary: var(--color-verdant-600); /** 기숙사 대표색 — 로브, 깃발, 배정 연출 배경 */
+  --color-house-verdant-accent: var(--color-verdant-300); /** 어두운 배경 위 기숙사 글자색 (≥7.8:1) */
+  --color-house-verdant-subtle: var(--color-verdant-900); /** 기숙사 배지 배경 */
+  --color-house-verdant-on: var(--color-parchment-100); /** primary 위 글자색 (≥4.5:1) */
 }

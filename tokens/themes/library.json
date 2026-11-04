@@ -134,13 +134,91 @@
       "robe-4": {
         "$value": "{color.plum.600}"
       },
-      "robe-me": {
-        "$value": "{color.candle.500}",
-        "comment": "3D — 내 아바타 로브 (강조)"
-      },
       "rug": {
         "$value": "{color.red.1000}",
         "comment": "3D — 중앙 통로 러그 (채도 낮은 짙은 적색)"
+      },
+      "moonlight": {
+        "$value": "{color.moon.300}",
+        "comment": "3D — 창호 달빛"
+      },
+      "dancheong": {
+        "$value": "{color.dancheong.500}",
+        "comment": "3D — 단청 들보 바탕(뇌록)"
+      }
+    },
+    "house": {
+      "ember": {
+        "primary": {
+          "$value": "{color.ember.600}",
+          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+        },
+        "accent": {
+          "$value": "{color.ember.300}",
+          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+        },
+        "subtle": {
+          "$value": "{color.ember.900}",
+          "comment": "기숙사 배지 배경"
+        },
+        "on": {
+          "$value": "{color.parchment.100}",
+          "comment": "primary 위 글자색 (≥4.5:1)"
+        }
+      },
+      "azure": {
+        "primary": {
+          "$value": "{color.azure.600}",
+          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+        },
+        "accent": {
+          "$value": "{color.azure.300}",
+          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+        },
+        "subtle": {
+          "$value": "{color.azure.900}",
+          "comment": "기숙사 배지 배경"
+        },
+        "on": {
+          "$value": "{color.parchment.100}",
+          "comment": "primary 위 글자색 (≥4.5:1)"
+        }
+      },
+      "gold": {
+        "primary": {
+          "$value": "{color.gold.600}",
+          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+        },
+        "accent": {
+          "$value": "{color.gold.300}",
+          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+        },
+        "subtle": {
+          "$value": "{color.gold.900}",
+          "comment": "기숙사 배지 배경"
+        },
+        "on": {
+          "$value": "{color.mahogany.900}",
+          "comment": "primary 위 글자색 (≥4.5:1)"
+        }
+      },
+      "verdant": {
+        "primary": {
+          "$value": "{color.verdant.600}",
+          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+        },
+        "accent": {
+          "$value": "{color.verdant.300}",
+          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+        },
+        "subtle": {
+          "$value": "{color.verdant.900}",
+          "comment": "기숙사 배지 배경"
+        },
+        "on": {
+          "$value": "{color.parchment.100}",
+          "comment": "primary 위 글자색 (≥4.5:1)"
+        }
       }
     }
   }

@@ -108,6 +108,20 @@
   --color-moss-600: #3f5e3a;
   --color-plum-600: #5b3a6b;
   --color-skin-300: #f1c7a0;
+  --color-ember-300: #ff9a8a;
+  --color-ember-600: #b8322a;
+  --color-ember-900: #3d1512;
+  --color-azure-300: #9dbcff;
+  --color-azure-600: #2f5fb3;
+  --color-azure-900: #142340;
+  --color-gold-300: #f5cf6a;
+  --color-gold-600: #c99a2e;
+  --color-gold-900: #3a2c0e;
+  --color-verdant-300: #86d6a8;
+  --color-verdant-600: #2a6e49;
+  --color-verdant-900: #12301f;
+  --color-moon-300: #9db8e8;
+  --color-dancheong-500: #3d6b5a;
   --color-background-Subtle: #fafafa; /** Primitive 매칭 없음 (raw 값) */
   --color-background-muted: #f5f7fa; /** = gray/300 값과 동일하나 표기 보존 */
   --color-brand-google-red: #f44336;

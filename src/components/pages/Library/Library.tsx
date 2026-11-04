@@ -10,20 +10,29 @@ import {
   type UseLibraryPresenceOptions,
 } from "./libraryPresence";
 import { useFocusTimer } from "./useFocusTimer";
+import { HouseCrest } from "./HouseCrest";
+import { SortingReveal } from "./SortingReveal";
+import { HOUSES, houseVar, loadHouse, randomHouse, saveHouse } from "./houses";
+import type { HouseId } from "./houses";
 
 // three.js 번들(수백 KB)은 3D 모드에 들어갈 때만 내려받는다
 const LibraryWorld = lazy(() =>
   import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
 );
 
-/** entrance → (world | seats → studying). world = 3D, seats/studying = 2D 간편 모드 */
-type Step = "entrance" | "world" | "seats" | "studying";
+/**
+ * entrance → (첫 입장이면 sorting) → world | seats → studying
+ * world = 3D, seats/studying = 2D 간편 모드
+ */
+type Step = "entrance" | "sorting" | "world" | "seats" | "studying";
 
 export interface LibraryProps {
   /** 한 세션 길이(초). 기본 25분. 스토리/데모에서 짧게 줄일 수 있다. */
   sessionSeconds?: number;
   /** 접속자 시뮬레이션 옵션 (테스트에서 `{ simulate: false }`) */
   presenceOptions?: UseLibraryPresenceOptions;
+  /** 기숙사 배정 연출 길이(ms). 스토리/테스트에서 0으로 즉시 표시 */
+  sortingDurationMs?: number;
 }
 
 const DEFAULT_SUBJECT = "자율 학습";
@@ -184,17 +193,31 @@ function OtherSeat({
 /* ── 페이지 ───────────────────────────────────────────── */
 
 /**
- * 마법학교 대도서관 — 함께 공부하는 모바일 페이지.
- * 입장(과목 입력) → 3D 도서관(기본) 또는 2D 간편 모드(좌석 선택 → 집중 타이머).
+ * 한울 마법학당 장서각 — 함께 공부하는 모바일 페이지.
+ * 입장(과목 입력) → 첫 입장 시 기숙사 배정 → 3D 장서각(기본) 또는 2D 간편 모드.
  * 두 모드는 같은 presence/timer 상태를 공유해서 언제든 전환할 수 있다.
  * `data-theme="library"`로 시맨틱 토큰을 재정의해 기존 UI 컴포넌트를 그대로 테마링한다.
  */
 export function Library({
   sessionSeconds = 25 * 60,
   presenceOptions,
+  sortingDurationMs,
 }: LibraryProps) {
   const presence = useLibraryPresence(presenceOptions);
   const [step, setStep] = useState<Step>("entrance");
+  // 기숙사는 처음 한 번 배정 후 유지 (localStorage)
+  const [house, setHouse] = useState<HouseId | null>(() => loadHouse());
+  const [afterSorting, setAfterSorting] = useState<Step>("world");
+
+  const assignHouse = (next: Step) => {
+    const h = randomHouse();
+    saveHouse(h);
+    setHouse(h);
+    setAfterSorting(next);
+    setStep("sorting");
+  };
+  /** 입장: 기숙사가 없으면 배정 연출부터 */
+  const enter = (next: Step) => (house ? setStep(next) : assignHouse(next));
   const [subject, setSubject] = useState("");
 
   const timer = useFocusTimer(sessionSeconds, () =>
@@ -213,6 +236,7 @@ export function Library({
     presence.join({
       seatId,
       subject: mySubject,
+      house: house ?? randomHouse(),
       focusing: false,
       focusSeconds: timer.focusedSeconds,
     });
@@ -238,7 +262,19 @@ export function Library({
     presence.update({ focusing: false });
   };
 
-  if (step === "world") {
+  if (step === "sorting" && house) {
+    return (
+      <div data-theme="library" style={pageStyle}>
+        <SortingReveal
+          house={house}
+          durationMs={sortingDurationMs}
+          onEnter={() => setStep(afterSorting)}
+        />
+      </div>
+    );
+  }
+
+  if (step === "world" && house) {
     return (
       <div data-theme="library" style={pageStyle}>
         <Suspense
@@ -253,6 +289,7 @@ export function Library({
             timer={timer}
             sessionSeconds={sessionSeconds}
             subject={mySubject}
+            house={house}
             onSit={(seatId) => handleSit(seatId, "world")}
             onStandUp={() => handleLeave("world")}
             onStart={handleStart}
@@ -281,7 +318,7 @@ export function Library({
                 paddingTop: "var(--spacing-48)",
               }}
             >
-              <p style={captionStyle}>마법학교 · 밤 열람실</p>
+              <p style={captionStyle}>한울 마법학당 · 밤의 장서각</p>
               <h1
                 style={{
                   margin: 0,
@@ -289,9 +326,9 @@ export function Library({
                   color: "var(--color-text-primary)",
                 }}
               >
-                대도서관에
+                청사초롱 아래서
                 <br />
-                촛불이 켜졌어요
+                함께 공부해요
               </h1>
               <p
                 style={{
@@ -300,12 +337,62 @@ export function Library({
                   color: "var(--color-text-secondary)",
                 }}
               >
-                혼자 하면 흐트러지는 공부, 같은 서고에 앉은 수련생들과 함께
-                집중해요.
+                한국에 처음 문을 연 마법학당의 도서관이에요. 같은 서고에 앉은
+                수련생들과 함께 집중해 보세요.
               </p>
             </div>
 
             <LiveCount online={presence.onlineCount} free={freeSeats} />
+
+            {house ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--spacing-12)",
+                  padding: "var(--spacing-12)",
+                  borderRadius: "var(--radius-lg)",
+                  background: houseVar(house, "subtle"),
+                }}
+              >
+                <HouseCrest house={house} size={48} />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      font: "var(--text-body-sm-bold)",
+                      color: houseVar(house, "accent"),
+                    }}
+                  >
+                    {HOUSES[house].name} 수련생
+                  </span>
+                  <span
+                    style={{
+                      font: "var(--text-caption-lg-medium)",
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    {HOUSES[house].trait}
+                  </span>
+                </div>
+                <ButtonSmall
+                  style="monolight"
+                  onClick={() => assignHouse("world")}
+                >
+                  다시 배정
+                </ButtonSmall>
+              </div>
+            ) : (
+              <p style={captionStyle}>
+                첫 입장 시 네 기숙사 중 하나가 무작위로 배정돼요.
+              </p>
+            )}
 
             <form
               style={{
@@ -316,7 +403,7 @@ export function Library({
               }}
               onSubmit={(e) => {
                 e.preventDefault();
-                setStep("world");
+                enter("world");
               }}
             >
               <Input
@@ -326,10 +413,10 @@ export function Library({
                 maxLength={20}
                 onChange={(e) => setSubject(e.target.value)}
               />
-              <ButtonLarge onClick={() => setStep("world")}>
+              <ButtonLarge onClick={() => enter("world")}>
                 도서관 입장
               </ButtonLarge>
-              <ButtonLarge style="outline" onClick={() => setStep("seats")}>
+              <ButtonLarge style="outline" onClick={() => enter("seats")}>
                 간편 모드로 입장
               </ButtonLarge>
             </form>

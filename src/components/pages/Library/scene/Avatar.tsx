@@ -17,6 +17,10 @@ export const LabelPortalContext =
 
 export interface AvatarProps {
   robe: string;
+  /** 모자 띠 색 (기숙사 accent) */
+  band?: string;
+  /** 이름표 앞 기숙사 점 색 */
+  houseDot?: string;
   skin: string;
   hat: string;
   pose: AvatarPose;
@@ -55,6 +59,8 @@ const tagStyle = (highlight: boolean): CSSProperties => ({
 export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   {
     robe,
+    band,
+    houseDot,
     skin,
     hat,
     pose,
@@ -117,6 +123,12 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <cylinderGeometry args={[0.36, 0.36, 0.03, 20]} />
             <meshStandardMaterial color={hat} roughness={0.7} />
           </mesh>
+          {band ? (
+            <mesh position={[0, 0.37, -0.01]} rotation={[-0.18, 0, 0]}>
+              <cylinderGeometry args={[0.205, 0.215, 0.07, 16]} />
+              <meshStandardMaterial color={band} roughness={0.6} />
+            </mesh>
+          ) : null}
           <mesh position={[0, 0.56, -0.03]} rotation={[-0.18, 0, 0]}>
             <coneGeometry args={[0.22, 0.52, 16]} />
             <meshStandardMaterial color={hat} roughness={0.7} />
@@ -134,7 +146,25 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
         >
           <div style={tagStyle(highlight)} aria-hidden>
-            <span>{name}</span>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--spacing-4)",
+              }}
+            >
+              {houseDot ? (
+                <span
+                  style={{
+                    width: "var(--spacing-8)",
+                    height: "var(--spacing-8)",
+                    borderRadius: "var(--radius-circle)",
+                    background: houseDot,
+                  }}
+                />
+              ) : null}
+              {name}
+            </span>
             {subject ? (
               <span style={{ font: "var(--text-caption-lg-medium)" }}>
                 {subject}

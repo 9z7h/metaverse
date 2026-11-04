@@ -93,8 +93,18 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-robe-2",
   "--color-scene-robe-3",
   "--color-scene-robe-4",
-  "--color-scene-robe-me",
   "--color-scene-rug",
+  "--color-scene-moonlight",
+  "--color-scene-dancheong",
+  ...(["ember", "azure", "gold", "verdant"] as const).flatMap(
+    (h) =>
+      [
+        `--color-house-${h}-primary`,
+        `--color-house-${h}-accent`,
+        `--color-house-${h}-on`,
+        `--color-house-${h}-subtle`,
+      ] as const,
+  ),
 ] as const;
 
 export type SceneColorToken = (typeof SCENE_COLOR_TOKENS)[number];
@@ -109,17 +119,4 @@ export function readSceneColors(el: Element): SceneColors {
   const out = {} as SceneColors;
   for (const t of SCENE_COLOR_TOKENS) out[t] = cs.getPropertyValue(t).trim();
   return out;
-}
-
-/** 학생 id → 로브 색 토큰 (결정적) */
-export function robeToken(id: string): SceneColorToken {
-  const robes: SceneColorToken[] = [
-    "--color-scene-robe-1",
-    "--color-scene-robe-2",
-    "--color-scene-robe-3",
-    "--color-scene-robe-4",
-  ];
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return robes[h % robes.length];
 }

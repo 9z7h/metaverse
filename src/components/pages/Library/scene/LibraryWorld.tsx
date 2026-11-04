@@ -17,6 +17,10 @@ import type { LibraryPresence } from "../libraryPresence";
 import type { FocusTimerState } from "../useFocusTimer";
 import { Bot, FrameDriver, Player } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
+import { Atmosphere } from "./Atmosphere";
+import { HouseCrest } from "../HouseCrest";
+import { HOUSES, houseVar } from "../houses";
+import type { HouseId } from "../houses";
 import { LabelPortalContext } from "./Avatar";
 import { deskLayout, readSceneColors } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
@@ -26,6 +30,8 @@ export interface LibraryWorldProps {
   timer: FocusTimerState;
   sessionSeconds: number;
   subject: string;
+  /** 내 기숙사 */
+  house: HouseId;
   onSit: (seatId: string) => void;
   onStandUp: () => void;
   onStart: () => void;
@@ -111,6 +117,7 @@ export function LibraryWorld({
   timer,
   sessionSeconds,
   subject,
+  house,
   onSit,
   onStandUp,
   onStart,
@@ -238,6 +245,7 @@ export function LibraryWorld({
             ))}
 
             <LibraryRoom colors={colors} desks={desks} />
+            <Atmosphere colors={colors} />
             {presence.others.map((s) => (
               <Bot
                 key={s.id}
@@ -254,6 +262,7 @@ export function LibraryWorld({
               seat={seat}
               focusing={focusing}
               subject={subject}
+              house={house}
               onNearSeatChange={setNearSeat}
             />
             <FrameDriver fps={seat ? FPS_SEATED : FPS_WALKING} />
@@ -273,40 +282,63 @@ export function LibraryWorld({
 
       {/* ── HUD ── */}
       <div style={hudStyle}>
-        <div style={rowStyle}>
-          <div
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--spacing-8)",
+          }}
+        >
+          <div style={rowStyle}>
+            <div
+              style={{
+                ...auto,
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--spacing-8)",
+              }}
+            >
+              <ButtonMedium
+                type="icon"
+                icon="arrow_left"
+                style="monolight"
+                aria-label="도서관 나가기"
+                onClick={onExit}
+              />
+              <span style={pillStyle} aria-live="polite">
+                <span
+                  aria-hidden
+                  style={{
+                    width: "var(--spacing-8)",
+                    height: "var(--spacing-8)",
+                    borderRadius: "var(--radius-circle)",
+                    background: "var(--color-interactive-primary)",
+                  }}
+                />
+                {presence.onlineCount}명 공부 중
+              </span>
+            </div>
+            <div style={auto}>
+              <ButtonSmall style="monolight" onClick={onSimpleMode}>
+                간편 모드
+              </ButtonSmall>
+            </div>
+          </div>
+          {/* 내 기숙사 배지 */}
+          <span
             style={{
-              ...auto,
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--spacing-8)",
+              ...pillStyle,
+              alignSelf: "flex-start",
+              padding:
+                "var(--spacing-4) var(--spacing-12) var(--spacing-4) var(--spacing-4)",
+              background: houseVar(house, "subtle"),
+              color: houseVar(house, "accent"),
+              font: "var(--text-caption-lg-bold)",
             }}
           >
-            <ButtonMedium
-              type="icon"
-              icon="arrow_left"
-              style="monolight"
-              aria-label="도서관 나가기"
-              onClick={onExit}
-            />
-            <span style={pillStyle} aria-live="polite">
-              <span
-                aria-hidden
-                style={{
-                  width: "var(--spacing-8)",
-                  height: "var(--spacing-8)",
-                  borderRadius: "var(--radius-circle)",
-                  background: "var(--color-interactive-primary)",
-                }}
-              />
-              {presence.onlineCount}명 공부 중
-            </span>
-          </div>
-          <div style={auto}>
-            <ButtonSmall style="monolight" onClick={onSimpleMode}>
-              간편 모드
-            </ButtonSmall>
-          </div>
+            <HouseCrest house={house} size={24} aria-hidden />
+            {HOUSES[house].name} 수련생
+          </span>
         </div>
 
         {seat ? (

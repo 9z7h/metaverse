@@ -240,9 +240,24 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 | --color-scene-skin                  | skin-300                              | 아바타 얼굴        |
 | --color-scene-hat                   | mahogany-900                          | 고깔모자, 눈       |
 | --color-scene-robe-1 ~ 4            | blue-800, red-800, moss-600, plum-600 | 다른 학생 로브, 책 |
-| --color-scene-robe-me               | candle-500                            | 내 아바타 로브     |
 | --color-scene-rug                   | red-1000                              | 중앙 통로 러그     |
 
 새 프리미티브: `--color-wood-300/500/700/900`, `--color-moss-600`, `--color-plum-600`, `--color-skin-300` (`tokens/color.json`).
 
 전체 목록은 `tokens/themes/library.json` 참고. 테마 추가 시 `style-dictionary.config.mjs`의 `themes` 배열에 이름을 추가한다.
+
+### 기숙사 토큰 (`--color-house-*`, library 테마 전용)
+
+> 한울 마법학당 4기숙사. 원본: `tokens/themes/library.json` → `color.house.<id>.*`.
+> 정의·이름은 `src/components/pages/Library/houses.ts`. 대비는 mahogany-800/900 배경 기준 검증.
+
+| 기숙사 (id)      | primary (로브·깃발·초롱) | accent (글자·문장, ≥7.8:1) | subtle (배지 배경)  | on (primary 위 글자, ≥4.5:1) |
+| ---------------- | ------------------------ | -------------------------- | ------------------- | ---------------------------- |
+| 주작당 (ember)   | ember-600 #b8322a        | ember-300 #ff9a8a          | ember-900 #3d1512   | parchment-100 (5.07:1)       |
+| 청룡당 (azure)   | azure-600 #2f5fb3        | azure-300 #9dbcff          | azure-900 #142340   | parchment-100 (5.25:1)       |
+| 해태당 (gold)    | gold-600 #c99a2e         | gold-300 #f5cf6a           | gold-900 #3a2c0e    | mahogany-900 (7.31:1)        |
+| 장생당 (verdant) | verdant-600 #2a6e49      | verdant-300 #86d6a8        | verdant-900 #12301f | parchment-100 (5.22:1)       |
+
+사용: CSS는 `houseVar(id, "accent")` → `var(--color-house-<id>-accent)`, 3D는 `houseToken(id, part)`로 `readSceneColors()` 결과에서 조회.
+
+추가 장면 토큰: `--color-scene-moonlight`(moon-300, 창호 달빛), `--color-scene-dancheong`(dancheong-500, 단청 띠 바탕).

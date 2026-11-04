@@ -6,7 +6,6 @@ import {
   deskLayout,
   nearestFreeSeat,
   resolveCollision,
-  robeToken,
 } from "./sceneLayout";
 
 const desks = ["A1", "A2", "B1", "B2", "C1", "C2"].map(deskLayout);
@@ -58,12 +57,5 @@ describe("nearestFreeSeat", () => {
 
   it("멀리 있으면 null", () => {
     expect(nearestFreeSeat({ x: 0, z: 7 }, desks, new Set())).toBeNull();
-  });
-});
-
-describe("robeToken", () => {
-  it("같은 id는 항상 같은 색 토큰", () => {
-    expect(robeToken("s1")).toBe(robeToken("s1"));
-    expect(robeToken("s1")).toMatch(/^--color-scene-robe-[1-4]$/);
   });
 });
