@@ -33,6 +33,8 @@ export interface AvatarProps {
   highlight?: boolean;
   /** 이름표 표시 여부. 기본 true */
   showLabel?: boolean;
+  /** 실습(마법) 중 — 이름표에 "실습 중" 표시 */
+  practicing?: boolean;
 }
 
 const tagStyle = (highlight: boolean): CSSProperties => ({
@@ -69,6 +71,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     subject,
     highlight = false,
     showLabel = true,
+    practicing = false,
   },
   ref,
 ) {
@@ -168,7 +171,13 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             {subject ? (
               <span style={{ font: "var(--text-caption-lg-medium)" }}>
                 {subject}
-                {pose === "sit" ? (focusing ? " · 집중 중" : " · 휴식") : ""}
+                {pose === "sit"
+                  ? practicing
+                    ? " · 실습 중"
+                    : focusing
+                      ? " · 집중 중"
+                      : " · 휴식"
+                  : ""}
               </span>
             ) : null}
           </div>

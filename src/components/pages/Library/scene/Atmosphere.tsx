@@ -16,6 +16,7 @@ import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
 import { FRONT_WALL_Z, ROOM } from "./sceneLayout";
+import { getGlowTexture } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 
 function seeded(seed: number) {
@@ -394,8 +395,9 @@ function Sparkles({ colors }: { colors: SceneColors }) {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
+        map={getGlowTexture()}
         color={colors["--color-scene-flame"]}
-        size={0.06}
+        size={0.1}
         sizeAttenuation
         transparent
         opacity={0.85}

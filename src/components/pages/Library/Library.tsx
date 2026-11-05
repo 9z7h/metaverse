@@ -4,6 +4,7 @@ import { ButtonLarge, ButtonSmall } from "../../ui/Button";
 import { Input } from "../../ui/Input";
 import {
   useLibraryPresence,
+  type StudyMode,
   type UseLibraryPresenceOptions,
 } from "./libraryPresence";
 import { useFocusTimer } from "./useFocusTimer";
@@ -140,6 +141,8 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
   // 기숙사는 처음 한 번 배정 후 유지 (localStorage)
   const [house, setHouse] = useState<HouseId | null>(() => loadHouse());
   const [subject, setSubject] = useState("");
+  // 이론 / 실습 — 실습으로 집중하면 내 책상 위로 기숙사 마법이 피어오름
+  const [mode, setMode] = useState<StudyMode>("theory");
   // 오늘 누적 집중 스톱워치 (멈췄다 다시 시작해도 이어서 쌓임)
   const timer = useFocusTimer();
   // 장서각에 들어갈 때 한 번만 확인
@@ -166,6 +169,7 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
       seatId,
       subject: mySubject,
       house: house ?? randomHouse(),
+      mode,
       focusing: false,
       focusSeconds: timer.elapsedSeconds,
     });
@@ -214,6 +218,11 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
               timer={timer}
               subject={mySubject}
               house={house}
+              mode={mode}
+              onModeChange={(m) => {
+                setMode(m);
+                presence.update({ mode: m });
+              }}
               onSit={handleSit}
               onStandUp={handleLeave}
               onStart={handleStart}

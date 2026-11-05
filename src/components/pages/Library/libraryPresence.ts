@@ -26,7 +26,12 @@ export interface PresenceStudent {
   focusSeconds: number;
   /** 소속 기숙사 */
   house: HouseId;
+  /** 공부 방식 — 실습 중 + 집중 중이면 책상 위로 기숙사 마법이 피어오름 */
+  mode: StudyMode;
 }
+
+/** 이론(책) / 실습(마법) */
+export type StudyMode = "theory" | "practice";
 
 export type MyPresence = Omit<PresenceStudent, "id" | "name">;
 
@@ -55,6 +60,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     focusing: true,
     focusSeconds: 95 * 60,
     house: "jujak",
+    mode: "practice",
   },
   {
     id: "s2",
@@ -64,6 +70,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     focusing: false,
     focusSeconds: 40 * 60,
     house: "baekho",
+    mode: "theory",
   },
   {
     id: "s3",
@@ -73,6 +80,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     focusing: true,
     focusSeconds: 130 * 60,
     house: "hyeonmu",
+    mode: "practice",
   },
 ];
 
@@ -85,6 +93,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     focusing: true,
     focusSeconds: 15 * 60,
     house: "cheongryong",
+    mode: "practice",
   },
   {
     id: "v2",
@@ -93,6 +102,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     focusing: true,
     focusSeconds: 55 * 60,
     house: "jujak",
+    mode: "theory",
   },
 ];
 
@@ -137,7 +147,16 @@ export function useLibraryPresence({
           idx === i ? { ...s, focusing: !s.focusing } : s,
         );
       }
-      // 3) 12틱마다 방문자 입장/퇴장
+      // 3) 17틱마다 한 명씩 이론 ↔ 실습 전환 (순환, 결정적)
+      if (tick % 17 === 0 && next.length > 0) {
+        const i = (tick / 17) % next.length;
+        next = next.map((s, idx) =>
+          idx === i
+            ? { ...s, mode: s.mode === "practice" ? "theory" : "practice" }
+            : s,
+        );
+      }
+      // 4) 12틱마다 방문자 입장/퇴장
       if (tick % 12 === 0) {
         const visitor = VISITORS[(tick / 12) % VISITORS.length];
         const present = next.find((s) => s.id === visitor.id);

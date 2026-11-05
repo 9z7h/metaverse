@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Vector3 } from "three";
 import type { Group } from "three";
 import { Avatar } from "./Avatar";
+import { MagicEffect } from "./MagicEffect";
 import type { AvatarPose } from "./Avatar";
 import {
   DOOR,
@@ -206,21 +207,31 @@ export function Bot({ student, colors, entering }: BotProps) {
     g.position.set(pos.current.x, 0, pos.current.z);
   });
 
+  const practicing =
+    pose === "sit" && student.focusing && student.mode === "practice";
+
   return (
-    <Avatar
-      ref={ref}
-      robe={colors[houseToken(student.house, "primary")]}
-      band={colors[houseToken(student.house, "accent")]}
-      houseDot={colors[houseToken(student.house, "accent")]}
-      skin={colors["--color-scene-skin"]}
-      hat={colors["--color-scene-hat"]}
-      pose={pose}
-      focusing={student.focusing}
-      name={student.name}
-      subject={student.subject}
-      // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
-      showLabel={pose === "sit"}
-    />
+    <>
+      <Avatar
+        ref={ref}
+        robe={colors[houseToken(student.house, "primary")]}
+        band={colors[houseToken(student.house, "accent")]}
+        houseDot={colors[houseToken(student.house, "accent")]}
+        skin={colors["--color-scene-skin"]}
+        hat={colors["--color-scene-hat"]}
+        pose={pose}
+        focusing={student.focusing}
+        practicing={practicing}
+        name={student.name}
+        subject={student.subject}
+        // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
+        showLabel={pose === "sit"}
+      />
+      {/* 실습 중 + 집중 중이면 책상 위로 기숙사 마법이 피어오름 */}
+      {practicing ? (
+        <MagicEffect house={student.house} colors={colors} at={layout.desk} />
+      ) : null}
+    </>
   );
 }
 

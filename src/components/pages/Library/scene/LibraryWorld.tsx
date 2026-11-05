@@ -17,7 +17,8 @@ import {
 } from "../../../ui/FocusTimer";
 import { Joystick } from "../../../ui/Joystick";
 import type { JoystickVector } from "../../../ui/Joystick";
-import type { LibraryPresence } from "../libraryPresence";
+import type { LibraryPresence, StudyMode } from "../libraryPresence";
+import { MagicEffect } from "./MagicEffect";
 import type { FocusTimerState } from "../useFocusTimer";
 import { Bot, FrameDriver, Player } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
@@ -40,6 +41,9 @@ export interface LibraryWorldProps {
   subject: string;
   /** 내 기숙사 */
   house: HouseId;
+  /** 이론 / 실습 */
+  mode: StudyMode;
+  onModeChange: (mode: StudyMode) => void;
   onSit: (seatId: string) => void;
   onStandUp: () => void;
   onStart: () => void;
@@ -51,6 +55,11 @@ export interface LibraryWorldProps {
 /** 걷거나 시점을 돌리는 중 60fps, 가만히 앉아 있을 땐 12fps — 장시간 공부 시 발열·배터리 절약 */
 const FPS_WALKING = 60;
 const FPS_SEATED = 12;
+
+const MODE_LABEL: Record<StudyMode, string> = {
+  theory: "이론",
+  practice: "실습",
+};
 
 /** 드래그 감도 (px → rad) */
 const YAW_PER_PX = 0.008;
@@ -120,6 +129,8 @@ export function LibraryWorld({
   timer,
   subject,
   house,
+  mode,
+  onModeChange,
   onSit,
   onStandUp,
   onStart,
@@ -344,6 +355,10 @@ export function LibraryWorld({
                 orbit={orbit}
                 dragging={draggingRef}
               />
+              {/* 내가 실습 중이면 내 책상 위로 기숙사 마법 */}
+              {seat && focusing && mode === "practice" ? (
+                <MagicEffect house={house} colors={colors} at={seat.desk} />
+              ) : null}
               <FrameDriver fps={seat && !dragging ? FPS_SEATED : FPS_WALKING} />
             </LabelPortalContext.Provider>
           </Canvas>
@@ -489,6 +504,36 @@ export function LibraryWorld({
                 <ButtonSmall style="monolight" onClick={onStandUp}>
                   일어나기
                 </ButtonSmall>
+              </div>
+            </div>
+            {/* 공부 방식: 실습으로 집중하면 책상 위로 기숙사 마법이 피어오름 */}
+            <div style={rowStyle}>
+              <span
+                id="study-mode-label"
+                style={{
+                  font: "var(--text-caption-lg-medium)",
+                  color: "var(--color-text-tertiary)",
+                }}
+              >
+                {mode === "practice"
+                  ? `${HOUSES[house].guardian}의 마법을 실습 중`
+                  : "책으로 이론 공부 중"}
+              </span>
+              <div
+                role="group"
+                aria-labelledby="study-mode-label"
+                style={{ display: "flex", gap: "var(--spacing-4)" }}
+              >
+                {(["theory", "practice"] as const).map((m) => (
+                  <ButtonSmall
+                    key={m}
+                    style={mode === m ? "corelight" : "monolight"}
+                    aria-label={`${MODE_LABEL[m]}${mode === m ? ", 선택됨" : ""}`}
+                    onClick={() => onModeChange(m)}
+                  >
+                    {MODE_LABEL[m]}
+                  </ButtonSmall>
+                ))}
               </div>
             </div>
             {expanded ? (
