@@ -177,7 +177,6 @@ export function LibraryWorld({
     () => presence.seats.map((s) => deskLayout(s.id)),
     [presence.seats],
   );
-  const myRank = ranking.find((e) => e.house === house)?.rank;
   const labelOf = (id: string) =>
     presence.seats.find((s) => s.id === id)?.label ?? id;
 
@@ -553,7 +552,7 @@ export function LibraryWorld({
               </span>
             </div>
           </div>
-          {/* 내 기숙사 배지 + 오늘 순위 + 문 위 순위판 보기 */}
+          {/* 내 기숙사 배지 + 문 위 순위판 보기 */}
           <div
             style={{
               ...auto,
@@ -575,7 +574,6 @@ export function LibraryWorld({
             >
               <HouseCrest house={house} size={24} aria-hidden />
               {HOUSES[house].name} 수련생
-              {myRank ? ` · 오늘 ${myRank}위` : ""}
             </span>
             <ButtonSmall style="monolight" onClick={turnToBoard}>
               순위판 보기

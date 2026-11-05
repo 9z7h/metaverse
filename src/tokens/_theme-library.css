@@ -3,15 +3,25 @@
  */
 
 [data-theme="library"] {
-  --color-text-primary: var(--color-parchment-100); /** library 테마 — 본문 (16.05:1 on background.default) */
+  --color-text-primary: var(
+    --color-parchment-100
+  ); /** library 테마 — 본문 (16.05:1 on background.default) */
   --color-text-secondary: var(--color-parchment-300);
-  --color-text-tertiary: var(--color-parchment-500); /** 6.62:1 on background.default */
+  --color-text-tertiary: var(
+    --color-parchment-500
+  ); /** 6.62:1 on background.default */
   --color-text-disabled: var(--color-mahogany-500);
-  --color-text-onbrand: var(--color-mahogany-900); /** 촛불색 배경 위 텍스트 (11.09:1) */
+  --color-text-onbrand: var(
+    --color-mahogany-900
+  ); /** 촛불색 배경 위 텍스트 (11.09:1) */
   --color-text-Danger: var(--color-red-400);
   --color-background-default: var(--color-mahogany-900);
-  --color-background-Subtle: var(--color-mahogany-800); /** library 테마 — 카드 표면 */
-  --color-background-muted: var(--color-mahogany-700); /** library 테마 — 한 단계 올라온 표면 */
+  --color-background-Subtle: var(
+    --color-mahogany-800
+  ); /** library 테마 — 카드 표면 */
+  --color-background-muted: var(
+    --color-mahogany-700
+  ); /** library 테마 — 한 단계 올라온 표면 */
   --color-background-brand: var(--color-candle-400);
   --color-background-brandsubtle: var(--color-candle-900);
   --color-background-danger: var(--color-red-1000);
@@ -29,7 +39,9 @@
   --color-content-muted: var(--color-parchment-500);
   --color-scene-floor: var(--color-wood-900); /** 3D — 바닥 */
   --color-scene-wall: var(--color-mahogany-800);
-  --color-scene-fog: var(--color-mahogany-900); /** 3D — 원경 안개 (배경과 동일) */
+  --color-scene-fog: var(
+    --color-mahogany-900
+  ); /** 3D — 원경 안개 (배경과 동일) */
   --color-scene-wood: var(--color-wood-500);
   --color-scene-wood-dark: var(--color-wood-700);
   --color-scene-wood-light: var(--color-wood-300);
@@ -41,24 +53,56 @@
   --color-scene-robe-2: var(--color-red-800);
   --color-scene-robe-3: var(--color-moss-600);
   --color-scene-robe-4: var(--color-plum-600);
-  --color-scene-rug: var(--color-red-1000); /** 3D — 중앙 통로 러그 (채도 낮은 짙은 적색) */
-  --color-scene-collar: var(--color-ivory-100); /** 3D — 도포 깃의 흰 동정 (모든 기숙사 공통) */
+  --color-scene-rug: var(
+    --color-red-1000
+  ); /** 3D — 중앙 통로 러그 (채도 낮은 짙은 적색) */
+  --color-scene-collar: var(
+    --color-ivory-100
+  ); /** 3D — 도포 깃의 흰 동정 (모든 기숙사 공통) */
   --color-scene-moonlight: var(--color-moon-300); /** 3D — 창호 달빛 */
-  --color-scene-dancheong: var(--color-dancheong-500); /** 3D — 단청 들보 바탕(뇌록) */
-  --color-house-baekho-primary: var(--color-ivory-200); /** 백호관 백색 — 로브, 깃발 (배경 대비 14.36:1) */
-  --color-house-baekho-accent: var(--color-ivory-100); /** 어두운 배경 위 글자색 (15.24:1) */
-  --color-house-baekho-subtle: var(--color-ink-800); /** 백호관 먹색 — 배지 배경 */
-  --color-house-baekho-on: var(--color-ink-900); /** 백색 위 먹색 글자 (12.80:1) */
-  --color-house-jujak-primary: var(--color-ember-600); /** 주작관 붉은색 — 로브, 깃발, 청사초롱 홍색 (배경 대비 3.17:1) */
-  --color-house-jujak-accent: var(--color-amber-300); /** 주작관 따뜻한 금색 — 글자 (10.71:1) */
+  --color-scene-dancheong: var(
+    --color-dancheong-500
+  ); /** 3D — 단청 들보 바탕(뇌록) */
+  --color-house-baekho-primary: var(
+    --color-ivory-200
+  ); /** 백호관 백색 — 로브, 깃발 (배경 대비 14.36:1) */
+  --color-house-baekho-accent: var(
+    --color-ivory-100
+  ); /** 어두운 배경 위 글자색 (15.24:1) */
+  --color-house-baekho-subtle: var(
+    --color-ink-800
+  ); /** 백호관 먹색 — 배지 배경 */
+  --color-house-baekho-on: var(
+    --color-ink-900
+  ); /** 백색 위 먹색 글자 (12.80:1) */
+  --color-house-jujak-primary: var(
+    --color-ember-600
+  ); /** 주작관 붉은색 — 로브, 깃발, 청사초롱 홍색 (배경 대비 3.17:1) */
+  --color-house-jujak-accent: var(
+    --color-amber-300
+  ); /** 주작관 따뜻한 금색 — 글자 (10.71:1) */
   --color-house-jujak-subtle: var(--color-ember-900); /** 배지 배경 */
-  --color-house-jujak-on: var(--color-parchment-100); /** primary 위 글자 (5.07:1) */
-  --color-house-hyeonmu-primary: var(--color-navy-500); /** 현무관 남색 — 로브, 깃발 (배경 대비 3.23:1) */
-  --color-house-hyeonmu-accent: var(--color-silver-300); /** 현무관 은색 — 글자 (11.36:1) */
+  --color-house-jujak-on: var(
+    --color-parchment-100
+  ); /** primary 위 글자 (5.07:1) */
+  --color-house-hyeonmu-primary: var(
+    --color-navy-500
+  ); /** 현무관 남색 — 로브, 깃발 (배경 대비 3.23:1) */
+  --color-house-hyeonmu-accent: var(
+    --color-silver-300
+  ); /** 현무관 은색 — 글자 (11.36:1) */
   --color-house-hyeonmu-subtle: var(--color-navy-900); /** 배지 배경 */
-  --color-house-hyeonmu-on: var(--color-parchment-100); /** primary 위 글자 (4.96:1) */
-  --color-house-cheongryong-primary: var(--color-teal-600); /** 청룡관 청록색 — 로브, 깃발, 청사초롱 청색 (배경 대비 3.16:1) */
-  --color-house-cheongryong-accent: var(--color-palegold-300); /** 청룡관 옅은 금색 — 글자 (11.96:1) */
+  --color-house-hyeonmu-on: var(
+    --color-parchment-100
+  ); /** primary 위 글자 (4.96:1) */
+  --color-house-cheongryong-primary: var(
+    --color-teal-600
+  ); /** 청룡관 청록색 — 로브, 깃발, 청사초롱 청색 (배경 대비 3.16:1) */
+  --color-house-cheongryong-accent: var(
+    --color-palegold-300
+  ); /** 청룡관 옅은 금색 — 글자 (11.96:1) */
   --color-house-cheongryong-subtle: var(--color-teal-900); /** 배지 배경 */
-  --color-house-cheongryong-on: var(--color-parchment-100); /** primary 위 글자 (5.08:1) */
+  --color-house-cheongryong-on: var(
+    --color-parchment-100
+  ); /** primary 위 글자 (5.08:1) */
 }
