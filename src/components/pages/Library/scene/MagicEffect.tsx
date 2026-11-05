@@ -1,13 +1,22 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { AdditiveBlending, CanvasTexture, Color } from "three";
-import type { BufferAttribute, Points, PointsMaterial, Texture } from "three";
+import {
+  AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  DoubleSide,
+} from "three";
+import type { MeshBasicMaterial, Texture } from "three";
+import type { SceneColors, Vec2 } from "./sceneLayout";
+import { SEGMENTS, STREAKS, streakPoint, tornadoStreak } from "./magicMotion";
+
+/* ── 공유 알파 마스크 ──────────────────────────────────────
+ * 흰색→투명 그라데이션은 "모양(번짐)"만 정하고, 실제 색은 토큰에서 온 색이 곱해진다. */
 
 let glowTexture: Texture | null = null;
-/**
- * 파티클을 네모 대신 부드러운 원형 빛으로 그리기 위한 알파 마스크 (모든 파티클이 공유).
- * 흰색→투명 그라데이션은 "모양"만 정하고, 실제 색은 토큰에서 온 vertexColors가 곱해진다.
- */
+/** 파티클을 네모 대신 부드러운 원형 빛으로 (반딧불 파티클이 공유) */
 export function getGlowTexture(): Texture {
   if (glowTexture) return glowTexture;
   const size = 64;
@@ -33,75 +42,134 @@ export function getGlowTexture(): Texture {
   glowTexture = new CanvasTexture(canvas);
   return glowTexture;
 }
-import { houseToken } from "../houses";
-import type { HouseId } from "../houses";
-import type { SceneColors, Vec2 } from "./sceneLayout";
-import { MAGIC_PARTICLES, magicParticle } from "./magicMotion";
+
+let streakTexture: Texture | null = null;
+/**
+ * 빛줄기 한 가닥의 번짐 — 두께 방향은 가운데가 밝고 가장자리로 흐려지고(블러),
+ * 길이 방향은 머리가 밝고 꼬리로 갈수록 사라진다.
+ */
+function getStreakTexture(): Texture {
+  if (streakTexture) return streakTexture;
+  const w = 128;
+  const h = 32;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const across = ctx.createLinearGradient(0, 0, 0, h);
+    across.addColorStop(0, "rgba(255,255,255,0)");
+    across.addColorStop(0.5, "rgba(255,255,255,1)");
+    across.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = across;
+    ctx.fillRect(0, 0, w, h);
+    // 길이 방향 페이드: 머리(u=0) 밝게 → 꼬리(u=1) 투명
+    ctx.globalCompositeOperation = "destination-in";
+    const along = ctx.createLinearGradient(0, 0, w, 0);
+    along.addColorStop(0, "rgba(255,255,255,0.3)");
+    along.addColorStop(0.12, "rgba(255,255,255,1)");
+    along.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = along;
+    ctx.fillRect(0, 0, w, h);
+  }
+  streakTexture = new CanvasTexture(canvas);
+  return streakTexture;
+}
+
+/* ── 마법 회오리 ─────────────────────────────────────── */
 
 export interface MagicEffectProps {
-  house: HouseId;
   colors: SceneColors;
   /** 책상 중심 (월드 좌표) */
   at: Vec2;
 }
 
+const VERTS_PER_STREAK = SEGMENTS * 2;
+
 /**
- * 실습 중 책상 위로 피어오르는 기숙사 마법. 입자 42개짜리 Points 하나 —
- * 색은 기숙사 accent·primary 토큰을 번갈아 써서 (예: 주작 = 금빛 + 붉은 불씨) 깊이감을 준다.
- * 마운트되면 0.6초에 걸쳐 서서히 나타난다.
+ * 실습 중 책상 위로 솟는 노란 마법 회오리. 흐릿한(블러) 빛줄기 14가닥이 깔때기 모양으로
+ * 돌며 솟아오른다. 전체가 메시 하나(draw call 1회)이고, 매 프레임 정점 위치·밝기만 갱신한다.
+ * 색은 촛불 토큰(--color-scene-flame, --color-scene-light) 두 가지를 가닥마다 번갈아 쓴다.
  */
-export function MagicEffect({ house, colors, at }: MagicEffectProps) {
-  const ref = useRef<Points>(null);
-  const mat = useRef<PointsMaterial>(null);
+export function MagicEffect({ colors, at }: MagicEffectProps) {
+  const mat = useRef<MeshBasicMaterial>(null);
   const born = useRef<number | null>(null);
 
-  const positions = useMemo(() => new Float32Array(MAGIC_PARTICLES * 3), []);
-  const vertexColors = useMemo(() => {
-    const out = new Float32Array(MAGIC_PARTICLES * 3);
-    const a = new Color(colors[houseToken(house, "accent")]);
-    const p = new Color(colors[houseToken(house, "primary")]);
-    for (let i = 0; i < MAGIC_PARTICLES; i++) {
-      (i % 3 === 0 ? p : a).toArray(out, i * 3);
+  const { geometry, positions, colorAttr, palette } = useMemo(() => {
+    const total = STREAKS * VERTS_PER_STREAK;
+    const positions = new Float32Array(total * 3);
+    const colorArr = new Float32Array(total * 3);
+    const uvs = new Float32Array(total * 2);
+    const index: number[] = [];
+    for (let s = 0; s < STREAKS; s++) {
+      const base = s * VERTS_PER_STREAK;
+      for (let k = 0; k < SEGMENTS; k++) {
+        const u = k / (SEGMENTS - 1);
+        // 위·아래 두 정점 (빛줄기 두께)
+        uvs.set([u, 1, u, 0], (base + k * 2) * 2);
+        if (k < SEGMENTS - 1) {
+          const a = base + k * 2;
+          index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
     }
-    return out;
-  }, [house, colors]);
+    const geometry = new BufferGeometry();
+    const posAttr = new BufferAttribute(positions, 3);
+    const colorAttr = new BufferAttribute(colorArr, 3);
+    geometry.setAttribute("position", posAttr);
+    geometry.setAttribute("color", colorAttr);
+    geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+    geometry.setIndex(index);
+    const palette = [
+      new Color(colors["--color-scene-flame"]),
+      new Color(colors["--color-scene-light"]),
+    ];
+    return { geometry, positions, colorAttr, palette };
+  }, [colors]);
+
+  const tmp = useMemo(() => new Color(), []);
+  // 실습을 멈추면 언마운트 → 정점 버퍼 해제 (텍스처는 공유라 유지)
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (born.current === null) born.current = t;
-    for (let i = 0; i < MAGIC_PARTICLES; i++) {
-      const [x, y, z] = magicParticle(house, i, t);
-      positions[i * 3] = at.x + x;
-      positions[i * 3 + 1] = y;
-      positions[i * 3 + 2] = at.z + z;
+    for (let s = 0; s < STREAKS; s++) {
+      const f = tornadoStreak(s, t);
+      tmp.copy(palette[s % 2]).multiplyScalar(f.fade);
+      for (let k = 0; k < SEGMENTS; k++) {
+        const [x, y, z] = streakPoint(f, k / (SEGMENTS - 1));
+        const v = (s * VERTS_PER_STREAK + k * 2) * 3;
+        positions[v] = at.x + x;
+        positions[v + 1] = y + f.width / 2;
+        positions[v + 2] = at.z + z;
+        positions[v + 3] = at.x + x;
+        positions[v + 4] = y - f.width / 2;
+        positions[v + 5] = at.z + z;
+        tmp.toArray(colorAttr.array as Float32Array, v);
+        tmp.toArray(colorAttr.array as Float32Array, v + 3);
+      }
     }
-    const attr = ref.current?.geometry.getAttribute("position") as
-      | BufferAttribute
-      | undefined;
-    if (attr) attr.needsUpdate = true;
-    if (mat.current) {
-      mat.current.opacity = Math.min(0.95, (t - born.current) / 0.6);
-    }
+    geometry.getAttribute("position").needsUpdate = true;
+    colorAttr.needsUpdate = true;
+    // 처음 0.6초 동안 서서히 나타남
+    if (mat.current)
+      mat.current.opacity = Math.min(1, (t - born.current) / 0.6);
   });
 
   return (
-    <points ref={ref} frustumCulled={false}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[vertexColors, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
+    <mesh geometry={geometry} frustumCulled={false}>
+      <meshBasicMaterial
         ref={mat}
-        map={getGlowTexture()}
+        map={getStreakTexture()}
         vertexColors
-        size={0.16}
-        sizeAttenuation
         transparent
         opacity={0}
+        side={DoubleSide}
         depthWrite={false}
         blending={AdditiveBlending}
         toneMapped={false}
       />
-    </points>
+    </mesh>
   );
 }

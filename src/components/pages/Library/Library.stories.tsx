@@ -83,7 +83,7 @@ export const ReturningStudent: Story = {
   },
 };
 
-/** [3D] 입장 → 배정 → 3D 장서각 로드, 기숙사 배지·조이스틱 노출 */
+/** [3D] 입장 → 배정 → 3D 장서각 로드, 기숙사 배지·탭 이동 안내 노출 */
 export const World3D: Story = {
   args: { presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
@@ -95,7 +95,7 @@ export const World3D: Story = {
     await waitFor(
       () =>
         expect(
-          canvas.getByRole("application", { name: /이동 조이스틱/ }),
+          canvas.getByText("바닥을 탭하면 이동, 빈 책상을 탭하면 앉아요"),
         ).toBeInTheDocument(),
       { timeout: 10000 },
     );

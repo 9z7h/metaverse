@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Vector3 } from "three";
-import type { Group } from "three";
+import { Plane, Raycaster, Vector2, Vector3 } from "three";
+import type { Group, Mesh, MeshBasicMaterial } from "three";
 import { Avatar } from "./Avatar";
 import { MagicEffect } from "./MagicEffect";
 import type { AvatarPose } from "./Avatar";
@@ -12,6 +12,7 @@ import {
   cameraRig,
   deskLayout,
   nearestFreeSeat,
+  planPath,
   resolveCollision,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
@@ -24,11 +25,25 @@ const BOT_SPEED = 1.4;
 
 /* ── 내 아바타 ─────────────────────────────────────────── */
 
+/** 탭으로 내린 이동 명령. 경로는 Player가 현재 위치에서 처음 한 번 계산한다. */
+export interface MoveOrder {
+  target: Vec2;
+  /** 빈 책상을 탭했으면 그 좌석 — 도착하면 자동으로 앉음 */
+  seatId: string | null;
+  path?: Vec2[];
+}
+
 export interface PlayerProps {
   colors: SceneColors;
   desks: DeskLayout[];
-  /** 조이스틱 + 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음 */
+  /** 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음. 움직이면 탭 이동은 취소 */
   input: MutableRefObject<{ x: number; y: number }>;
+  /** 탭 이동 명령 — 매 프레임 읽고, 도착하면 null로 비운다 */
+  moveOrder: MutableRefObject<MoveOrder | null>;
+  /** 탭한 빈 책상에 도착 */
+  onArriveSeat: (seatId: string) => void;
+  /** 실습 중 — 지팡이를 들고 마법을 씀 */
+  practicing: boolean;
   /** 다른 학생이 앉은 좌석 */
   occupied: Set<string>;
   /** 앉아 있는 좌석 (null이면 걷는 중) */
@@ -53,6 +68,9 @@ export function Player({
   colors,
   desks,
   input,
+  moveOrder,
+  onArriveSeat,
+  practicing,
   occupied,
   seat,
   focusing,
@@ -97,25 +115,58 @@ export function Player({
         nearRef.current = null;
         onNearSeatChange(null);
       }
-      // 내 자리 뒤에서 앞줄(함께 공부하는 사람들)을 바라봄 — 드래그로 돌려볼 수 있음
-      const rig = cameraRig(seat.chair, orbit.current, SEATED_DIST, 3);
+      // 내 자리 뒤에서 나와 앞줄을 함께 봄 — 드래그로 돌려볼 수 있음.
+      // 시선을 너무 앞(3m)에 두면 내 아바타가 화면 맨 아래 타이머 바에 가려져
+      // 내가 마법 쓰는 모습이 안 보이므로, 책상 바로 앞(0.8m)을 본다.
+      const rig = cameraRig(seat.chair, orbit.current, SEATED_DIST, 0.8);
       camTarget.current.set(...rig.cam);
       lookTarget.current.set(...rig.look);
     } else {
       const { x, y } = input.current;
-      const moving = Math.hypot(x, y) > 0.05;
-      if (moving) {
-        // 조이스틱 위 = 카메라가 보는 방향
+      const keyMoving = Math.hypot(x, y) > 0.05;
+      let moving = false;
+      if (keyMoving) {
+        // 키보드 위 = 카메라가 보는 방향. 키보드로 움직이면 탭 이동은 취소
+        moveOrder.current = null;
         const move = cameraRelativeMove(x, y, orbit.current.yaw);
-        const next = resolveCollision(
+        pos.current = resolveCollision(
           {
             x: pos.current.x + move.x * WALK_SPEED * dt,
             z: pos.current.z + move.z * WALK_SPEED * dt,
           },
           desks,
         );
-        pos.current = next;
         facing.current = Math.atan2(move.x, move.z);
+        moving = true;
+      } else if (moveOrder.current) {
+        // 탭 이동: 책상을 피해 가는 경유점을 차례로 따라감
+        const order = moveOrder.current;
+        order.path ??= planPath(pos.current, order.target, desks);
+        const next = order.path[0];
+        if (next) {
+          const dx = next.x - pos.current.x;
+          const dz = next.z - pos.current.z;
+          const dist = Math.hypot(dx, dz);
+          const step = WALK_SPEED * dt;
+          if (dist <= step) {
+            pos.current = { ...next };
+            order.path.shift();
+          } else {
+            pos.current = {
+              x: pos.current.x + (dx / dist) * step,
+              z: pos.current.z + (dz / dist) * step,
+            };
+            facing.current = Math.atan2(dx, dz);
+          }
+          moving = true;
+        }
+        if (order.path.length === 0) {
+          moveOrder.current = null;
+          // 가는 사이 다른 학생이 앉았으면 앉지 않고 멈춤
+          if (order.seatId && !occupied.has(order.seatId)) {
+            onArriveSeat(order.seatId);
+          }
+        }
       }
       const nextPose: AvatarPose = moving ? "walk" : "stand";
       if (pose !== nextPose) setPose(nextPose);
@@ -152,6 +203,11 @@ export function Player({
       hat={colors["--color-scene-hat"]}
       pose={pose}
       focusing={focusing}
+      practicing={practicing}
+      wand={{
+        wood: colors["--color-scene-wood-dark"],
+        glow: colors["--color-scene-flame"],
+      }}
       name="나"
       subject={seat ? subject : undefined}
       highlight
@@ -222,16 +278,90 @@ export function Bot({ student, colors, entering }: BotProps) {
         pose={pose}
         focusing={student.focusing}
         practicing={practicing}
+        wand={{
+          wood: colors["--color-scene-wood-dark"],
+          glow: colors["--color-scene-flame"],
+        }}
         name={student.name}
         subject={student.subject}
         // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
         showLabel={pose === "sit"}
       />
       {/* 실습 중 + 집중 중이면 책상 위로 기숙사 마법이 피어오름 */}
-      {practicing ? (
-        <MagicEffect house={student.house} colors={colors} at={layout.desk} />
-      ) : null}
+      {practicing ? <MagicEffect colors={colors} at={layout.desk} /> : null}
     </>
+  );
+}
+
+/* ── 탭 이동 보조: 화면 좌표 → 바닥 좌표, 목적지 표시 ─────── */
+
+/** 화면 좌표 → 높이 `y`인 수평면과 만나는 점 (기본: 바닥 y=0) */
+export type FloorPick = (
+  clientX: number,
+  clientY: number,
+  y?: number,
+) => Vec2 | null;
+
+/** Canvas 안에서 카메라를 알고 있으므로, 탭한 화면 위치를 수평면 좌표로 바꾸는 함수를 ref로 내보낸다 */
+export function FloorPicker({
+  pickRef,
+}: {
+  pickRef: MutableRefObject<FloorPick | null>;
+}) {
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const raycaster = new Raycaster();
+    const ndc = new Vector2();
+    const hit = new Vector3();
+    const plane = new Plane(new Vector3(0, 1, 0), 0);
+    pickRef.current = (clientX, clientY, y = 0) => {
+      plane.constant = -y; // 평면 y = 높이
+      const rect = gl.domElement.getBoundingClientRect();
+      ndc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(ndc, camera);
+      return raycaster.ray.intersectPlane(plane, hit)
+        ? { x: hit.x, z: hit.z }
+        : null;
+    };
+    return () => {
+      pickRef.current = null;
+    };
+  }, [camera, gl, pickRef]);
+  return null;
+}
+
+/** 탭한 목적지 바닥에 잠깐 퍼졌다 사라지는 고리 (기숙사 색) */
+export function TapMarker({ at, color }: { at: Vec2; color: string }) {
+  const ref = useRef<Mesh>(null);
+  const born = useRef<number | null>(null);
+  useFrame(({ clock }) => {
+    const m = ref.current;
+    if (!m) return;
+    born.current ??= clock.elapsedTime;
+    const p = Math.min(1, (clock.elapsedTime - born.current) / 0.9);
+    const s = 0.6 + p * 0.6;
+    m.scale.set(s, s, s);
+    (m.material as MeshBasicMaterial).opacity = 1 - p;
+    m.visible = p < 1;
+  });
+  return (
+    <mesh
+      ref={ref}
+      position={[at.x, 0.02, at.z]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <ringGeometry args={[0.28, 0.36, 32]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
   );
 }
 

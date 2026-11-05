@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   CAMERA_BOUNDS,
+  planPath,
+  segmentClear,
+  tapTarget,
   ORBIT_DEFAULT,
   ORBIT_LIMITS,
   cameraRelativeMove,
@@ -154,5 +157,72 @@ describe("cameraRelativeMove — 조이스틱 위 = 카메라가 보는 방향",
     const up = cameraRelativeMove(0, -1, Math.PI / 2);
     expect(up.x).toBeCloseTo(-1);
     expect(up.z).toBeCloseTo(0);
+  });
+});
+
+describe("탭 이동 — tapTarget / planPath", () => {
+  const free = new Set<string>();
+
+  it("빈 책상 상판이나 그 의자를 탭하면 그 자리, 사용 중이면 바닥", () => {
+    const b1 = deskLayout("B1");
+    const far = { x: 0, z: 6 };
+    expect(tapTarget(far, b1.desk, desks, free)).toEqual({
+      kind: "seat",
+      seat: b1,
+    });
+    expect(tapTarget(b1.chair, null, desks, free)).toEqual({
+      kind: "seat",
+      seat: b1,
+    });
+    const taken = tapTarget(b1.chair, b1.desk, desks, new Set(["B1"]));
+    expect(taken.kind).toBe("floor");
+  });
+
+  it("[버그 재현] 상판을 탭하면 바닥 높이 교차점은 책상 1~2m 뒤 — 상판 높이 교차점으로 판정해야 앉는다", () => {
+    const c1 = deskLayout("C1");
+    // 실측: 시작 카메라에서 C-1 상판 중심을 탭 → 바닥 교차점 (-3.13, 1.07)
+    const atFloor = { x: -3.13, z: 1.07 };
+    expect(tapTarget(atFloor, null, desks, free).kind).toBe("floor");
+    expect(tapTarget(atFloor, c1.desk, desks, free)).toEqual({
+      kind: "seat",
+      seat: c1,
+    });
+  });
+
+  it("바닥 탭은 갈 수 있는 위치로 보정 (방 밖 → 벽 안쪽)", () => {
+    const t = tapTarget({ x: 50, z: 0 }, null, desks, free);
+    expect(t).toEqual({ kind: "floor", point: { x: ROOM.maxX, z: 0 } });
+  });
+
+  it("막힘 없으면 곧장 목표로", () => {
+    expect(planPath({ x: 0, z: 6 }, { x: 0, z: -5 }, desks)).toEqual([
+      { x: 0, z: -5 },
+    ]);
+  });
+
+  it("책상 너머(A1 의자 → A1 뒤쪽)는 책상을 돌아가고, 모든 구간이 책상과 겹치지 않는다", () => {
+    const from = deskLayout("A1").chair;
+    const to = { x: -2.6, z: -5.8 };
+    expect(segmentClear(from, to, desks)).toBe(false);
+    const path = planPath(from, to, desks);
+    expect(path.length).toBeGreaterThan(1);
+    expect(path.at(-1)).toEqual(to);
+    let cur = from;
+    for (const p of path) {
+      expect(segmentClear(cur, p, desks)).toBe(true);
+      cur = p;
+    }
+  });
+
+  it("C열 옆 벽 쪽에서 반대편 벽 쪽 B열 뒤로 — 어디서든 길을 찾는다", () => {
+    const from = { x: 5.2, z: 3 };
+    const to = { x: -5.2, z: -1.6 };
+    const path = planPath(from, to, desks);
+    let cur = from;
+    for (const p of path) {
+      expect(segmentClear(cur, p, desks)).toBe(true);
+      cur = p;
+    }
+    expect(cur).toEqual(to);
   });
 });

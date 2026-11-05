@@ -33,8 +33,10 @@ export interface AvatarProps {
   highlight?: boolean;
   /** 이름표 표시 여부. 기본 true */
   showLabel?: boolean;
-  /** 실습(마법) 중 — 이름표에 "실습 중" 표시 */
+  /** 실습(마법) 중 — 지팡이를 들고 휘두르며, 이름표에 "실습 중" 표시 */
   practicing?: boolean;
+  /** 지팡이 색 (나무) / 지팡이 끝 빛 — practicing일 때만 사용 */
+  wand?: { wood: string; glow: string };
 }
 
 const tagStyle = (highlight: boolean): CSSProperties => ({
@@ -72,11 +74,13 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     highlight = false,
     showLabel = true,
     practicing = false,
+    wand,
   },
   ref,
 ) {
   const body = useRef<Group>(null);
   const head = useRef<Group>(null);
+  const arm = useRef<Group>(null);
   const portal = useContext(LabelPortalContext);
 
   useFrame(({ clock }) => {
@@ -93,10 +97,20 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
         ? 0.35 + Math.sin(t * 1.4) * 0.05 // 책을 내려다보며 살짝 끄덕
         : -0.15 + Math.sin(t * 0.6) * 0.04; // 기지개 펴듯 젖힘
       body.current.rotation.x = focusing ? 0.12 : -0.08;
+      if (practicing) {
+        // 실습 중엔 책 대신 회오리를 올려다봄
+        head.current.rotation.x = -0.2 + Math.sin(t * 1.2) * 0.04;
+        body.current.rotation.x = 0;
+      }
     } else {
       body.current.position.y = Math.sin(t * 2) * 0.01;
       body.current.rotation.set(0, 0, 0);
       head.current.rotation.x = 0;
+    }
+    // 지팡이 휘두르기: 앞으로 든 팔이 작은 원을 그림
+    if (arm.current) {
+      arm.current.rotation.x = 1.15 + Math.sin(t * 4) * 0.12;
+      arm.current.rotation.z = -0.25 + Math.cos(t * 4) * 0.15;
     }
   });
 
@@ -137,6 +151,30 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <meshStandardMaterial color={hat} roughness={0.7} />
           </mesh>
         </group>
+        {/* 실습 중: 오른팔을 앞으로 들어 지팡이를 휘두름 (뒤에서 보는 내 시점에서도 보이도록 어깨 바깥쪽) */}
+        {practicing && wand ? (
+          <group ref={arm} position={[0.26, 0.82, 0.02]}>
+            {/* 소매 */}
+            <mesh position={[0, 0.16, 0]}>
+              <capsuleGeometry args={[0.07, 0.22, 4, 8]} />
+              <meshStandardMaterial color={robe} roughness={0.9} />
+            </mesh>
+            {/* 손 */}
+            <mesh position={[0, 0.34, 0]}>
+              <sphereGeometry args={[0.07, 10, 8]} />
+              <meshStandardMaterial color={skin} roughness={0.8} />
+            </mesh>
+            {/* 지팡이 + 빛나는 끝 */}
+            <mesh position={[0, 0.52, 0]}>
+              <cylinderGeometry args={[0.015, 0.022, 0.36, 8]} />
+              <meshStandardMaterial color={wand.wood} roughness={0.6} />
+            </mesh>
+            <mesh position={[0, 0.71, 0]}>
+              <sphereGeometry args={[0.035, 10, 8]} />
+              <meshBasicMaterial color={wand.glow} toneMapped={false} />
+            </mesh>
+          </group>
+        ) : null}
       </group>
 
       {showLabel ? (

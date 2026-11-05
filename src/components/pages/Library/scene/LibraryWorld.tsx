@@ -15,25 +15,26 @@ import {
   formatClock,
   hourProgress,
 } from "../../../ui/FocusTimer";
-import { Joystick } from "../../../ui/Joystick";
-import type { JoystickVector } from "../../../ui/Joystick";
 import type { LibraryPresence, StudyMode } from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
 import type { FocusTimerState } from "../useFocusTimer";
-import { Bot, FrameDriver, Player } from "./Characters";
+import { Bot, FloorPicker, FrameDriver, Player, TapMarker } from "./Characters";
+import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
 import { Atmosphere } from "./Atmosphere";
 import { HouseCrest } from "../HouseCrest";
-import { HOUSES, houseVar } from "../houses";
+import { HOUSES, houseToken, houseVar } from "../houses";
 import type { HouseId } from "../houses";
 import { LabelPortalContext } from "./Avatar";
 import {
+  DESK_TOP_Y,
   ORBIT_DEFAULT,
   clampOrbit,
   deskLayout,
   readSceneColors,
+  tapTarget,
 } from "./sceneLayout";
-import type { Orbit, SceneColors } from "./sceneLayout";
+import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 
 export interface LibraryWorldProps {
   presence: LibraryPresence;
@@ -64,6 +65,9 @@ const MODE_LABEL: Record<StudyMode, string> = {
 /** 드래그 감도 (px → rad) */
 const YAW_PER_PX = 0.008;
 const PITCH_PER_PX = 0.005;
+/** 이만큼 덜 움직이고 이 시간 안에 손을 떼면 '탭'(이동), 아니면 '드래그'(시점 회전) */
+const TAP_SLOP_PX = 10;
+const TAP_MAX_MS = 350;
 
 const hudStyle: CSSProperties = {
   position: "absolute",
@@ -109,6 +113,19 @@ const sheetStyle: CSSProperties = {
 
 const auto: CSSProperties = { pointerEvents: "auto" };
 
+/** 화면에는 안 보이고 스크린리더만 읽는 텍스트 */
+const visuallyHidden: CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  margin: "-1px",
+  padding: 0,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
 const KEY_DIR: Record<string, [number, number]> = {
   ArrowUp: [0, -1],
   KeyW: [0, -1],
@@ -151,22 +168,24 @@ export function LibraryWorld({
   const labelOf = (id: string) =>
     presence.seats.find((s) => s.id === id)?.label ?? id;
 
-  /* 입력: 조이스틱 + 키보드를 하나의 ref로 합친다 (리렌더 없이 매 프레임 읽힘) */
+  /* 입력: 키보드(WASD·방향키)는 마우스·터치를 못 쓰는 사용자를 위한 대체 수단 — 매 프레임 읽힘 */
   const input = useRef({ x: 0, y: 0 });
-  const stick = useRef<JoystickVector>({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
   const sync = useCallback(() => {
-    let kx = 0;
-    let ky = 0;
+    let x = 0;
+    let y = 0;
     keys.current.forEach((k) => {
-      kx += KEY_DIR[k][0];
-      ky += KEY_DIR[k][1];
+      x += KEY_DIR[k][0];
+      y += KEY_DIR[k][1];
     });
-    const x = stick.current.x + kx;
-    const y = stick.current.y + ky;
     const len = Math.hypot(x, y);
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
   }, []);
+
+  /* 탭 이동: 바닥을 탭하면 그곳으로, 빈 책상을 탭하면 걸어가서 앉음 */
+  const moveOrder = useRef<MoveOrder | null>(null);
+  const pickFloor = useRef<FloorPick | null>(null);
+  const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
 
   const mySeatId = presence.me?.seatId ?? null;
   const [nearSeat, setNearSeat] = useState<string | null>(null);
@@ -210,11 +229,41 @@ export function LibraryWorld({
   const [dragging, setDragging] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
+  /** 탭 판별용 — 손을 댄 위치·시각, 그 사이 많이 움직였거나 두 손가락이었는지 */
+  const press = useRef<{
+    x: number;
+    y: number;
+    at: number;
+    moved: boolean;
+  } | null>(null);
+
+  const handleTap = (clientX: number, clientY: number) => {
+    if (seat) return; // 앉아 있을 땐 이동하지 않음 (일어나기 버튼으로)
+    const pick = pickFloor.current;
+    const atFloor = pick?.(clientX, clientY, 0);
+    if (!pick || !atFloor) return;
+    const t = tapTarget(
+      atFloor,
+      pick(clientX, clientY, DESK_TOP_Y),
+      desks,
+      occupied,
+    );
+    const at = t.kind === "seat" ? t.seat.chair : t.point;
+    moveOrder.current = {
+      target: at,
+      seatId: t.kind === "seat" ? t.seat.seatId : null,
+    };
+    setMarker({ at, key: performance.now() });
+  };
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinchDist.current = null;
+    press.current =
+      pointers.current.size === 1
+        ? { x: e.clientX, y: e.clientY, at: performance.now(), moved: false }
+        : press.current && { ...press.current, moved: true }; // 두 손가락 = 탭 아님
     draggingRef.current = true;
     setDragging(true);
   };
@@ -222,6 +271,13 @@ export function LibraryWorld({
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (
+      press.current &&
+      Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) >
+        TAP_SLOP_PX
+    ) {
+      press.current.moved = true;
+    }
     const pts = [...pointers.current.values()];
     if (pts.length >= 2) {
       const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -247,6 +303,17 @@ export function LibraryWorld({
     if (pointers.current.size === 0) {
       draggingRef.current = false;
       setDragging(false);
+      const p = press.current;
+      press.current = null;
+      // 거의 안 움직이고 짧게 뗐으면 탭 → 이동 (취소된 포인터는 제외)
+      if (
+        e.type === "pointerup" &&
+        p &&
+        !p.moved &&
+        performance.now() - p.at <= TAP_MAX_MS
+      ) {
+        handleTap(e.clientX, e.clientY);
+      }
     }
   };
   const onWheel = (e: WheelEvent<HTMLDivElement>) => {
@@ -276,13 +343,13 @@ export function LibraryWorld({
         touchAction: "none",
       }}
     >
-      {/* 캔버스 영역 드래그 = 시점 회전. HUD는 형제 요소라 버튼·조이스틱 조작과 겹치지 않음 */}
+      {/* 캔버스 영역: 탭 = 이동, 드래그 = 시점 회전. HUD는 형제 요소라 버튼 조작과 겹치지 않음 */}
       <div
         data-testid="camera-drag-area"
         style={{
           position: "absolute",
           inset: 0,
-          cursor: dragging ? "grabbing" : "grab",
+          cursor: dragging ? "grabbing" : "pointer",
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -346,6 +413,9 @@ export function LibraryWorld({
                 colors={colors}
                 desks={desks}
                 input={input}
+                moveOrder={moveOrder}
+                onArriveSeat={onSit}
+                practicing={Boolean(seat && focusing && mode === "practice")}
                 occupied={occupied}
                 seat={seat}
                 focusing={focusing}
@@ -355,9 +425,17 @@ export function LibraryWorld({
                 orbit={orbit}
                 dragging={draggingRef}
               />
+              <FloorPicker pickRef={pickFloor} />
+              {marker && !seat ? (
+                <TapMarker
+                  key={marker.key}
+                  at={marker.at}
+                  color={colors[houseToken(house, "accent")]}
+                />
+              ) : null}
               {/* 내가 실습 중이면 내 책상 위로 기숙사 마법 */}
               {seat && focusing && mode === "practice" ? (
-                <MagicEffect house={house} colors={colors} at={seat.desk} />
+                <MagicEffect colors={colors} at={seat.desk} />
               ) : null}
               <FrameDriver fps={seat && !dragging ? FPS_SEATED : FPS_WALKING} />
             </LabelPortalContext.Provider>
@@ -573,26 +651,24 @@ export function LibraryWorld({
               <p
                 style={{
                   ...pillStyle,
+                  flexDirection: "column",
                   alignSelf: "center",
+                  gap: "var(--spacing-2)",
                   margin: 0,
+                  textAlign: "center",
+                  borderRadius: "var(--radius-lg)",
                 }}
               >
-                빈 책상으로 걸어가 보세요 · 화면을 끌면 시점 회전
+                <span>바닥을 탭하면 이동, 빈 책상을 탭하면 앉아요</span>
+                <span style={{ color: "var(--color-text-tertiary)" }}>
+                  화면을 끌면 시점 회전
+                </span>
               </p>
             )}
-            <div style={{ ...auto, alignSelf: "flex-start" }}>
-              <Joystick
-                aria-label="이동 조이스틱 (키보드: WASD 또는 방향키)"
-                onMove={(v) => {
-                  stick.current = v;
-                  sync();
-                }}
-                onEnd={() => {
-                  stick.current = { x: 0, y: 0 };
-                  sync();
-                }}
-              />
-            </div>
+            {/* 키보드 사용자 안내 (화면에는 숨김, 스크린리더로 읽힘) */}
+            <p style={visuallyHidden}>
+              키보드: 방향키 또는 WASD로 이동, 빈 책상 근처에서 E 키로 앉기
+            </p>
           </div>
         )}
       </div>

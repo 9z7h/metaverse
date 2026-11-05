@@ -75,6 +75,152 @@ export function nearestFreeSeat(
   return best;
 }
 
+/* ── 탭 이동: 탭한 곳 해석 + 책상을 피해 가는 경로 ─────────── */
+
+/** 점이 (아바타 반경만큼 넓힌) 책상 안에 있는지 */
+function insideDesk(p: Vec2, desks: DeskLayout[]): boolean {
+  return desks.some(
+    ({ desk }) =>
+      Math.abs(p.x - desk.x) < DESK_HALF.x + PLAYER_RADIUS &&
+      Math.abs(p.z - desk.z) < DESK_HALF.z + PLAYER_RADIUS,
+  );
+}
+
+/** a→b 직선으로 걸어갈 때 책상에 걸리지 않는지 (0.1m 간격으로 확인) */
+export function segmentClear(a: Vec2, b: Vec2, desks: DeskLayout[]): boolean {
+  const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.1));
+  for (let s = 1; s <= steps; s++) {
+    const t = s / steps;
+    if (
+      insideDesk({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }, desks)
+    )
+      return false;
+  }
+  return true;
+}
+
+export type TapTarget =
+  | { kind: "seat"; seat: DeskLayout }
+  | { kind: "floor"; point: Vec2 };
+
+/** 책상 상판 높이 — 탭 판정용 */
+export const DESK_TOP_Y = 0.78;
+
+/**
+ * 탭한 지점 → 이동 목표.
+ * 비스듬히 내려다보는 카메라에서는 같은 탭이라도 높이에 따라 닿는 곳이 다르다
+ * (상판을 탭해도 바닥 높이로 계산하면 1~2m 뒤 바닥이 된다). 그래서
+ * - `atDesk`(상판 높이에서의 교차점)가 빈 책상 위면 그 자리
+ * - `atFloor`(바닥 높이)가 빈 의자 근처여도 그 자리
+ * - 아니면 `atFloor`를 갈 수 있는 위치로 보정한 바닥
+ */
+export function tapTarget(
+  atFloor: Vec2,
+  atDesk: Vec2 | null,
+  desks: DeskLayout[],
+  occupied: Set<string>,
+): TapTarget {
+  for (const d of desks) {
+    if (occupied.has(d.seatId)) continue;
+    const onDesk =
+      atDesk !== null &&
+      Math.abs(atDesk.x - d.desk.x) <= DESK_HALF.x + 0.1 &&
+      Math.abs(atDesk.z - d.desk.z) <= DESK_HALF.z + 0.1;
+    const onChair =
+      Math.hypot(atFloor.x - d.chair.x, atFloor.z - d.chair.z) <= 0.7;
+    if (onDesk || onChair) return { kind: "seat", seat: d };
+  }
+  return { kind: "floor", point: resolveCollision(atFloor, desks) };
+}
+
+const GRID = 0.5;
+
+/**
+ * from → to 경로. 직선이 막히면 0.5m 격자에서 BFS로 길을 찾고,
+ * 보이는 지점까지 건너뛰어(string pulling) 꺾이는 곳만 남긴다.
+ * 반환값은 from 다음부터 to까지의 경유점 (마지막은 항상 to).
+ */
+export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
+  if (segmentClear(from, to, desks)) return [to];
+
+  const cols = Math.floor((ROOM.maxX - ROOM.minX) / GRID) + 1;
+  const rows = Math.floor((ROOM.maxZ - ROOM.minZ) / GRID) + 1;
+  const cell = (c: number, r: number): Vec2 => ({
+    x: ROOM.minX + c * GRID,
+    z: ROOM.minZ + r * GRID,
+  });
+  const walkable = (c: number, r: number) =>
+    c >= 0 && r >= 0 && c < cols && r < rows && !insideDesk(cell(c, r), desks);
+  const nearestCell = (p: Vec2): [number, number] => {
+    let best: [number, number] = [0, 0];
+    let bestD = Infinity;
+    for (let c = 0; c < cols; c++)
+      for (let r = 0; r < rows; r++) {
+        if (!walkable(c, r)) continue;
+        const q = cell(c, r);
+        const d = Math.hypot(q.x - p.x, q.z - p.z);
+        if (d < bestD && segmentClear(p, q, desks)) {
+          bestD = d;
+          best = [c, r];
+        }
+      }
+    return best;
+  };
+
+  const [sc, sr] = nearestCell(from);
+  const [gc, gr] = nearestCell(to);
+  const key = (c: number, r: number) => r * cols + c;
+  const prev = new Map<number, number>([[key(sc, sr), -1]]);
+  const queue: [number, number][] = [[sc, sr]];
+  while (queue.length) {
+    const [c, r] = queue.shift()!;
+    if (c === gc && r === gr) break;
+    for (const [dc, dr] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+    ]) {
+      const nc = c + dc;
+      const nr = r + dr;
+      // 대각선은 양옆이 모두 비어 있어야 (모서리 깎기 방지)
+      if (dc && dr && (!walkable(c + dc, r) || !walkable(c, r + dr))) continue;
+      if (!walkable(nc, nr) || prev.has(key(nc, nr))) continue;
+      prev.set(key(nc, nr), key(c, r));
+      queue.push([nc, nr]);
+    }
+  }
+  if (!prev.has(key(gc, gr))) return [resolveCollision(to, desks)];
+
+  const cells: Vec2[] = [];
+  for (let k = key(gc, gr); k !== -1; k = prev.get(k)!) {
+    cells.unshift(cell(k % cols, Math.floor(k / cols)));
+  }
+  const points = [...cells, to];
+
+  // string pulling: 지금 위치에서 직선으로 보이는 가장 먼 경유점으로 건너뜀
+  const out: Vec2[] = [];
+  let cur = from;
+  let i = 0;
+  while (i < points.length) {
+    let far = i;
+    for (let j = points.length - 1; j > i; j--) {
+      if (segmentClear(cur, points[j], desks)) {
+        far = j;
+        break;
+      }
+    }
+    out.push(points[far]);
+    cur = points[far];
+    i = far + 1;
+  }
+  return out;
+}
+
 /* ── 카메라: 드래그로 돌리는 궤도(orbit) 카메라 ─────────────── */
 
 export interface Orbit {
