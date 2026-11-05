@@ -16,9 +16,12 @@ export const LabelPortalContext =
   createContext<RefObject<HTMLElement | null> | null>(null);
 
 export interface AvatarProps {
+  /** 도포 색 (기숙사 primary) */
   robe: string;
-  /** 모자 띠 색 (기숙사 accent) */
+  /** 갓끈·고름·세조대 색 (기숙사 accent) */
   band?: string;
+  /** 깃의 흰 동정 */
+  collar: string;
   /** 이름표 앞 기숙사 점 색 */
   houseDot?: string;
   skin: string;
@@ -57,13 +60,15 @@ const tagStyle = (highlight: boolean): CSSProperties => ({
 });
 
 /**
- * 저폴리곤 마법사 아바타 (로브 + 머리 + 고깔모자). 위치/회전은 부모가 ref로 제어하고,
+ * 저폴리곤 사신학당 학생 아바타 — 도포(흰 동정·고름·세조대) + 갓(갓끈).
+ * 기숙사 색은 도포(primary)와 갓끈·고름·세조대(accent)로 드러난다. 위치/회전은 부모가 ref로 제어하고,
  * 여기서는 포즈별 미세 애니메이션(걷기 흔들림, 집중 끄덕임)만 처리한다.
  */
 export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   {
     robe,
     band,
+    collar,
     houseDot,
     skin,
     hat,
@@ -117,11 +122,48 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   return (
     <group ref={ref}>
       <group ref={body}>
-        {/* 로브 */}
-        <mesh position={[0, 0.55, 0]}>
-          <capsuleGeometry args={[0.28, 0.5, 4, 12]} />
+        {/* 도포: 상체 + 아래로 퍼지는 자락 */}
+        <mesh position={[0, 0.78, 0]}>
+          <capsuleGeometry args={[0.23, 0.32, 4, 14]} />
           <meshStandardMaterial color={robe} roughness={0.9} />
         </mesh>
+        <mesh position={[0, 0.31, 0]}>
+          <cylinderGeometry args={[0.25, 0.38, 0.62, 18]} />
+          <meshStandardMaterial color={robe} roughness={0.9} />
+        </mesh>
+        {/* 깃 + 흰 동정 (V자로 여밈) */}
+        <mesh position={[-0.03, 0.85, 0.232]} rotation={[0, 0, 0.49]}>
+          <boxGeometry args={[0.045, 0.3, 0.02]} />
+          <meshStandardMaterial color={collar} roughness={0.7} />
+        </mesh>
+        <mesh position={[0.05, 0.88, 0.226]} rotation={[0, 0, -0.46]}>
+          <boxGeometry args={[0.045, 0.22, 0.02]} />
+          <meshStandardMaterial color={collar} roughness={0.7} />
+        </mesh>
+        {band ? (
+          <>
+            {/* 고름: 가슴의 매듭 + 늘어진 두 가닥 */}
+            <mesh position={[0.07, 0.74, 0.232]}>
+              <sphereGeometry args={[0.028, 10, 8]} />
+              <meshStandardMaterial color={band} roughness={0.6} />
+            </mesh>
+            {[-0.18, 0.12].map((rz) => (
+              <mesh
+                key={rz}
+                position={[0.07 + rz * 0.15, 0.64, 0.236]}
+                rotation={[0, 0, rz]}
+              >
+                <boxGeometry args={[0.032, 0.2, 0.01]} />
+                <meshStandardMaterial color={band} roughness={0.6} />
+              </mesh>
+            ))}
+            {/* 세조대: 허리를 두른 가는 띠 */}
+            <mesh position={[0, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.25, 0.016, 6, 24]} />
+              <meshStandardMaterial color={band} roughness={0.6} />
+            </mesh>
+          </>
+        ) : null}
         <group ref={head} position={[0, 1.02, 0]}>
           {/* 머리 */}
           <mesh position={[0, 0.12, 0]}>
@@ -135,28 +177,41 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
               <meshBasicMaterial color={hat} />
             </mesh>
           ))}
-          {/* 모자 챙 + 고깔 */}
-          <mesh position={[0, 0.3, 0]}>
-            <cylinderGeometry args={[0.36, 0.36, 0.03, 20]} />
-            <meshStandardMaterial color={hat} roughness={0.7} />
+          {/* 갓: 넓고 얇은 챙(말총이라 살짝 비침) + 원통형 모자 */}
+          <mesh position={[0, 0.36, 0]}>
+            {/* 챙을 너무 넓히면 앉았을 때 뒤에서 보는 내 화면에서 책상·회오리를 가림 */}
+            <cylinderGeometry args={[0.38, 0.38, 0.012, 28]} />
+            <meshStandardMaterial
+              color={hat}
+              roughness={0.5}
+              transparent
+              opacity={0.88}
+            />
           </mesh>
-          {band ? (
-            <mesh position={[0, 0.37, -0.01]} rotation={[-0.18, 0, 0]}>
-              <cylinderGeometry args={[0.205, 0.215, 0.07, 16]} />
-              <meshStandardMaterial color={band} roughness={0.6} />
-            </mesh>
-          ) : null}
-          <mesh position={[0, 0.56, -0.03]} rotation={[-0.18, 0, 0]}>
-            <coneGeometry args={[0.22, 0.52, 16]} />
-            <meshStandardMaterial color={hat} roughness={0.7} />
+          <mesh position={[0, 0.46, 0]}>
+            <cylinderGeometry args={[0.12, 0.14, 0.2, 18]} />
+            <meshStandardMaterial color={hat} roughness={0.5} />
           </mesh>
+          {/* 갓끈: 챙 양옆에서 턱 아래로 (기숙사 색) */}
+          {band
+            ? [-1, 1].map((s) => (
+                <mesh
+                  key={s}
+                  position={[s * 0.13, 0.11, 0.12]}
+                  rotation={[0, 0, -s * 0.296]}
+                >
+                  <cylinderGeometry args={[0.009, 0.009, 0.48, 6]} />
+                  <meshStandardMaterial color={band} roughness={0.6} />
+                </mesh>
+              ))
+            : null}
         </group>
         {/* 실습 중: 오른팔을 앞으로 들어 지팡이를 휘두름 (뒤에서 보는 내 시점에서도 보이도록 어깨 바깥쪽) */}
         {practicing && wand ? (
           <group ref={arm} position={[0.26, 0.82, 0.02]}>
-            {/* 소매 */}
-            <mesh position={[0, 0.16, 0]}>
-              <capsuleGeometry args={[0.07, 0.22, 4, 8]} />
+            {/* 도포의 넓은 소매 — 손 쪽으로 갈수록 넓어짐 */}
+            <mesh position={[0, 0.15, 0]}>
+              <cylinderGeometry args={[0.12, 0.07, 0.3, 12]} />
               <meshStandardMaterial color={robe} roughness={0.9} />
             </mesh>
             {/* 손 */}

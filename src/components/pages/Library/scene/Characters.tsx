@@ -199,6 +199,7 @@ export function Player({
       ref={ref}
       robe={colors[houseToken(house, "primary")]}
       band={colors[houseToken(house, "accent")]}
+      collar={colors["--color-scene-collar"]}
       skin={colors["--color-scene-skin"]}
       hat={colors["--color-scene-hat"]}
       pose={pose}
@@ -272,6 +273,7 @@ export function Bot({ student, colors, entering }: BotProps) {
         ref={ref}
         robe={colors[houseToken(student.house, "primary")]}
         band={colors[houseToken(student.house, "accent")]}
+        collar={colors["--color-scene-collar"]}
         houseDot={colors[houseToken(student.house, "accent")]}
         skin={colors["--color-scene-skin"]}
         hat={colors["--color-scene-hat"]}

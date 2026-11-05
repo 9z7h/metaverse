@@ -337,6 +337,7 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-robe-3",
   "--color-scene-robe-4",
   "--color-scene-rug",
+  "--color-scene-collar",
   "--color-scene-moonlight",
   "--color-scene-dancheong",
   ...(["baekho", "jujak", "hyeonmu", "cheongryong"] as const).flatMap(

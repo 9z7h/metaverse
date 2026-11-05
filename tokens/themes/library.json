@@ -138,6 +138,10 @@
         "$value": "{color.red.1000}",
         "comment": "3D — 중앙 통로 러그 (채도 낮은 짙은 적색)"
       },
+      "collar": {
+        "$value": "{color.ivory.100}",
+        "comment": "3D — 도포 깃의 흰 동정 (모든 기숙사 공통)"
+      },
       "moonlight": {
         "$value": "{color.moon.300}",
         "comment": "3D — 창호 달빛"
