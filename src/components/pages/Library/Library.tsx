@@ -10,7 +10,15 @@ import {
 import { useFocusTimer } from "./useFocusTimer";
 import { HouseCrest } from "./HouseCrest";
 import { SortingReveal } from "./SortingReveal";
-import { HOUSES, houseVar, loadHouse, randomHouse, saveHouse } from "./houses";
+import { HOUSES, houseVar, loadHouse, saveHouse } from "./houses";
+import { HouseRanking } from "./HouseRanking";
+import {
+  addMine,
+  balancedHouse,
+  houseHeadcounts,
+  rankHouses,
+} from "./houseRanking";
+import { DAY_ROSTER_HOUSES } from "./libraryPresence";
 import type { HouseId } from "./houses";
 
 // three.js 번들(수백 KB)은 장서각에 들어갈 때만 내려받는다
@@ -151,8 +159,22 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
     [step],
   );
 
+  /**
+   * 오늘 인원이 가장 적은 기숙사 중에서 무작위 배정 — 기숙사 합계 순위가
+   * 인원 수 차이로 왜곡되지 않게 하루 동안 인원을 고르게 유지한다.
+   */
+  const pickHouse = () =>
+    balancedHouse(houseHeadcounts(DAY_ROSTER_HOUSES), Math.random);
+
+  /** 사신제: 다른 학생들의 기숙사별 합계 + 내 오늘 누적(내 기숙사) → 순위 */
+  const ranking = useMemo(
+    () =>
+      rankHouses(addMine(presence.houseTotals, house, timer.elapsedSeconds)),
+    [presence.houseTotals, house, timer.elapsedSeconds],
+  );
+
   const assignHouse = () => {
-    const h = randomHouse();
+    const h = pickHouse();
     saveHouse(h);
     setHouse(h);
     setStep("sorting");
@@ -168,7 +190,7 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
     presence.join({
       seatId,
       subject: mySubject,
-      house: house ?? randomHouse(),
+      house: house ?? pickHouse(),
       mode,
       focusing: false,
       focusSeconds: timer.elapsedSeconds,
@@ -218,6 +240,7 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
               timer={timer}
               subject={mySubject}
               house={house}
+              ranking={ranking}
               mode={mode}
               onModeChange={(m) => {
                 setMode(m);
@@ -276,6 +299,13 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
         </div>
 
         <LiveCount online={presence.onlineCount} free={freeSeats} />
+
+        <HouseRanking
+          title="오늘의 사신제"
+          caption="기숙사별 오늘 집중 시간 합계 · 내 집중도 내 기숙사에 더해져요"
+          entries={ranking}
+          myHouse={house}
+        />
 
         {house ? (
           <div

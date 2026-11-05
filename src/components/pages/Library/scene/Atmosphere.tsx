@@ -41,8 +41,9 @@ function Lanterns({ colors }: { colors: SceneColors }) {
     const rand = seeded(7);
     return Array.from({ length: LANTERN_COUNT }, (_, i) => ({
       x: ROOM.minX + 0.6 + rand() * (ROOM.maxX - ROOM.minX - 1.2),
-      // 열람실 + 입구 홀까지 (시점을 돌려 입구 쪽을 봐도 어둡지 않게)
-      z: ROOM.minZ + 0.6 + rand() * (FRONT_WALL_Z - 1 - ROOM.minZ - 0.6),
+      // 열람실 + 입구 홀까지 (시점을 돌려 입구 쪽을 봐도 어둡지 않게).
+      // 단, 문 위 순위판 앞 2.5m는 비운다 — 초롱이 깃발을 가리지 않도록
+      z: ROOM.minZ + 0.6 + rand() * (FRONT_WALL_Z - 2.5 - ROOM.minZ - 0.6),
       // 아바타 모자(1.9m) 위, 카메라(4.6m) 아래 — 시야를 가리지 않는 높이
       y: 2.6 + rand() * 1.2,
       phase: rand() * Math.PI * 2,

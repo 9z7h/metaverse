@@ -68,13 +68,6 @@ export function isHouseId(v: unknown): v is HouseId {
   return typeof v === "string" && v in HOUSES;
 }
 
-/** 균등 랜덤 배정. `rand`는 테스트용 주입. */
-export function randomHouse(rand: () => number = Math.random): HouseId {
-  return HOUSE_IDS[
-    Math.min(HOUSE_IDS.length - 1, Math.floor(rand() * HOUSE_IDS.length))
-  ];
-}
-
 /** CSS에서 쓰는 토큰 참조 */
 export const houseVar = (id: HouseId, part: HousePart) =>
   `var(--color-house-${id}-${part})`;

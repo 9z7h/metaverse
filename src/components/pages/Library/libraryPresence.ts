@@ -9,6 +9,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HouseId } from "./houses";
+import { zeroHouseSeconds } from "./houseRanking";
+import type { HouseSeconds } from "./houseRanking";
 
 export interface LibrarySeat {
   id: string;
@@ -39,6 +41,12 @@ export interface LibraryPresence {
   seats: LibrarySeat[];
   /** 나를 제외한 접속자 */
   others: PresenceStudent[];
+  /**
+   * 기숙사별 오늘 집중 시간(초) 합계 — 나를 제외한 학생들만.
+   * 지금 접속해 있는 학생과, 이미 나간 학생이 남기고 간 시간을 모두 더한 값이다.
+   * (내 시간은 타이머가 가장 정확하므로 화면에서 따로 더한다)
+   */
+  houseTotals: HouseSeconds;
   /** 나를 포함한 현재 접속자 수 */
   onlineCount: number;
   me: PresenceStudent | null;
@@ -106,6 +114,15 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
   },
 ];
 
+/**
+ * 오늘 접속하는 (목업) 학생들의 기숙사 — 새 학생을 기숙사에 균등 배정할 때 인원 계산의 기준.
+ * 실제 서비스에서는 서버가 오늘 배정된 학생 수를 센다.
+ */
+export const DAY_ROSTER_HOUSES: HouseId[] = [
+  ...INITIAL_OTHERS,
+  ...VISITORS,
+].map((s) => s.house);
+
 const ME_ID = "me";
 const ME_NAME = "수련생";
 
@@ -120,7 +137,16 @@ export function useLibraryPresence({
   simulate = true,
   tickMs = 1000,
 }: UseLibraryPresenceOptions = {}): LibraryPresence {
-  const [others, setOthers] = useState<PresenceStudent[]>(INITIAL_OTHERS);
+  // others와 banked는 한 상태로 묶어, 퇴장 시 시간을 합계에 넘기는 일을 순수하게 처리한다
+  // (StrictMode가 업데이터를 두 번 실행해도 이중 계산되지 않도록)
+  const [world, setWorld] = useState<{
+    others: PresenceStudent[];
+    /** 이미 나간 학생들이 남기고 간 기숙사별 시간 */
+    banked: HouseSeconds;
+    /** 한 번이라도 입장했던 방문자 — 다시 들어오면 0부터 센다 (남기고 간 시간은 banked에 있음) */
+    visited: string[];
+  }>({ others: INITIAL_OTHERS, banked: zeroHouseSeconds(), visited: [] });
+  const { others, banked } = world;
   const [me, setMe] = useState<PresenceStudent | null>(null);
   const [tick, setTick] = useState(0);
   // 시뮬레이션 effect가 내 좌석을 피하도록 최신 값을 ref로 읽는다 (effect 재실행 방지)
@@ -135,7 +161,10 @@ export function useLibraryPresence({
 
   useEffect(() => {
     if (tick === 0) return;
-    setOthers((prev) => {
+    setWorld((prevWorld) => {
+      const prev = prevWorld.others;
+      let nextBanked = prevWorld.banked;
+      let nextVisited = prevWorld.visited;
       // 1) 집중 중인 학생은 1초씩 누적
       let next = prev.map((s) =>
         s.focusing ? { ...s, focusSeconds: s.focusSeconds + 1 } : s,
@@ -162,14 +191,31 @@ export function useLibraryPresence({
         const present = next.find((s) => s.id === visitor.id);
         if (present) {
           next = next.filter((s) => s.id !== visitor.id);
+          // 나가도 오늘 쌓은 시간은 기숙사 합계에 남는다
+          nextBanked = {
+            ...nextBanked,
+            [present.house]: nextBanked[present.house] + present.focusSeconds,
+          };
         } else {
           const taken = new Set(next.map((s) => s.seatId));
           if (meRef.current) taken.add(meRef.current.seatId);
           const free = SEATS.find((seat) => !taken.has(seat.id));
-          if (free) next = [...next, { ...visitor, seatId: free.id }];
+          if (free) {
+            const again = nextVisited.includes(visitor.id);
+            next = [
+              ...next,
+              {
+                ...visitor,
+                seatId: free.id,
+                // 다시 들어온 방문자는 0부터 (이전 시간은 banked에 있음)
+                focusSeconds: again ? 0 : visitor.focusSeconds,
+              },
+            ];
+            if (!again) nextVisited = [...nextVisited, visitor.id];
+          }
         }
       }
-      return next;
+      return { others: next, banked: nextBanked, visited: nextVisited };
     });
   }, [tick]);
 
@@ -183,16 +229,23 @@ export function useLibraryPresence({
 
   const leave = useCallback(() => setMe(null), []);
 
+  const houseTotals = useMemo(() => {
+    const totals = { ...banked };
+    for (const s of others) totals[s.house] += s.focusSeconds;
+    return totals;
+  }, [others, banked]);
+
   return useMemo(
     () => ({
       seats: SEATS,
       others,
+      houseTotals,
       onlineCount: others.length + (me ? 1 : 0),
       me,
       join,
       update,
       leave,
     }),
-    [others, me, join, update, leave],
+    [others, houseTotals, me, join, update, leave],
   );
 }

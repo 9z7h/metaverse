@@ -276,13 +276,15 @@ export function clampOrbit(o: Orbit): Orbit {
 
 /**
  * 대상 위치 + 궤도 → 카메라 위치와 바라볼 점.
- * 시선은 대상보다 `lookAhead`m 앞에 둬서 앞쪽(다른 학생들)이 화면 중앙에 오게 한다.
+ * 시선은 대상보다 `lookAhead`m 앞에 둬서 앞쪽(다른 학생들)이 화면 중앙에 오게 하고,
+ * `lookLift`만큼 시선 높이를 올린다(문 위 순위판을 볼 때 `boardLift`).
  */
 export function cameraRig(
   target: Vec2,
   o: Orbit,
   baseDist: number,
   lookAhead: number,
+  lookLift = 0,
 ): { cam: [number, number, number]; look: [number, number, number] } {
   const d = baseDist * o.zoom;
   const sy = Math.sin(o.yaw);
@@ -303,13 +305,43 @@ export function cameraRig(
   t = Math.max(0, t);
   return {
     cam: [target.x + off.x * t, off.y * t, target.z + off.z * t],
-    look: [target.x - sy * lookAhead, 0.9, target.z - cy * lookAhead],
+    look: [
+      target.x - sy * lookAhead,
+      0.9 + lookLift,
+      target.z - cy * lookAhead,
+    ],
   };
 }
 
 /**
- * 조이스틱 입력(화면 기준: y=-1이 위) → 월드 이동 벡터.
- * "위로 밀기 = 카메라가 보는 방향"이 되도록 yaw만큼 회전한다.
+ * 현재 yaw에서 `target`(rad)을 향해 가장 짧게 도는 도착 yaw.
+ * yaw는 드래그로 몇 바퀴든 돌 수 있으므로, 단순히 target으로 보간하면 한 바퀴를 돌아간다.
+ */
+export function shortestYawTarget(yaw: number, target: number): number {
+  const TAU = Math.PI * 2;
+  const delta = ((((target - yaw) % TAU) + 3 * Math.PI) % TAU) - Math.PI;
+  return yaw + delta;
+}
+
+/** 입구 쪽(앞벽, +z)을 바라보는 yaw — 카메라가 대상 앞(-z)에서 +z를 본다 */
+export const YAW_FACING_DOOR = Math.PI;
+
+/** 문 쪽을 정면으로 볼 때 시선을 들어 올리는 높이(m) — 문 위 높이 걸린 순위판이 화면 가운데에 오도록 */
+export const BOARD_LIFT = 1.5;
+
+/**
+ * 시선 높이 가산값. 문 쪽을 볼수록(yaw가 π에 가까울수록) 커지고, 등지면 0.
+ * 순위판 보기 버튼이든 화면을 끌어 직접 돌리든 같은 결과가 되도록 yaw만으로 정한다.
+ * 제곱을 써서 비스듬히 볼 때는 조금만 올라가 시야가 갑자기 튀지 않는다.
+ */
+export function boardLift(yaw: number): number {
+  const facing = Math.max(0, -Math.cos(yaw));
+  return BOARD_LIFT * facing * facing;
+}
+
+/**
+ * 키보드 입력(화면 기준: y=-1이 위) → 월드 이동 벡터.
+ * "위 = 카메라가 보는 방향"이 되도록 yaw만큼 회전한다.
  */
 export function cameraRelativeMove(x: number, y: number, yaw: number): Vec2 {
   const sy = Math.sin(yaw);

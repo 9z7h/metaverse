@@ -23,15 +23,19 @@ import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
 import { Atmosphere } from "./Atmosphere";
 import { HouseCrest } from "../HouseCrest";
+import type { RankEntry } from "../houseRanking";
+import { RankingBoard } from "./RankingBoard";
 import { HOUSES, houseToken, houseVar } from "../houses";
 import type { HouseId } from "../houses";
 import { LabelPortalContext } from "./Avatar";
 import {
   DESK_TOP_Y,
   ORBIT_DEFAULT,
+  YAW_FACING_DOOR,
   clampOrbit,
   deskLayout,
   readSceneColors,
+  shortestYawTarget,
   tapTarget,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
@@ -42,6 +46,8 @@ export interface LibraryWorldProps {
   subject: string;
   /** 내 기숙사 */
   house: HouseId;
+  /** 오늘의 사신제 — 기숙사별 집중 시간 합계 순위 */
+  ranking: RankEntry[];
   /** 이론 / 실습 */
   mode: StudyMode;
   onModeChange: (mode: StudyMode) => void;
@@ -65,6 +71,11 @@ const MODE_LABEL: Record<StudyMode, string> = {
 /** 드래그 감도 (px → rad) */
 const YAW_PER_PX = 0.008;
 const PITCH_PER_PX = 0.005;
+/** 순위판 보기: 시점 회전에 걸리는 시간(ms)과 도착 시 시선 각도·거리 배율 */
+const TURN_MS = 900;
+const BOARD_PITCH = 0.25;
+const BOARD_ZOOM = 0.5;
+
 /** 이만큼 덜 움직이고 이 시간 안에 손을 떼면 '탭'(이동), 아니면 '드래그'(시점 회전) */
 const TAP_SLOP_PX = 10;
 const TAP_MAX_MS = 350;
@@ -146,6 +157,7 @@ export function LibraryWorld({
   timer,
   subject,
   house,
+  ranking,
   mode,
   onModeChange,
   onSit,
@@ -165,6 +177,7 @@ export function LibraryWorld({
     () => presence.seats.map((s) => deskLayout(s.id)),
     [presence.seats],
   );
+  const myRank = ranking.find((e) => e.house === house)?.rank;
   const labelOf = (id: string) =>
     presence.seats.find((s) => s.id === id)?.label ?? id;
 
@@ -257,6 +270,7 @@ export function LibraryWorld({
   };
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    stopTurn(); // 순위판으로 돌아가는 중이어도 직접 조작이 우선
     e.currentTarget.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinchDist.current = null;
@@ -317,6 +331,7 @@ export function LibraryWorld({
     }
   };
   const onWheel = (e: WheelEvent<HTMLDivElement>) => {
+    stopTurn();
     orbit.current = clampOrbit({
       ...orbit.current,
       zoom: orbit.current.zoom * Math.exp(e.deltaY * 0.001),
@@ -332,6 +347,49 @@ export function LibraryWorld({
   };
   const wheelTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(wheelTimer.current), []);
+
+  /**
+   * 순위판(문 위 앞벽) 쪽으로 시점을 부드럽게 돌린다.
+   * yaw는 가장 짧은 방향으로, 순위판이 높이 걸려 있으므로 시선을 낮추고 조금 가까이 당긴다.
+   * 돌아가는 동안엔 60fps로 그리고, 사용자가 화면을 건드리면 바로 멈춘다.
+   */
+  const turnRaf = useRef(0);
+  const stopTurn = useCallback(() => {
+    if (turnRaf.current) {
+      cancelAnimationFrame(turnRaf.current);
+      turnRaf.current = 0;
+    }
+  }, []);
+  useEffect(() => stopTurn, [stopTurn]);
+  const turnToBoard = () => {
+    stopTurn();
+    const from = orbit.current;
+    const to = clampOrbit({
+      yaw: shortestYawTarget(from.yaw, YAW_FACING_DOOR),
+      pitch: BOARD_PITCH,
+      zoom: BOARD_ZOOM,
+    });
+    const t0 = performance.now();
+    draggingRef.current = true;
+    setDragging(true);
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / TURN_MS);
+      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2; // easeInOutQuad
+      orbit.current = {
+        yaw: from.yaw + (to.yaw - from.yaw) * e,
+        pitch: from.pitch + (to.pitch - from.pitch) * e,
+        zoom: from.zoom + (to.zoom - from.zoom) * e,
+      };
+      if (p < 1) {
+        turnRaf.current = requestAnimationFrame(step);
+      } else {
+        turnRaf.current = 0;
+        draggingRef.current = false;
+        setDragging(false);
+      }
+    };
+    turnRaf.current = requestAnimationFrame(step);
+  };
 
   return (
     <div
@@ -426,6 +484,7 @@ export function LibraryWorld({
                 dragging={draggingRef}
               />
               <FloorPicker pickRef={pickFloor} />
+              <RankingBoard colors={colors} ranking={ranking} myHouse={house} />
               {marker && !seat ? (
                 <TapMarker
                   key={marker.key}
@@ -450,6 +509,8 @@ export function LibraryWorld({
           inset: 0,
           overflow: "hidden",
           pointerEvents: "none",
+          // 독립된 쌓임 맥락: 이름표 안쪽의 z-index(최대 10)가 HUD(순위표 등) 위로 올라오지 않게 가둔다
+          zIndex: 0,
         }}
       />
 
@@ -492,21 +553,34 @@ export function LibraryWorld({
               </span>
             </div>
           </div>
-          {/* 내 기숙사 배지 */}
-          <span
+          {/* 내 기숙사 배지 + 오늘 순위 + 문 위 순위판 보기 */}
+          <div
             style={{
-              ...pillStyle,
+              ...auto,
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--spacing-8)",
               alignSelf: "flex-start",
-              padding:
-                "var(--spacing-4) var(--spacing-12) var(--spacing-4) var(--spacing-4)",
-              background: houseVar(house, "subtle"),
-              color: houseVar(house, "accent"),
-              font: "var(--text-caption-lg-bold)",
             }}
           >
-            <HouseCrest house={house} size={24} aria-hidden />
-            {HOUSES[house].name} 수련생
-          </span>
+            <span
+              style={{
+                ...pillStyle,
+                padding:
+                  "var(--spacing-4) var(--spacing-12) var(--spacing-4) var(--spacing-4)",
+                background: houseVar(house, "subtle"),
+                color: houseVar(house, "accent"),
+                font: "var(--text-caption-lg-bold)",
+              }}
+            >
+              <HouseCrest house={house} size={24} aria-hidden />
+              {HOUSES[house].name} 수련생
+              {myRank ? ` · 오늘 ${myRank}위` : ""}
+            </span>
+            <ButtonSmall style="monolight" onClick={turnToBoard}>
+              순위판 보기
+            </ButtonSmall>
+          </div>
         </div>
 
         {seat ? (

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   CAMERA_BOUNDS,
   planPath,
+  BOARD_LIFT,
+  boardLift,
+  shortestYawTarget,
+  YAW_FACING_DOOR,
   segmentClear,
   tapTarget,
   ORBIT_DEFAULT,
@@ -224,5 +228,71 @@ describe("탭 이동 — tapTarget / planPath", () => {
       cur = p;
     }
     expect(cur).toEqual(to);
+  });
+});
+
+describe("shortestYawTarget — 순위판 쪽으로 가장 짧게 돌기", () => {
+  it("정면(0)에서 입구(π)로는 π만큼 (어느 쪽이든 절댓값 π)", () => {
+    expect(Math.abs(shortestYawTarget(0, YAW_FACING_DOOR))).toBeCloseTo(
+      Math.PI,
+    );
+  });
+
+  it("이미 여러 바퀴 돌아간 yaw에서도 한 바퀴를 되돌지 않는다", () => {
+    const yaw = 7 * Math.PI + 0.2; // 3바퀴 반 + 0.2
+    const t = shortestYawTarget(yaw, YAW_FACING_DOOR);
+    expect(Math.abs(t - yaw)).toBeLessThanOrEqual(Math.PI + 1e-9);
+    // 도착 방향은 정확히 입구 쪽
+    expect(Math.cos(t)).toBeCloseTo(Math.cos(YAW_FACING_DOOR));
+    expect(Math.sin(t)).toBeCloseTo(Math.sin(YAW_FACING_DOOR));
+  });
+
+  it("이미 입구를 보고 있으면 움직이지 않는다", () => {
+    expect(shortestYawTarget(YAW_FACING_DOOR, YAW_FACING_DOOR)).toBeCloseTo(
+      YAW_FACING_DOOR,
+    );
+  });
+});
+
+describe("boardLift — 문 쪽을 볼 때 시선을 들어 올림", () => {
+  it("문을 정면으로 보면 최대, 등지면 0", () => {
+    expect(boardLift(YAW_FACING_DOOR)).toBeCloseTo(BOARD_LIFT);
+    expect(boardLift(0)).toBe(0);
+  });
+
+  it("옆을 볼 때(yaw ±90°)는 0 — 시야가 갑자기 튀지 않는다", () => {
+    expect(boardLift(Math.PI / 2)).toBeCloseTo(0);
+    expect(boardLift(-Math.PI / 2)).toBeCloseTo(0);
+  });
+
+  it("문에 가까워질수록 커진다 (단조 증가)", () => {
+    const a = boardLift(Math.PI * 0.6);
+    const b = boardLift(Math.PI * 0.8);
+    const c = boardLift(Math.PI);
+    expect(a).toBeLessThan(b);
+    expect(b).toBeLessThan(c);
+  });
+
+  it("몇 바퀴를 돌았든 같은 방향이면 같은 값", () => {
+    expect(boardLift(YAW_FACING_DOOR + 6 * Math.PI)).toBeCloseTo(BOARD_LIFT);
+  });
+
+  it("cameraRig는 lookLift만큼 시선 높이만 올린다 (카메라 위치는 그대로)", () => {
+    const base = cameraRig(
+      { x: 0, z: 6 },
+      { yaw: Math.PI, pitch: 0.25, zoom: 0.5 },
+      7.6,
+      3,
+    );
+    const lifted = cameraRig(
+      { x: 0, z: 6 },
+      { yaw: Math.PI, pitch: 0.25, zoom: 0.5 },
+      7.6,
+      3,
+      2.4,
+    );
+    expect(lifted.cam).toEqual(base.cam);
+    expect(lifted.look[1]).toBeCloseTo(base.look[1] + 2.4);
+    expect(lifted.look[2]).toBeCloseTo(base.look[2]);
   });
 });

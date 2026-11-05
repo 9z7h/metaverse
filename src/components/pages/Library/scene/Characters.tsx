@@ -7,7 +7,9 @@ import { Avatar } from "./Avatar";
 import { MagicEffect } from "./MagicEffect";
 import type { AvatarPose } from "./Avatar";
 import {
+  BOARD_LIFT,
   DOOR,
+  boardLift,
   cameraRelativeMove,
   cameraRig,
   deskLayout,
@@ -85,6 +87,8 @@ export function Player({
   const facing = useRef(Math.PI); // 처음엔 방 안쪽(-z)을 바라봄
   const nearRef = useRef<string | null>(null);
   const [pose, setPose] = useState<AvatarPose>("stand");
+  // 문 위 순위판을 보는 중이면 내 이름표를 숨긴다 (깃발을 가리므로). 경계를 넘을 때만 갱신.
+  const [facingBoard, setFacingBoard] = useState(false);
   const camera = useThree((s) => s.camera);
   const look = useRef(new Vector3());
   const camTarget = useRef(new Vector3());
@@ -107,6 +111,9 @@ export function Player({
     if (!g) return;
     const dt = Math.min(rawDt, 0.1); // 저프레임 모드에서 순간이동 방지
 
+    const lookingAtBoard = boardLift(orbit.current.yaw) > BOARD_LIFT * 0.6;
+    if (lookingAtBoard !== facingBoard) setFacingBoard(lookingAtBoard);
+
     if (seat) {
       g.position.set(seat.chair.x, 0, seat.chair.z);
       g.rotation.y = Math.PI; // 책상(-z)을 바라봄
@@ -118,7 +125,13 @@ export function Player({
       // 내 자리 뒤에서 나와 앞줄을 함께 봄 — 드래그로 돌려볼 수 있음.
       // 시선을 너무 앞(3m)에 두면 내 아바타가 화면 맨 아래 타이머 바에 가려져
       // 내가 마법 쓰는 모습이 안 보이므로, 책상 바로 앞(0.8m)을 본다.
-      const rig = cameraRig(seat.chair, orbit.current, SEATED_DIST, 0.8);
+      const rig = cameraRig(
+        seat.chair,
+        orbit.current,
+        SEATED_DIST,
+        0.8,
+        boardLift(orbit.current.yaw),
+      );
       camTarget.current.set(...rig.cam);
       lookTarget.current.set(...rig.look);
     } else {
@@ -181,7 +194,13 @@ export function Player({
         onNearSeatChange(near);
       }
       // 시선을 앞쪽(3m)에 둬 뒷줄이 화면 위 HUD에 가리지 않게 한다
-      const rig = cameraRig(pos.current, orbit.current, WALK_DIST, 3);
+      const rig = cameraRig(
+        pos.current,
+        orbit.current,
+        WALK_DIST,
+        3,
+        boardLift(orbit.current.yaw),
+      );
       camTarget.current.set(...rig.cam);
       lookTarget.current.set(...rig.look);
     }
@@ -212,8 +231,8 @@ export function Player({
       name="나"
       subject={seat ? subject : undefined}
       highlight
-      // 앉아 있을 땐 내 이름표 숨김 (카메라가 가까워 화면을 가림)
-      showLabel={!seat}
+      // 앉아 있을 땐 내 이름표 숨김 (카메라가 가까워 화면을 가림), 순위판을 볼 때도 숨김
+      showLabel={!seat && !facingBoard}
     />
   );
 }
