@@ -1,9 +1,16 @@
-import { createContext, forwardRef, useContext, useRef } from "react";
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import type { RefObject } from "react";
 import type { CSSProperties } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import type { Group } from "three";
+import { Object3D } from "three";
+import type { Group, InstancedMesh } from "three";
 
 export type AvatarPose = "stand" | "walk" | "sit";
 
@@ -40,6 +47,50 @@ export interface AvatarProps {
   practicing?: boolean;
   /** 지팡이 색 (나무) / 지팡이 끝 빛 — practicing일 때만 사용 */
   wand?: { wood: string; glow: string };
+}
+
+/* ── 갓끈 구슬 ─────────────────────────────────────────── */
+
+/** 한쪽 줄의 구슬 수 — 큰 구슬과 작은 구슬이 번갈아 꿰어짐 */
+const BEADS_PER_SIDE = 9;
+
+/**
+ * 갓끈 구슬. 챙 옆(x ±0.24, y 0.32)에서 얼굴 옆선을 따라 턱 아래(x ±0.06, y -0.12)까지
+ * 큰 구슬(0.026)·작은 구슬(0.016)을 번갈아 꿴다. 양쪽 18개를 InstancedMesh 하나로.
+ * 좌표는 머리 그룹 기준.
+ */
+function GatBeads({ color }: { color: string }) {
+  const ref = useRef<InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const o = new Object3D();
+    let i = 0;
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < BEADS_PER_SIDE; k++) {
+        const u = k / (BEADS_PER_SIDE - 1);
+        const r = k % 2 === 0 ? 0.026 : 0.016;
+        // 얼굴 옆선을 따라 내려오다 턱 아래에서 모임 (u² — 아래쪽에서 급히 좁아짐)
+        const x = s * (0.24 - 0.18 * u * u);
+        const y = 0.32 - 0.44 * u;
+        // 직선으로 이으면 중간 구슬이 머리(구, 중심 y 0.12·반지름 0.26) 속에 묻힌다 →
+        // 각 구슬을 얼굴 표면 바로 바깥(앞쪽)에 올린다
+        const dy = y - 0.12;
+        const z = Math.sqrt(Math.max(0, 0.27 ** 2 - x * x - dy * dy)) + r;
+        o.position.set(x, y, z);
+        o.scale.setScalar(r);
+        o.updateMatrix();
+        mesh.setMatrixAt(i++, o.matrix);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }, []);
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, BEADS_PER_SIDE * 2]}>
+      <sphereGeometry args={[1, 10, 8]} />
+      <meshStandardMaterial color={color} roughness={0.35} />
+    </instancedMesh>
+  );
 }
 
 const tagStyle = (highlight: boolean): CSSProperties => ({
@@ -192,19 +243,8 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <cylinderGeometry args={[0.12, 0.14, 0.2, 18]} />
             <meshStandardMaterial color={hat} roughness={0.5} />
           </mesh>
-          {/* 갓끈: 챙 양옆에서 턱 아래로 (기숙사 색) */}
-          {band
-            ? [-1, 1].map((s) => (
-                <mesh
-                  key={s}
-                  position={[s * 0.13, 0.11, 0.12]}
-                  rotation={[0, 0, -s * 0.296]}
-                >
-                  <cylinderGeometry args={[0.009, 0.009, 0.48, 6]} />
-                  <meshStandardMaterial color={band} roughness={0.6} />
-                </mesh>
-              ))
-            : null}
+          {/* 갓끈: 챙 양옆에서 턱 아래로 늘어진 구슬 줄 (기숙사 색) */}
+          {band ? <GatBeads color={band} /> : null}
         </group>
         {/* 실습 중: 오른팔을 앞으로 들어 지팡이를 휘두름 (뒤에서 보는 내 시점에서도 보이도록 어깨 바깥쪽) */}
         {practicing && wand ? (
