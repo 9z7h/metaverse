@@ -396,3 +396,25 @@ export function readSceneColors(el: Element): SceneColors {
   for (const t of SCENE_COLOR_TOKENS) out[t] = cs.getPropertyValue(t).trim();
   return out;
 }
+
+/** `:root`에 정의된 프리미티브 토큰 값 (장면 밖에서 만드는 공유 텍스처용) */
+export function rootToken(name: string): string {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+}
+
+/** 알파 마스크용 흰색 — gray/100 프리미티브 토큰 */
+export const MASK_WHITE_TOKEN = "--color-gray-100";
+
+/**
+ * 토큰 값("#rrggbb")에 투명도를 붙여 canvas 색 문자열로 만든다.
+ * 반투명 그라데이션·질감을 그릴 때 `rgba(...)`를 직접 쓰지 않고 토큰에서 만들기 위함.
+ * hex가 아니면(이미 다른 형식) 그대로 돌려준다.
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}

@@ -9,13 +9,15 @@ import {
   DoubleSide,
 } from "three";
 import type { MeshBasicMaterial, Texture } from "three";
+import { MASK_WHITE_TOKEN, rootToken, withAlpha } from "./sceneLayout";
 import type { SceneColors, Vec2 } from "./sceneLayout";
 import { houseToken } from "../houses";
 import type { HouseId, HousePart } from "../houses";
 import { SEGMENTS, STREAKS, streakPoint, tornadoStreak } from "./magicMotion";
 
 /* ── 공유 알파 마스크 ──────────────────────────────────────
- * 흰색→투명 그라데이션은 "모양(번짐)"만 정하고, 실제 색은 토큰에서 온 색이 곱해진다. */
+ * 흰색(gray/100 토큰)→투명 그라데이션은 "모양(번짐)"만 정하고, 실제 색은 토큰에서 온 색이 곱해진다.
+ * 투명도가 있는 색은 `withAlpha`로 토큰에서 만든다 (rgba 직접 작성 금지). */
 
 let glowTexture: Texture | null = null;
 /** 파티클을 네모 대신 부드러운 원형 빛으로 (반딧불 파티클이 공유) */
@@ -27,6 +29,7 @@ export function getGlowTexture(): Texture {
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   if (ctx) {
+    const white = rootToken(MASK_WHITE_TOKEN);
     const g = ctx.createRadialGradient(
       size / 2,
       size / 2,
@@ -35,9 +38,9 @@ export function getGlowTexture(): Texture {
       size / 2,
       size / 2,
     );
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.35, "rgba(255,255,255,0.6)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
+    g.addColorStop(0, withAlpha(white, 1));
+    g.addColorStop(0.35, withAlpha(white, 0.6));
+    g.addColorStop(1, withAlpha(white, 0));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
   }
@@ -59,18 +62,19 @@ function getStreakTexture(): Texture {
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (ctx) {
+    const white = rootToken(MASK_WHITE_TOKEN);
     const across = ctx.createLinearGradient(0, 0, 0, h);
-    across.addColorStop(0, "rgba(255,255,255,0)");
-    across.addColorStop(0.5, "rgba(255,255,255,1)");
-    across.addColorStop(1, "rgba(255,255,255,0)");
+    across.addColorStop(0, withAlpha(white, 0));
+    across.addColorStop(0.5, withAlpha(white, 1));
+    across.addColorStop(1, withAlpha(white, 0));
     ctx.fillStyle = across;
     ctx.fillRect(0, 0, w, h);
     // 길이 방향 페이드: 머리(u=0) 밝게 → 꼬리(u=1) 투명
     ctx.globalCompositeOperation = "destination-in";
     const along = ctx.createLinearGradient(0, 0, w, 0);
-    along.addColorStop(0, "rgba(255,255,255,0.3)");
-    along.addColorStop(0.12, "rgba(255,255,255,1)");
-    along.addColorStop(1, "rgba(255,255,255,0)");
+    along.addColorStop(0, withAlpha(white, 0.3));
+    along.addColorStop(0.12, withAlpha(white, 1));
+    along.addColorStop(1, withAlpha(white, 0));
     ctx.fillStyle = along;
     ctx.fillRect(0, 0, w, h);
   }

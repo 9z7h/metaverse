@@ -3,6 +3,7 @@ import {
   CAMERA_BOUNDS,
   planPath,
   BOARD_LIFT,
+  withAlpha,
   boardLift,
   shortestYawTarget,
   YAW_FACING_DOOR,
@@ -294,5 +295,18 @@ describe("boardLift — 문 쪽을 볼 때 시선을 들어 올림", () => {
     expect(lifted.cam).toEqual(base.cam);
     expect(lifted.look[1]).toBeCloseTo(base.look[1] + 2.4);
     expect(lifted.look[2]).toBeCloseTo(base.look[2]);
+  });
+});
+
+describe("withAlpha — 토큰 색 + 투명도", () => {
+  it("#rrggbb를 rgba 문자열로", () => {
+    expect(withAlpha("#ffffff", 0.5)).toBe("rgba(255, 255, 255, 0.5)");
+    expect(withAlpha("#16100d", 1)).toBe("rgba(22, 16, 13, 1)");
+    expect(withAlpha(" #FFD98A ", 0)).toBe("rgba(255, 217, 138, 0)");
+  });
+
+  it("hex가 아니면 그대로 돌려준다", () => {
+    expect(withAlpha("rebeccapurple", 0.3)).toBe("rebeccapurple");
+    expect(withAlpha("", 0.3)).toBe("");
   });
 });
