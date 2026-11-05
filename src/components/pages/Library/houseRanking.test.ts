@@ -29,6 +29,15 @@ describe("balancedHouse — 인원 균등 배정", () => {
     expect(picks).toEqual(new Set(["baekho", "hyeonmu", "cheongryong"]));
   });
 
+  it("exclude한 기숙사는 가장 적어도 뽑지 않는다 (다시 배정은 항상 다른 기숙사)", () => {
+    const counts = { baekho: 0, jujak: 5, hyeonmu: 1, cheongryong: 1 };
+    for (const r of [0, 0.4, 0.99]) {
+      const h = balancedHouse(counts, () => r, "baekho");
+      expect(h).not.toBe("baekho");
+      expect(["hyeonmu", "cheongryong"]).toContain(h);
+    }
+  });
+
   it("rand가 1을 반환해도 범위를 넘지 않는다", () => {
     expect(balancedHouse(zeroHouseSeconds(), () => 1)).toBe(HOUSE_IDS.at(-1));
   });

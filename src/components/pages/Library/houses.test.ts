@@ -1,13 +1,34 @@
 import { afterEach, describe, it, expect } from "vitest";
 import {
   HOUSE_IDS,
+  canReroll,
   clearHouse,
+  clearRerollDay,
+  loadRerollDay,
+  saveRerollDay,
   isHouseId,
   loadHouse,
   saveHouse,
 } from "./houses";
 
-afterEach(() => clearHouse());
+afterEach(() => {
+  clearHouse();
+  clearRerollDay();
+});
+
+describe("다시 배정 — 하루 1번", () => {
+  it("한 번도 안 했거나 어제 했으면 가능, 오늘 했으면 불가", () => {
+    expect(canReroll(null, "2026-11-05")).toBe(true);
+    expect(canReroll("2026-11-04", "2026-11-05")).toBe(true);
+    expect(canReroll("2026-11-05", "2026-11-05")).toBe(false);
+  });
+
+  it("마지막으로 한 날을 저장하고 읽는다", () => {
+    expect(loadRerollDay()).toBeNull();
+    saveRerollDay("2026-11-05");
+    expect(loadRerollDay()).toBe("2026-11-05");
+  });
+});
 
 describe("기숙사 목록", () => {
   it("기숙사는 사신수 4개 — 백호·주작·현무·청룡", () => {

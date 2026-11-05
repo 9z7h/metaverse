@@ -7,10 +7,19 @@ import {
   type StudyMode,
   type UseLibraryPresenceOptions,
 } from "./libraryPresence";
-import { useFocusTimer } from "./useFocusTimer";
+import { dayKey, useFocusTimer } from "./useFocusTimer";
 import { HouseCrest } from "./HouseCrest";
 import { SortingReveal } from "./SortingReveal";
-import { HOUSES, houseVar, loadHouse, saveHouse } from "./houses";
+import {
+  HOUSES,
+  HOUSE_IDS,
+  canReroll,
+  houseVar,
+  loadHouse,
+  loadRerollDay,
+  saveHouse,
+  saveRerollDay,
+} from "./houses";
 import { HouseRanking } from "./HouseRanking";
 import {
   addMine,
@@ -104,6 +113,178 @@ function LiveCount({ online, free }: { online: number; free: number }) {
   );
 }
 
+interface HouseCardProps {
+  house: HouseId | null;
+  rerollAvailable: boolean;
+  confirming: boolean;
+  onAskReroll: () => void;
+  onConfirmReroll: () => void;
+  onCancelReroll: () => void;
+}
+
+/**
+ * 입장 화면 맨 위 카드 — 내 기숙사를 가장 먼저 보여준다.
+ * 아직 배정 전(첫 입장)이면 네 기숙사 문장과 함께 사신등 의식 안내를 보여준다.
+ * 다시 배정은 하루 1번이라 실수로 누르지 않게 한 번 더 확인한다.
+ */
+function HouseCard({
+  house,
+  rerollAvailable,
+  confirming,
+  onAskReroll,
+  onConfirmReroll,
+  onCancelReroll,
+}: HouseCardProps) {
+  if (!house) {
+    return (
+      <section
+        aria-label="기숙사 배정 안내"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--spacing-12)",
+          padding: "var(--spacing-16)",
+          borderRadius: "var(--radius-lg)",
+          background: "var(--color-background-Subtle)",
+        }}
+      >
+        <div style={{ display: "flex", gap: "var(--spacing-8)" }}>
+          {HOUSE_IDS.map((id) => (
+            <HouseCrest key={id} house={id} size={32} aria-hidden />
+          ))}
+        </div>
+        <p
+          style={{
+            margin: 0,
+            font: "var(--text-body-sm-bold)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          첫 입장 날 밤, 사신등 의식으로 기숙사가 정해져요
+        </p>
+        <p style={captionStyle}>
+          백호관·주작관·현무관·청룡관 중 한 곳에 배정돼요.
+        </p>
+      </section>
+    );
+  }
+
+  const h = HOUSES[house];
+  return (
+    <section
+      aria-label="내 기숙사"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--spacing-12)",
+        padding: "var(--spacing-16)",
+        borderRadius: "var(--radius-lg)",
+        background: houseVar(house, "subtle"),
+        border: `1px solid ${houseVar(house, "accent")}`,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--spacing-16)",
+        }}
+      >
+        <HouseCrest house={house} size={64} />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--spacing-2)",
+            minWidth: 0,
+          }}
+        >
+          <span style={captionStyle}>내 기숙사</span>
+          <strong
+            style={{
+              font: "var(--text-display-sm-bold)",
+              color: houseVar(house, "accent"),
+            }}
+          >
+            {h.name} 수련생
+          </strong>
+          <span
+            style={{
+              font: "var(--text-caption-lg-medium)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            {h.values}
+          </span>
+        </div>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          font: "var(--text-body-sm-regular)",
+          color: "var(--color-text-primary)",
+        }}
+      >
+        “{h.motto}”
+      </p>
+
+      {confirming ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--spacing-8)",
+          }}
+        >
+          <p
+            role="alert"
+            style={{
+              margin: 0,
+              font: "var(--text-caption-lg-medium)",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            다시 배정은 하루에 한 번만 할 수 있어요. 오늘 쌓은 집중 시간도 새
+            기숙사에 더해져요. 지금 다시 배정할까요?
+          </p>
+          <div style={{ display: "flex", gap: "var(--spacing-8)" }}>
+            <ButtonSmall style="core" onClick={onConfirmReroll}>
+              다시 배정하기
+            </ButtonSmall>
+            <ButtonSmall style="monolight" onClick={onCancelReroll}>
+              취소
+            </ButtonSmall>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-12)",
+          }}
+        >
+          {/* 옆의 안내 문구가 길어도 버튼 글자가 줄바꿈되지 않게 */}
+          <div style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+            <ButtonSmall
+              style="monolight"
+              disabled={!rerollAvailable}
+              onClick={onAskReroll}
+            >
+              다시 배정
+            </ButtonSmall>
+          </div>
+          <span style={captionStyle}>
+            {rerollAvailable
+              ? "하루 1번 가능해요"
+              : "오늘은 이미 다시 배정했어요 · 내일 다시 배정할 수 있어요"}
+          </span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** 3D를 쓸 수 없는 기기 안내 (간편 모드 제거 후의 대체 화면) */
 function Unsupported({ onBack }: { onBack: () => void }) {
   return (
@@ -163,8 +344,8 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
    * 오늘 인원이 가장 적은 기숙사 중에서 무작위 배정 — 기숙사 합계 순위가
    * 인원 수 차이로 왜곡되지 않게 하루 동안 인원을 고르게 유지한다.
    */
-  const pickHouse = () =>
-    balancedHouse(houseHeadcounts(DAY_ROSTER_HOUSES), Math.random);
+  const pickHouse = (exclude?: HouseId) =>
+    balancedHouse(houseHeadcounts(DAY_ROSTER_HOUSES), Math.random, exclude);
 
   /** 사신제: 다른 학생들의 기숙사별 합계 + 내 오늘 누적(내 기숙사) → 순위 */
   const ranking = useMemo(
@@ -173,14 +354,30 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
     [presence.houseTotals, house, timer.elapsedSeconds],
   );
 
-  const assignHouse = () => {
-    const h = pickHouse();
+  /** `exclude`: 다시 배정할 때 지금 기숙사 (같은 곳이 또 나오지 않게) */
+  const assignHouse = (exclude?: HouseId) => {
+    const h = pickHouse(exclude);
     saveHouse(h);
     setHouse(h);
     setStep("sorting");
   };
   /** 입장: 기숙사가 없으면 사신등 의식부터 */
   const enter = () => (house ? setStep("world") : assignHouse());
+
+  /* 다시 배정은 하루 1번 — 순위가 생겨서 마음에 드는 기숙사가 나올 때까지 반복하는 것을 막는다 */
+  const [rerollDay, setRerollDay] = useState<string | null>(() =>
+    loadRerollDay(),
+  );
+  const [confirmReroll, setConfirmReroll] = useState(false);
+  const rerollAvailable = canReroll(rerollDay, dayKey(Date.now()));
+  const reroll = () => {
+    const today = dayKey(Date.now());
+    if (!house || !canReroll(rerollDay, today)) return;
+    saveRerollDay(today);
+    setRerollDay(today);
+    setConfirmReroll(false);
+    assignHouse(house);
+  };
 
   const freeSeats =
     presence.seats.length - presence.others.length - (presence.me ? 1 : 0);
@@ -266,12 +463,21 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
   return (
     <div data-theme="library" style={pageStyle}>
       <main style={columnStyle}>
+        {/* 내 기숙사가 가장 먼저 — 첫 입장이면 사신등 의식 안내 */}
+        <HouseCard
+          house={house}
+          rerollAvailable={rerollAvailable}
+          confirming={confirmReroll}
+          onAskReroll={() => setConfirmReroll(true)}
+          onConfirmReroll={reroll}
+          onCancelReroll={() => setConfirmReroll(false)}
+        />
+
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "var(--spacing-12)",
-            paddingTop: "var(--spacing-48)",
           }}
         >
           <p style={captionStyle}>사신학당 · 밤의 장서각</p>
@@ -307,59 +513,20 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
           myHouse={house}
         />
 
-        {house ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--spacing-12)",
-              padding: "var(--spacing-12)",
-              borderRadius: "var(--radius-lg)",
-              background: houseVar(house, "subtle"),
-            }}
-          >
-            <HouseCrest house={house} size={48} />
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
-              <span
-                style={{
-                  font: "var(--text-body-sm-bold)",
-                  color: houseVar(house, "accent"),
-                }}
-              >
-                {HOUSES[house].name} 수련생
-              </span>
-              <span
-                style={{
-                  font: "var(--text-caption-lg-medium)",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                {HOUSES[house].values}
-              </span>
-            </div>
-            <ButtonSmall style="monolight" onClick={assignHouse}>
-              다시 배정
-            </ButtonSmall>
-          </div>
-        ) : (
-          <p style={captionStyle}>
-            첫 입장 날 밤, 사신등 의식으로 네 기숙사 중 하나에 배정돼요.
-          </p>
-        )}
-
         <form
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "var(--spacing-16)",
             marginTop: "auto",
+            // 화면이 길어져도 입장 버튼이 항상 보이도록 아래에 고정
+            position: "sticky",
+            bottom: 0,
+            background: "var(--color-background-default)",
+            paddingTop: "var(--spacing-12)",
+            paddingBottom:
+              "max(var(--spacing-16), env(safe-area-inset-bottom))",
+            borderTop: "1px solid var(--color-background-muted)",
           }}
           onSubmit={(e) => {
             e.preventDefault();

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { Library } from "./Library";
-import { clearHouse, saveHouse } from "./houses";
+import { clearHouse, clearRerollDay, saveHouse } from "./houses";
 
 const meta = {
   title: "Pages/Library",
@@ -15,6 +15,7 @@ const meta = {
   // 기숙사·오늘 누적 기록은 localStorage에 유지되므로 스토리마다 초기화 → 항상 첫 입장 상태에서 시작
   beforeEach: () => {
     clearHouse();
+    clearRerollDay();
     try {
       window.localStorage.removeItem("hanul-academy:focus");
     } catch {
@@ -80,6 +81,30 @@ export const ReturningStudent: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
     await expect(canvas.queryByText("사신등의 빛이 정해지는 중…")).toBeNull();
     await expect(canvas.queryByRole("dialog")).toBeNull();
+  },
+};
+
+/**
+ * 다시 배정 — 확인을 거쳐 다른 기숙사로 바뀌고, 하루 1번뿐.
+ * (이후 입장 화면 복귀 후 비활성화는 Library.reroll.test.tsx에서 확인 — 여기서는 3D 로딩을 피한다)
+ */
+export const RerollOncePerDay: Story = {
+  beforeEach: () => {
+    saveHouse("hyeonmu");
+  },
+  args: { presenceOptions: { simulate: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("하루 1번 가능해요")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "다시 배정" }));
+    await expect(canvas.getByRole("alert")).toHaveTextContent("하루에 한 번만");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "다시 배정하기" }),
+    );
+    // 항상 지금(현무관)과 다른 기숙사
+    await expect(
+      canvas.getByRole("heading", { name: /^(백호관|주작관|청룡관)$/ }),
+    ).toBeInTheDocument();
   },
 };
 

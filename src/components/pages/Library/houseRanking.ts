@@ -27,9 +27,12 @@ export function houseHeadcounts(houses: HouseId[]): Record<HouseId, number> {
 export function balancedHouse(
   counts: Record<HouseId, number>,
   rand: () => number = Math.random,
+  /** 다시 배정할 때 지금 기숙사를 후보에서 뺀다 — 같은 곳이 또 나와 기회를 날리지 않도록 */
+  exclude?: HouseId,
 ): HouseId {
-  const min = Math.min(...HOUSE_IDS.map((h) => counts[h]));
-  const candidates = HOUSE_IDS.filter((h) => counts[h] === min);
+  const pool = HOUSE_IDS.filter((h) => h !== exclude);
+  const min = Math.min(...pool.map((h) => counts[h]));
+  const candidates = pool.filter((h) => counts[h] === min);
   // rand는 [0,1) 균등 → 후보 수로 환산
   const i = Math.min(
     candidates.length - 1,

@@ -107,3 +107,42 @@ export function clearHouse(): void {
     /* noop */
   }
 }
+
+/* ── 다시 배정: 하루 1번 ─────────────────────────────────────
+ * 마지막으로 다시 배정한 날(YYYY-MM-DD)을 저장한다. 기숙사별 순위가 생기면서
+ * 마음에 드는 기숙사가 나올 때까지 계속 다시 배정하는 것을 막기 위함.
+ * 이 기록도 브라우저에만 있으므로 실제 서비스에서는 서버에서 검증해야 한다. */
+
+const REROLL_KEY = "hanul-academy:reroll-day";
+
+export function loadRerollDay(): string | null {
+  try {
+    return window.localStorage.getItem(REROLL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveRerollDay(day: string): void {
+  try {
+    window.localStorage.setItem(REROLL_KEY, day);
+  } catch {
+    /* 저장 불가 환경 — 이번 세션 메모리(상태)에만 유지 */
+  }
+}
+
+export function clearRerollDay(): void {
+  try {
+    window.localStorage.removeItem(REROLL_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
+/** 오늘(`today`) 아직 다시 배정하지 않았으면 true */
+export function canReroll(
+  lastRerollDay: string | null,
+  today: string,
+): boolean {
+  return lastRerollDay !== today;
+}
