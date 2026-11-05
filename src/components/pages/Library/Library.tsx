@@ -1,5 +1,6 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ButtonLarge, ButtonSmall } from "../../ui/Button";
 import { Input } from "../../ui/Input";
 import {
@@ -29,6 +30,9 @@ import {
 } from "./houseRanking";
 import { DAY_ROSTER_HOUSES } from "./libraryPresence";
 import type { HouseId } from "./houses";
+import { AlreadyRerolledError } from "./academyApi";
+import { useAcademyConnection, useFocusReport } from "./useAcademy";
+import { useRemotePresence } from "./remotePresence";
 
 // three.js 번들(수백 KB)은 장서각에 들어갈 때만 내려받는다
 const LibraryWorld = lazy(() =>
@@ -43,6 +47,11 @@ export interface LibraryProps {
   presenceOptions?: UseLibraryPresenceOptions;
   /** 기숙사 배정 연출 길이(ms). 스토리/테스트에서 0으로 즉시 표시 */
   sortingDurationMs?: number;
+  /**
+   * 서버(Supabase) 연결. 주면 익명 로그인 후 기숙사 배정·재배정·랭킹·접속자를 서버에서 처리하고,
+   * 없으면(스토리·테스트·환경변수 없음) 이 기기 안에서만 도는 데모로 동작한다.
+   */
+  academy?: SupabaseClient | null;
 }
 
 const DEFAULT_SUBJECT = "자율 학습";
@@ -324,11 +333,33 @@ function Unsupported({ onBack }: { onBack: () => void }) {
  * 입장(과목 입력) → 첫 입장 시 사신등 의식(기숙사 배정) → 3D 장서각.
  * `data-theme="library"`로 시맨틱 토큰을 재정의해 기존 UI 컴포넌트를 그대로 테마링한다.
  */
-export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
-  const presence = useLibraryPresence(presenceOptions);
+export function Library({
+  presenceOptions,
+  sortingDurationMs,
+  academy,
+}: LibraryProps) {
+  // 서버 연결 — 연결이 없거나 실패하면 이 기기 안의 데모로 동작
+  const conn = useAcademyConnection(academy);
+  const server = conn.status === "ready" ? conn : null;
+  const remoteMode = Boolean(academy) && conn.status !== "error";
+  const mockPresence = useLibraryPresence(
+    remoteMode ? { ...presenceOptions, simulate: false } : presenceOptions,
+  );
+  const remotePresence = useRemotePresence({
+    client: remoteMode ? (academy ?? null) : null,
+    api: server?.api ?? null,
+    nickname: server?.student?.nickname ?? "수련생",
+  });
+  const presence = remoteMode ? remotePresence : mockPresence;
   const [step, setStep] = useState<Step>("entrance");
-  // 기숙사는 처음 한 번 배정 후 유지 (localStorage)
-  const [house, setHouse] = useState<HouseId | null>(() => loadHouse());
+  // 기숙사는 한 번 배정 후 유지 — 서버 모드에서는 서버가 정한 값, 데모에서는 localStorage
+  const [house, setHouse] = useState<HouseId | null>(() =>
+    academy ? null : loadHouse(),
+  );
+  // 서버 기준 '오늘'(한국 시간). 서버 모드에서 재배정 가능 여부 판단에 쓴다
+  const [serverToday, setServerToday] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
   const [subject, setSubject] = useState("");
   // 이론 / 실습 — 실습으로 집중하면 내 책상 위로 기숙사 마법이 피어오름
   const [mode, setMode] = useState<StudyMode>("theory");
@@ -354,29 +385,76 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
     [presence.houseTotals, house, timer.elapsedSeconds],
   );
 
+  /* 다시 배정은 하루 1번 — 순위가 생겨서 마음에 드는 기숙사가 나올 때까지 반복하는 것을 막는다 */
+  const [rerollDay, setRerollDay] = useState<string | null>(() =>
+    academy ? null : loadRerollDay(),
+  );
+  const [confirmReroll, setConfirmReroll] = useState(false);
+
+  // 서버 모드: 연결되면 서버가 알고 있는 내 기숙사·재배정 기록으로 맞춘다.
+  // 연결에 실패하면 이 기기의 데모 기록으로 되돌린다.
+  useEffect(() => {
+    if (server) {
+      setHouse(server.student?.house ?? null);
+      setRerollDay(server.student?.rerollDay ?? null);
+      setServerToday(server.student?.today ?? null);
+      setNotice(null);
+    } else if (conn.status === "error") {
+      setHouse(loadHouse());
+      setRerollDay(loadRerollDay());
+      setNotice("서버에 연결하지 못해 이 기기에서만 동작하는 체험 모드예요.");
+    }
+  }, [server, conn.status]);
+
+  const today = serverToday ?? dayKey(Date.now());
+  const rerollAvailable = canReroll(rerollDay, today);
+
   /** `exclude`: 다시 배정할 때 지금 기숙사 (같은 곳이 또 나오지 않게) */
-  const assignHouse = (exclude?: HouseId) => {
+  const assignHouse = async (exclude?: HouseId) => {
+    if (server) {
+      setWorking(true);
+      setNotice(null);
+      try {
+        const student = exclude
+          ? await server.api.reroll()
+          : await server.api.join();
+        setHouse(student.house);
+        setRerollDay(student.rerollDay);
+        setServerToday(student.today);
+        setStep("sorting");
+      } catch (e) {
+        if (e instanceof AlreadyRerolledError) {
+          // 다른 기기에서 이미 다시 배정한 경우 — 서버 기준으로 오늘은 끝
+          setRerollDay(today);
+          setNotice("오늘은 이미 다시 배정했어요. 내일 다시 할 수 있어요.");
+        } else {
+          setNotice("기숙사를 배정하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+        }
+      } finally {
+        setWorking(false);
+      }
+      return;
+    }
     const h = pickHouse(exclude);
     saveHouse(h);
     setHouse(h);
     setStep("sorting");
   };
   /** 입장: 기숙사가 없으면 사신등 의식부터 */
-  const enter = () => (house ? setStep("world") : assignHouse());
+  const enter = () => {
+    if (working || conn.status === "connecting") return;
+    if (house) setStep("world");
+    else void assignHouse();
+  };
 
-  /* 다시 배정은 하루 1번 — 순위가 생겨서 마음에 드는 기숙사가 나올 때까지 반복하는 것을 막는다 */
-  const [rerollDay, setRerollDay] = useState<string | null>(() =>
-    loadRerollDay(),
-  );
-  const [confirmReroll, setConfirmReroll] = useState(false);
-  const rerollAvailable = canReroll(rerollDay, dayKey(Date.now()));
   const reroll = () => {
-    const today = dayKey(Date.now());
-    if (!house || !canReroll(rerollDay, today)) return;
-    saveRerollDay(today);
-    setRerollDay(today);
+    if (working || !house || !canReroll(rerollDay, today)) return;
     setConfirmReroll(false);
-    assignHouse(house);
+    if (!server) {
+      saveRerollDay(today);
+      setRerollDay(today);
+    }
+    void assignHouse(house);
   };
 
   const freeSeats =
@@ -402,12 +480,20 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
 
   const handleStart = () => {
     timer.start();
-    presence.update({ focusing: true });
+    presence.update({ focusing: true, focusSeconds: timer.elapsedSeconds });
   };
   const handlePause = () => {
     timer.pause();
-    presence.update({ focusing: false });
+    presence.update({ focusing: false, focusSeconds: timer.elapsedSeconds });
   };
+
+  // 서버 모드: 오늘 누적 집중 시간을 서버에 보고 (기숙사 랭킹의 근거)
+  useFocusReport(
+    server?.api ?? null,
+    timer.elapsedSeconds,
+    timer.status === "running",
+    step === "world",
+  );
 
   if (step === "sorting" && house) {
     return (
@@ -505,6 +591,12 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
           onCancelReroll={() => setConfirmReroll(false)}
         />
 
+        {notice && (
+          <p role="status" style={captionStyle}>
+            {notice}
+          </p>
+        )}
+
         <LiveCount online={presence.onlineCount} free={freeSeats} />
 
         <HouseRanking
@@ -541,7 +633,14 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
             maxLength={20}
             onChange={(e) => setSubject(e.target.value)}
           />
-          <ButtonLarge onClick={enter}>도서관 입장</ButtonLarge>
+          <ButtonLarge
+            onClick={enter}
+            disabled={working || conn.status === "connecting"}
+          >
+            {conn.status === "connecting"
+              ? "서고에 연결하는 중…"
+              : "도서관 입장"}
+          </ButtonLarge>
         </form>
       </main>
     </div>
