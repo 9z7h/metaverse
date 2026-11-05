@@ -62,6 +62,8 @@ export interface PlayerProps {
   orbit: MutableRefObject<Orbit>;
   /** 드래그 중인지 (카메라 반응 속도 상향) */
   dragging: MutableRefObject<boolean>;
+  /** 내 현재 위치를 매 프레임 기록 — 광원이 나를 따라가는 데 쓴다 */
+  positionRef?: MutableRefObject<Vec2>;
 }
 
 /** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
@@ -83,6 +85,7 @@ export function Player({
   onNearSeatChange,
   orbit,
   dragging,
+  positionRef,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2>({ ...DOOR, z: DOOR.z - 1 });
@@ -210,6 +213,8 @@ export function Player({
       camTarget.current.set(...rig.cam);
       lookTarget.current.set(...rig.look);
     }
+
+    if (positionRef) positionRef.current = { x: g.position.x, z: g.position.z };
 
     // 카메라는 부드럽게 따라감 (프레임레이트와 무관한 감쇠).
     // 드래그 중엔 손가락을 바로 따라오도록 더 빠르게.

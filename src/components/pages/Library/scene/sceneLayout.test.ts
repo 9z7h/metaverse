@@ -27,25 +27,29 @@ import {
   deskLayout,
   nearestFreeSeat,
   resolveCollision,
+  BEAM_Z,
+  FRONT_WALL_Z,
+  SIDE_SHELF_PITCH,
+  SIDE_SHELF_Z,
 } from "./sceneLayout";
 import { SEATS } from "../libraryPresence";
 
 const desks = SEATS.map((s) => deskLayout(s.id));
 
 describe("deskLayout — 긴 테이블 양면 좌석", () => {
-  it("L은 왼쪽, R은 오른쪽 테이블이고 1~8은 통로 쪽, 9~16은 벽 쪽 면", () => {
+  it("L은 왼쪽, R은 오른쪽 테이블이고 1~16은 통로 쪽, 17~32는 벽 쪽 면", () => {
     expect(deskLayout("L1").chair.x).toBeGreaterThan(TABLES[0].x); // 왼쪽 테이블의 통로 쪽
-    expect(deskLayout("L9").chair.x).toBeLessThan(TABLES[0].x); // 벽 쪽
+    expect(deskLayout("L17").chair.x).toBeLessThan(TABLES[0].x); // 벽 쪽
     expect(deskLayout("R1").chair.x).toBeLessThan(TABLES[1].x);
-    expect(deskLayout("R9").chair.x).toBeGreaterThan(TABLES[1].x);
+    expect(deskLayout("R17").chair.x).toBeGreaterThan(TABLES[1].x);
     // 같은 번호의 반대 면은 같은 z에서 마주 본다
-    expect(deskLayout("L1").chair.z).toBe(deskLayout("L9").chair.z);
+    expect(deskLayout("L1").chair.z).toBe(deskLayout("L17").chair.z);
   });
 
   it("좌석은 안쪽(뒷벽)에서 입구 쪽으로 SEAT_PITCH 간격", () => {
     expect(deskLayout("L1").chair.z).toBeCloseTo(SEAT_Z0);
     expect(deskLayout("L2").chair.z).toBeCloseTo(SEAT_Z0 + SEAT_PITCH);
-    expect(deskLayout("R8").chair.z).toBeCloseTo(
+    expect(deskLayout("R16").chair.z).toBeCloseTo(
       SEAT_Z0 + (SEATS_PER_SIDE - 1) * SEAT_PITCH,
     );
   });
@@ -63,10 +67,10 @@ describe("deskLayout — 긴 테이블 양면 좌석", () => {
 
   it("마주 앉은 두 면은 서로 반대 방향을 본다", () => {
     expect(
-      Math.sin(deskLayout("L1").facing) + Math.sin(deskLayout("L9").facing),
+      Math.sin(deskLayout("L1").facing) + Math.sin(deskLayout("L17").facing),
     ).toBeCloseTo(0);
     expect(
-      Math.sin(deskLayout("R1").facing) + Math.sin(deskLayout("R9").facing),
+      Math.sin(deskLayout("R1").facing) + Math.sin(deskLayout("R17").facing),
     ).toBeCloseTo(0);
   });
 
@@ -85,15 +89,15 @@ describe("deskLayout — 긴 테이블 양면 좌석", () => {
   });
 });
 
-describe("32석 배치", () => {
-  it("좌석 목록은 32석이고 id가 서로 다르다", () => {
-    expect(SEATS).toHaveLength(32);
-    expect(new Set(SEATS.map((s) => s.id)).size).toBe(32);
+describe("64석 배치", () => {
+  it("좌석 목록은 64석이고 id가 서로 다르다", () => {
+    expect(SEATS).toHaveLength(64);
+    expect(new Set(SEATS.map((s) => s.id)).size).toBe(64);
   });
 
   it("모든 좌석이 고유한 의자 위치를 갖는다", () => {
     const keys = desks.map((d) => `${d.chair.x},${d.chair.z}`);
-    expect(new Set(keys).size).toBe(32);
+    expect(new Set(keys).size).toBe(64);
   });
 
   it("의자는 모두 방 안, 테이블 길이 범위 안에 있다", () => {
@@ -110,7 +114,9 @@ describe("32석 배치", () => {
   });
 
   it("가운데 통로는 넓게 뚫려 있다 (양쪽 통로 쪽 의자 사이 ≥ 3m)", () => {
-    const inner = desks.filter((d) => Number(d.seatId.slice(1)) <= 8);
+    const inner = desks.filter(
+      (d) => Number(d.seatId.slice(1)) <= SEATS_PER_SIDE,
+    );
     const left = Math.max(
       ...inner.filter((d) => d.seatId[0] === "L").map((d) => d.chair.x),
     );
@@ -146,7 +152,7 @@ describe("32석 배치", () => {
   });
 
   it("벽 쪽 의자까지의 길은 테이블을 가로지르지 않고 돌아간다 (경유점이 늘어남)", () => {
-    const outer = deskLayout("L9");
+    const outer = deskLayout("L17");
     expect(planPath(DOOR, outer.chair).length).toBeGreaterThan(1);
   });
 });
@@ -243,9 +249,9 @@ describe("nearestFreeSeat", () => {
   it("가까운 빈 의자를 찾고, 사용 중인 좌석은 건너뛴다", () => {
     const l3 = deskLayout("L3");
     expect(nearestFreeSeat(l3.chair, desks, new Set())?.seatId).toBe("L3");
-    // L3 바로 맞은편(L11)은 테이블 폭 너머라 SIT_DISTANCE(1.5m) 밖
+    // L3 바로 맞은편(L19)은 테이블 폭 너머라 SIT_DISTANCE(1.5m) 밖
     expect(nearestFreeSeat(l3.chair, desks, new Set(["L3"]))?.seatId).not.toBe(
-      "L11",
+      "L19",
     );
   });
 
@@ -360,7 +366,7 @@ describe("탭 이동 — tapTarget / planPath", () => {
 
   it("테이블 상판을 탭하면 탭한 쪽에서 가장 가까운 빈 좌석에 앉는다", () => {
     const l3 = deskLayout("L3");
-    const l11 = deskLayout("L11"); // L3의 맞은편(벽 쪽 면)
+    const l11 = deskLayout("L19"); // L3의 맞은편(벽 쪽 면, L19)
     const far = { x: 0, z: 9 };
     // 통로 쪽 면을 탭하면 L3, 벽 쪽 면을 탭하면 L11
     expect(tapTarget(far, l3.desk, desks, free)).toEqual({
@@ -573,5 +579,41 @@ describe("withAlpha — 브라우저만 해석하는 색(oklch 등)", () => {
     const { withAlpha: fresh } = await import("./sceneLayout");
     expect(fresh("not-a-color", 0.5)).toBe("not-a-color");
     expect(fresh("", 0.5)).toBe("");
+  });
+});
+
+describe("서고 길이에서 계산하는 값 — 서가·살창·대들보", () => {
+  it("옆 서가는 입구 쪽(6.5)에서 뒷벽까지 같은 간격으로 이어지고 모두 서고 안에 있다", () => {
+    expect(SIDE_SHELF_Z[0]).toBe(6.5);
+    SIDE_SHELF_Z.forEach((z, i) => {
+      if (i > 0) expect(SIDE_SHELF_Z[i - 1] - z).toBeCloseTo(SIDE_SHELF_PITCH);
+      // 서가 폭(3.2m)의 절반까지 포함해 뒷벽·입구 홀 안쪽
+      expect(z - 1.6).toBeGreaterThanOrEqual(ROOM.minZ - 1);
+      expect(z + 1.6).toBeLessThanOrEqual(FRONT_WALL_Z);
+    });
+  });
+
+  it("서고가 길어진 만큼 서가가 늘어난다 (뒷벽 가까이까지 이어짐)", () => {
+    const last = SIDE_SHELF_Z[SIDE_SHELF_Z.length - 1];
+    expect(last - 1.6).toBeLessThanOrEqual(ROOM.minZ + 0.1);
+    expect(SIDE_SHELF_Z.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("대들보는 옆벽 살창(서가 중심)을 가리지 않고 그 사이에 놓인다", () => {
+    expect(BEAM_Z.length).toBeGreaterThanOrEqual(10);
+    for (const b of BEAM_Z) {
+      // 살창 폭 2.2m의 절반 + 기둥 폭 여유
+      for (const w of SIDE_SHELF_Z)
+        expect(Math.abs(b - w)).toBeGreaterThan(1.3);
+      expect(b).toBeGreaterThan(ROOM.minZ);
+      expect(b).toBeLessThan(FRONT_WALL_Z);
+    }
+  });
+
+  it("테이블은 서고 길이에 맞춰 뒷벽 가까이에서 시작하고 충분히 길다", () => {
+    for (const t of TABLES) {
+      expect(t.z - t.hz - ROOM.minZ).toBeLessThan(4);
+      expect(t.hz * 2).toBeGreaterThan(30);
+    }
   });
 });

@@ -7,7 +7,8 @@ import {
   useState,
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
+import type { PointLight } from "three";
 import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
   FocusTimer,
@@ -49,6 +50,8 @@ import {
   readSceneColors,
   shortestYawTarget,
   tapTarget,
+  ROOM,
+  DOOR,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 
@@ -79,6 +82,45 @@ const MODE_LABEL: Record<StudyMode, string> = {
   theory: "이론",
   practice: "실습",
 };
+
+/**
+ * 따뜻한 실제 광원 4개가 플레이어를 따라 움직인다. 서고가 길어서(약 41m) 고정해 두면
+ * 광원이 몇 개나 더 필요하지만, 모바일에서는 광원 수가 곧 비용이라 개수는 그대로 두고
+ * 내 주변(앞뒤 약 25m)만 밝힌다. 나머지 불빛은 발광·번짐으로 표현한다.
+ */
+const LIGHT_OFFSETS = [-14, -5, 4, 13];
+function FollowLights({
+  target,
+  color,
+}: {
+  target: { current: Vec2 };
+  color: string;
+}) {
+  const refs = useRef<(PointLight | null)[]>([]);
+  useFrame(() => {
+    LIGHT_OFFSETS.forEach((dz, i) => {
+      const z = Math.min(ROOM.maxZ, Math.max(ROOM.minZ, target.current.z + dz));
+      refs.current[i]?.position.set(0, 3.2, z);
+    });
+  });
+  return (
+    <>
+      {LIGHT_OFFSETS.map((_, i) => (
+        <pointLight
+          key={i}
+          ref={(l) => {
+            refs.current[i] = l;
+          }}
+          position={[0, 3.2, 0]}
+          intensity={9}
+          distance={11}
+          decay={1.6}
+          color={color}
+        />
+      ))}
+    </>
+  );
+}
 
 /** "동작 줄이기" 설정이면 퇴장 연출 없이 바로 사라진다 */
 function prefersReducedMotion() {
@@ -253,6 +295,7 @@ export function LibraryWorld({
   const initialIds = useRef(new Set(presence.others.map((s) => s.id)));
 
   // 나간 학생은 바로 지우지 않고, 마법처럼 스르륵 사라지는 동안만 한 번 더 그린다
+  const playerPos = useRef<Vec2>({ ...DOOR });
   const botRegistry = useRef(new Map<string, BotSnapshot>());
   const prevOthers = useRef(presence.others);
   const [leavers, setLeavers] = useState<Leaver[]>([]);
@@ -506,17 +549,10 @@ export function LibraryWorld({
                   0.5,
                 ]}
               />
-              {/* 모바일 부담을 줄이려 실제 광원은 통로 위 4개만 — 나머지 불빛은 발광·번짐으로 표현 */}
-              {[-9, -3, 3, 9].map((z) => (
-                <pointLight
-                  key={z}
-                  position={[0, 3.2, z]}
-                  intensity={9}
-                  distance={11}
-                  decay={1.6}
-                  color={colors["--color-scene-flame"]}
-                />
-              ))}
+              <FollowLights
+                target={playerPos}
+                color={colors["--color-scene-flame"]}
+              />
 
               <LibraryRoom colors={colors} desks={desks} />
               <HallFrame colors={colors} />
@@ -541,6 +577,7 @@ export function LibraryWorld({
                 />
               ))}
               <Player
+                positionRef={playerPos}
                 colors={colors}
                 desks={desks}
                 input={input}

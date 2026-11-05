@@ -56,22 +56,25 @@ export interface LibraryPresence {
 }
 
 /**
- * 긴 열람 테이블 2개(L·R) × 양쪽 면 8석씩 = 32석. 좌표는 scene/sceneLayout.ts의 deskLayout.
- * 1~8은 통로 쪽 면, 9~16은 벽 쪽 면 (각각 안쪽 → 입구 쪽).
+ * 긴 열람 테이블 2개(L·R) × 양쪽 면 16석씩 = 64석. 좌표는 scene/sceneLayout.ts의 deskLayout.
+ * 1~16은 통로 쪽 면, 17~32는 벽 쪽 면 (각각 안쪽 → 입구 쪽).
  */
 export const SEATS: LibrarySeat[] = ["L", "R"].flatMap((table) =>
-  Array.from({ length: 16 }, (_, i) => ({
+  Array.from({ length: 32 }, (_, i) => ({
     id: `${table}${i + 1}`,
     label: `${table}-${i + 1}`,
   })),
 );
+
+/** 좌석이 입구에서 얼마나 가까운지 (클수록 입구 쪽) — 같은 면 안에서의 순번 */
+const seatNearness = (id: string) => (Number(id.slice(1)) - 1) % 16;
 
 const INITIAL_OTHERS: PresenceStudent[] = [
   {
     id: "s1",
     name: "하린",
     subject: "알고리즘",
-    seatId: "L3",
+    seatId: "L15",
     focusing: true,
     focusSeconds: 95 * 60,
     house: "jujak",
@@ -81,7 +84,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     id: "s2",
     name: "도윤",
     subject: "토익",
-    seatId: "R14",
+    seatId: "R31",
     focusing: false,
     focusSeconds: 40 * 60,
     house: "baekho",
@@ -91,7 +94,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     id: "s3",
     name: "서아",
     subject: "UX 리서치",
-    seatId: "R4",
+    seatId: "L10",
     focusing: true,
     focusSeconds: 130 * 60,
     house: "hyeonmu",
@@ -206,7 +209,16 @@ export function useLibraryPresence({
         } else {
           const taken = new Set(next.map((s) => s.seatId));
           if (meRef.current) taken.add(meRef.current.seatId);
-          const free = SEATS.find((seat) => !taken.has(seat.id));
+          // 빈 자리 중 입구에 가장 가까운 곳 (긴 서고에서 방문자가 멀리 걸어가지 않게)
+          const free = SEATS.filter((seat) => !taken.has(seat.id)).reduce<
+            LibrarySeat | undefined
+          >(
+            (best, seat) =>
+              !best || seatNearness(seat.id) > seatNearness(best.id)
+                ? seat
+                : best,
+            undefined,
+          );
           if (free) {
             const again = nextVisited.includes(visitor.id);
             next = [

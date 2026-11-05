@@ -1,9 +1,16 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, Object3D } from "three";
+import { BufferAttribute, BufferGeometry, Color, Object3D } from "three";
 import type { Group, InstancedMesh, MeshStandardMaterial } from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
-import { FRONT_WALL_Z, HALL, ROOM, TABLES, TABLE_CANDLES } from "./sceneLayout";
+import {
+  FRONT_WALL_Z,
+  HALL,
+  ROOM,
+  SIDE_SHELF_Z,
+  TABLES,
+  TABLE_CANDLES,
+} from "./sceneLayout";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 
 interface RoomProps {
@@ -50,7 +57,6 @@ const SHELF_DEPTH = 0.45;
 const SHELF_ROWS = 5;
 
 /** 뒷벽 가운데는 큰 살창 자리라 비워 두고, 좌우 벽은 열람실 길이를 따라 이어 붙인다 */
-export const SIDE_SHELF_Z = [-11, -7.5, -4, -0.5, 3, 6.5];
 export const BACK_SHELF_X = [-7.2, -4.2, 4.2, 7.2];
 
 function useShelves(): ShelfSpec[] {
@@ -71,6 +77,25 @@ function useShelves(): ShelfSpec[] {
       base.map((s) => ({ ...s, y0 })),
     );
   }, []);
+}
+
+/**
+ * 서가를 서고 길이 방향 구역으로 나눈다. 구역마다 InstancedMesh를 따로 두면
+ * 화면 밖 구역은 그리지 않아서(프러스텀 컬링) 서고가 길어져도 부담이 비례해 늘지 않는다.
+ */
+const SHELF_CHUNKS = 4;
+function chunkShelves(shelves: ShelfSpec[]): ShelfSpec[][] {
+  const lo = ROOM.minZ - 1;
+  const size = (ROOM.maxZ - lo) / SHELF_CHUNKS;
+  const out: ShelfSpec[][] = Array.from({ length: SHELF_CHUNKS }, () => []);
+  for (const s of shelves) {
+    const i = Math.min(
+      SHELF_CHUNKS - 1,
+      Math.max(0, Math.floor((s.z - lo) / size)),
+    );
+    out[i].push(s);
+  }
+  return out.filter((c) => c.length > 0);
 }
 
 /** 결정적 의사난수 (렌더마다 같은 책 배치) */
@@ -139,16 +164,40 @@ function ShelfFrames({
   );
 }
 
+/**
+ * 책 한 권의 모양 — 서가 안에서 실제로 보이는 앞면(+z, 책등)과 윗면(+y)만.
+ * 상자 전체(12삼각형) 대신 4삼각형이라, 책 수천 권을 그려도 삼각형 부담이 3분의 1이다.
+ */
+function createBookGeometry(): BufferGeometry {
+  const g = new BufferGeometry();
+  // 앞면 4점 + 윗면 4점
+  const positions = new Float32Array([
+    -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5,
+    0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
+  ]);
+  const normals = new Float32Array([
+    0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+  ]);
+  g.setAttribute("position", new BufferAttribute(positions, 3));
+  g.setAttribute("normal", new BufferAttribute(normals, 3));
+  g.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
+  return g;
+}
+
 function Books({
   shelves,
   palette,
+  seed,
 }: {
   shelves: ShelfSpec[];
   palette: string[];
+  seed: number;
 }) {
   const ref = useRef<InstancedMesh>(null);
+  const geometry = useMemo(createBookGeometry, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   const books = useMemo(() => {
-    const rand = seeded(42);
+    const rand = seeded(seed);
     const list: {
       x: number;
       y: number;
@@ -184,7 +233,7 @@ function Books({
       }
     }
     return list;
-  }, [shelves, palette.length]);
+  }, [shelves, palette.length, seed]);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -205,7 +254,7 @@ function Books({
 
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, books.length]}>
-      <boxGeometry args={[1, 1, 1]} />
+      <primitive object={geometry} attach="geometry" />
       <meshStandardMaterial roughness={0.85} />
     </instancedMesh>
   );
@@ -356,19 +405,21 @@ function DeskSet({
 
 function FloatingBooks({ colors }: { colors: SceneColors }) {
   const group = useRef<Group>(null);
-  const items = useMemo(
-    () => [
-      { x: -1.2, y: 2.6, z: -9, c: "--color-scene-robe-1" as const },
-      { x: 1.6, y: 3.0, z: -3, c: "--color-scene-robe-2" as const },
-      { x: -4.4, y: 2.8, z: 2, c: "--color-scene-robe-3" as const },
-      { x: 4.4, y: 2.4, z: -6.5, c: "--color-scene-robe-4" as const },
-      { x: 0.8, y: 3.2, z: 6, c: "--color-scene-robe-2" as const },
-      { x: -5, y: 3.0, z: -11, c: "--color-scene-robe-4" as const },
-      { x: 5.2, y: 2.7, z: 8, c: "--color-scene-robe-1" as const },
-      { x: -1.4, y: 2.5, z: 12.5, c: "--color-scene-robe-3" as const },
-    ],
-    [],
-  );
+  // 서고 길이를 따라 2.6m 간격으로 흩어 놓는다
+  const items = useMemo(() => {
+    const colorsCycle = [
+      "--color-scene-robe-1",
+      "--color-scene-robe-2",
+      "--color-scene-robe-3",
+      "--color-scene-robe-4",
+    ] as const;
+    return Array.from({ length: 16 }, (_, i) => ({
+      x: ((i * 7) % 13) - 6,
+      y: 2.4 + (i % 4) * 0.25,
+      z: 11 - i * 2.6,
+      c: colorsCycle[i % 4],
+    }));
+  }, []);
   useFrame(({ clock }) => {
     group.current?.children.forEach((child, i) => {
       const t = clock.elapsedTime + i * 1.7;
@@ -393,6 +444,7 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
 
 export function LibraryRoom({ colors, desks }: RoomProps) {
   const shelves = useShelves();
+  const chunks = useMemo(() => chunkShelves(shelves), [shelves]);
   const bookPalette = useMemo(
     () => [
       colors["--color-scene-robe-1"],
@@ -467,8 +519,12 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
         ))}
       </group>
 
-      <ShelfFrames shelves={shelves} wood={colors["--color-scene-wood-dark"]} />
-      <Books shelves={shelves} palette={bookPalette} />
+      {chunks.map((c, i) => (
+        <group key={i}>
+          <ShelfFrames shelves={c} wood={colors["--color-scene-wood-dark"]} />
+          <Books shelves={c} palette={bookPalette} seed={42 + i * 101} />
+        </group>
+      ))}
 
       <DeskSet layouts={desks} colors={colors} />
       <FloatingBooks colors={colors} />

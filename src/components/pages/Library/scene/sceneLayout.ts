@@ -21,7 +21,7 @@ export interface DeskLayout {
 }
 
 /** 방 안쪽 이동 가능 범위 (벽 두께·책장 깊이 제외) */
-export const ROOM = { minX: -8, maxX: 8, minZ: -13, maxZ: 11 } as const;
+export const ROOM = { minX: -8, maxX: 8, minZ: -30, maxZ: 11 } as const;
 /** 입구 — 새로 들어오는 학생/내가 처음 서는 위치 */
 export const DOOR: Vec2 = { x: 0, z: ROOM.maxZ - 0.6 };
 
@@ -42,15 +42,29 @@ export const HALL = {
  * 혼천의: 뒷벽 오른쪽 모서리 근처.
  */
 export const OBSTACLES: ReadonlyArray<{ x: number; z: number; r: number }> = [
-  { x: 6.2, z: -11.6, r: 0.7 },
+  { x: 6.2, z: ROOM.minZ + 1.4, r: 0.7 },
 ];
+/**
+ * 옆 서가(와 그 위 살창)의 중심 z — 입구 쪽(6.5)에서 뒷벽까지 3.5m 간격.
+ * 서고 길이(ROOM)에서 계산하므로 서고를 늘리면 서가·살창·달빛 줄기도 함께 늘어난다.
+ */
+export const SIDE_SHELF_PITCH = 3.5;
+export const SIDE_SHELF_Z: ReadonlyArray<number> = Array.from(
+  { length: Math.floor((6.5 - (ROOM.minZ + 1.5)) / SIDE_SHELF_PITCH) + 1 },
+  (_, i) => 6.5 - i * SIDE_SHELF_PITCH,
+);
+/** 대들보 z — 옆벽 살창 사이사이(서가 간격의 한가운데)에 놓아 창을 가리지 않게 한다 */
+export const BEAM_Z: ReadonlyArray<number> = Array.from(
+  { length: Math.floor((15.25 - (ROOM.minZ + 3.25)) / SIDE_SHELF_PITCH) + 1 },
+  (_, i) => 15.25 - i * SIDE_SHELF_PITCH,
+);
 export const PLAYER_RADIUS = 0.35;
 /** 이 거리 안에 들어오면 "앉기" 버튼 노출 */
 export const SIT_DISTANCE = 1.5;
 
 /* ── 긴 열람 테이블 ───────────────────────────────────────────
  * 서고 길이 방향(z)으로 이어지는 테이블이 가운데 통로(x ±2.1) 양쪽에 하나씩.
- * 각 테이블의 양쪽(통로 쪽·벽 쪽)에 의자가 8석씩 마주 보고 놓인다 → 테이블당 16석, 모두 32석. */
+ * 각 테이블의 양쪽(통로 쪽·벽 쪽)에 의자가 16석씩 마주 보고 놓인다 → 테이블당 32석, 모두 64석. */
 
 export interface Table {
   /** 중심 */
@@ -61,14 +75,28 @@ export interface Table {
   hz: number;
 }
 
-export const TABLES: ReadonlyArray<Table> = [
-  { x: -3.8, z: -2.1, hx: 0.8, hz: 8.4 },
-  { x: 3.8, z: -2.1, hx: 0.8, hz: 8.4 },
-];
-/** 한쪽 면의 좌석 수와 간격, 첫 좌석(가장 안쪽)의 z */
-export const SEATS_PER_SIDE = 8;
+/** 한쪽 면의 좌석 수와 간격, 첫 좌석(가장 안쪽, 뒷벽 쪽)의 z */
+export const SEATS_PER_SIDE = 16;
 export const SEAT_PITCH = 2.1;
-export const SEAT_Z0 = -9.45;
+export const SEAT_Z0 = ROOM.minZ + 3.55;
+/** 테이블은 첫 좌석 앞부터 마지막 좌석 뒤까지 — 서고 길이에 맞춰 늘어난다 */
+const TABLE_Z0 = SEAT_Z0 - SEAT_PITCH / 2;
+const TABLE_Z1 = SEAT_Z0 + (SEATS_PER_SIDE - 1) * SEAT_PITCH + SEAT_PITCH / 2;
+
+export const TABLES: ReadonlyArray<Table> = [
+  {
+    x: -3.8,
+    z: (TABLE_Z0 + TABLE_Z1) / 2,
+    hx: 0.8,
+    hz: (TABLE_Z1 - TABLE_Z0) / 2,
+  },
+  {
+    x: 3.8,
+    z: (TABLE_Z0 + TABLE_Z1) / 2,
+    hx: 0.8,
+    hz: (TABLE_Z1 - TABLE_Z0) / 2,
+  },
+];
 /** 테이블 가장자리에서 의자 중심까지 */
 const CHAIR_GAP = 0.55;
 
@@ -81,8 +109,8 @@ export const TABLE_CANDLES: ReadonlyArray<Vec2> = TABLES.flatMap((t) =>
 );
 
 /**
- * 좌석 id(`L1`~`L16`, `R1`~`R16`) → 테이블/의자 위치.
- * L·R은 왼쪽·오른쪽 테이블, 1~8은 통로 쪽 면, 9~16은 벽 쪽 면 (각각 안쪽 → 입구 쪽 순서).
+ * 좌석 id(`L1`~`L32`, `R1`~`R32`) → 테이블/의자 위치.
+ * L·R은 왼쪽·오른쪽 테이블, 1~16은 통로 쪽 면, 17~32는 벽 쪽 면 (각각 안쪽 → 입구 쪽 순서).
  */
 export function deskLayout(seatId: string): DeskLayout {
   const t = seatId[0] === "R" ? TABLES[1] : TABLES[0];

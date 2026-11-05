@@ -17,8 +17,8 @@ import type { InstancedMesh, Points } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
-import { SIDE_SHELF_Z, fillBoxes } from "./LibraryRoom";
+import { FRONT_WALL_Z, HALL, ROOM, SIDE_SHELF_Z } from "./sceneLayout";
+import { fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
@@ -36,7 +36,7 @@ const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
 
 /* ── 청사초롱: 공중에 떠서 흔들리는 비단 등 ─────────────────── */
 
-const LANTERN_COUNT = 44;
+const LANTERN_COUNT = 70;
 
 function Lanterns({ colors }: { colors: SceneColors }) {
   const bodies = useRef<InstancedMesh>(null);
@@ -442,7 +442,7 @@ function HouseBanners({ colors }: { colors: SceneColors }) {
 
 /* ── 반딧불 파티클 ───────────────────────────────────────── */
 
-const SPARK_COUNT = 260;
+const SPARK_COUNT = 420;
 
 function Sparkles({ colors }: { colors: SceneColors }) {
   const ref = useRef<Points>(null);
@@ -496,14 +496,12 @@ function Sparkles({ colors }: { colors: SceneColors }) {
 function Scrolls({ colors }: { colors: SceneColors }) {
   const ref = useRef<InstancedMesh>(null);
   const items = useMemo(
-    () => [
-      { x: 0.9, y: 2.7, z: -9 },
-      { x: -2.4, y: 3.0, z: -3 },
-      { x: 3.6, y: 2.6, z: 3 },
-      { x: -3.5, y: 2.8, z: 7 },
-      { x: 4, y: 3.1, z: -6 },
-      { x: -0.8, y: 2.6, z: 12 },
-    ],
+    () =>
+      Array.from({ length: 14 }, (_, i) => ({
+        x: ((i * 5) % 11) - 5,
+        y: 2.6 + (i % 3) * 0.25,
+        z: 12 - i * 3,
+      })),
     [],
   );
   const o = useMemo(() => new Object3D(), []);
@@ -534,15 +532,21 @@ const LAMP_RING_Y = 6.3;
 const LAMP_RING_R = 0.75;
 const CANDLES_PER_LAMP = 8;
 /** [x, z] — 통로 양옆 두 줄 + 가운데 한 줄 */
+const LAMP_PITCH = 5.5;
+const lampRow = (front: number) =>
+  Array.from(
+    { length: Math.floor((front - (ROOM.minZ + 3)) / LAMP_PITCH) + 1 },
+    (_, i) => front - i * LAMP_PITCH,
+  );
 const LAMP_SPOTS: [number, number][] = [
-  ...[-9.5, -4, 1.5, 7, 12.5].flatMap(
+  ...lampRow(12.5).flatMap(
     (z) =>
       [
         [-4.4, z],
         [4.4, z],
       ] as [number, number][],
   ),
-  ...[-6.5, -1, 4.5, 10].map((z) => [0, z] as [number, number]),
+  ...lampRow(10).map((z) => [0, z] as [number, number]),
 ];
 
 function HangingLamps({ colors }: { colors: SceneColors }) {

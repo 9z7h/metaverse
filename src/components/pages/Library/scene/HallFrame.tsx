@@ -8,7 +8,7 @@ import { Color } from "three";
 import type { InstancedMesh } from "three";
 import { fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
-import { FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
+import { BEAM_Z, FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 
 const WALL_X = ROOM.maxX + 0.7; // 좌우 벽 안쪽 면
@@ -18,11 +18,8 @@ const D = FRONT_WALL_Z - BACK_Z;
 const CZ = (FRONT_WALL_Z + BACK_Z) / 2;
 const H = HALL.wallH;
 
-/** 대들보 자리 — 옆벽 창(서가 중심 z) 사이사이에 놓아 창을 가리지 않게 한다 */
-export const BEAM_Z = Array.from({ length: 8 }, (_, i) => -9.25 + i * 3.5);
-
 /** 회랑이 이어지는 z 범위 (옆 서가가 있는 구간) */
-const LEDGE_Z0 = -12.6;
+const LEDGE_Z0 = ROOM.minZ + 0.4;
 const LEDGE_Z1 = 8.2;
 const LEDGE_LEN = LEDGE_Z1 - LEDGE_Z0;
 const LEDGE_CZ = (LEDGE_Z0 + LEDGE_Z1) / 2;
