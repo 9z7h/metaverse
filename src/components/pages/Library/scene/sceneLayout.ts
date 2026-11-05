@@ -459,6 +459,47 @@ export function shortestYawTarget(yaw: number, target: number): number {
 /** 입구 쪽(앞벽, +z)을 바라보는 yaw — 카메라가 대상 앞(-z)에서 +z를 본다 */
 export const YAW_FACING_DOOR = Math.PI;
 
+/** 3D 카메라의 세로 시야각(도) — Canvas와 순위판 카메라 계산이 같은 값을 쓴다 */
+export const CAMERA_FOV = 50;
+
+/** 순위판(앞벽 문 위)이 차지하는 범위 — 두루마리가 늘어진 아래쪽(bottom)부터 현판 위(top)까지 */
+export const BOARD_EXTENT = { halfWidth: 3.3, bottom: 3, top: 5.95 } as const;
+/** 순위판을 화면의 이 세로 구간(위에서 0~1)에 맞춘다 — 아래쪽은 앉았을 때의 하단 패널이 차지한다 */
+const BOARD_USABLE = { top: 0.08, bottom: 0.62 } as const;
+const BOARD_MARGIN_W = 0.6;
+/** 순위판에서 카메라까지 거리 한계(m) */
+export const BOARD_VIEW_DIST = { min: 3.5, max: 18 } as const;
+
+/**
+ * "순위판 보기" 카메라 — 내가 서고 어디에 있든, 순위판 정면(가운데 통로 위)으로 날아가
+ * 순위판 전체가 화면에 들어오게 한다. 세로로 긴 휴대폰은 가로 폭이 기준이라 멀리,
+ * 가로로 넓은 화면은 세로 높이가 기준이라 가까이 선다.
+ * `aspect` = 화면 가로/세로.
+ */
+export function boardCameraRig(aspect: number): {
+  cam: [number, number, number];
+  look: [number, number, number];
+} {
+  const tanHalf = Math.tan((CAMERA_FOV * Math.PI) / 360);
+  const centerY = (BOARD_EXTENT.top + BOARD_EXTENT.bottom) / 2;
+  const usable = BOARD_USABLE.bottom - BOARD_USABLE.top;
+  const dV = (BOARD_EXTENT.top - BOARD_EXTENT.bottom) / usable / (2 * tanHalf);
+  const dH =
+    (BOARD_EXTENT.halfWidth * 2 + BOARD_MARGIN_W) /
+    (2 * tanHalf * Math.max(0.2, aspect));
+  const d = Math.min(
+    BOARD_VIEW_DIST.max,
+    Math.max(BOARD_VIEW_DIST.min, dV, dH),
+  );
+  const visibleH = 2 * d * tanHalf;
+  // 순위판 중심이 사용 가능 구간의 가운데에 오도록 시선을 그만큼 아래로
+  const midFrac = (BOARD_USABLE.top + BOARD_USABLE.bottom) / 2;
+  return {
+    cam: [0, centerY, FRONT_WALL_Z - d],
+    look: [0, centerY - (0.5 - midFrac) * visibleH, FRONT_WALL_Z],
+  };
+}
+
 /** 문 쪽을 정면으로 볼 때 시선을 들어 올리는 높이(m) — 문 위 높이 걸린 순위판이 화면 가운데에 오도록 */
 export const BOARD_LIFT = 1.5;
 

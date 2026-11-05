@@ -31,6 +31,10 @@ import {
   FRONT_WALL_Z,
   SIDE_SHELF_PITCH,
   SIDE_SHELF_Z,
+  boardCameraRig,
+  BOARD_EXTENT,
+  BOARD_VIEW_DIST,
+  CAMERA_FOV,
 } from "./sceneLayout";
 import { SEATS } from "../libraryPresence";
 
@@ -614,6 +618,64 @@ describe("서고 길이에서 계산하는 값 — 서가·살창·대들보", (
     for (const t of TABLES) {
       expect(t.z - t.hz - ROOM.minZ).toBeLessThan(4);
       expect(t.hz * 2).toBeGreaterThan(30);
+    }
+  });
+});
+
+describe("boardCameraRig — 순위판 보기 카메라", () => {
+  const tanHalf = Math.tan((CAMERA_FOV * Math.PI) / 360);
+  const aspects = [0.46, 0.56, 0.75, 1, 1.6, 2.2];
+  const view = (aspect: number) => {
+    const { cam, look } = boardCameraRig(aspect);
+    const d = FRONT_WALL_Z - cam[2];
+    const visibleH = 2 * d * tanHalf;
+    /** 높이 y의 점이 화면 위에서 어느 비율에 오는지 (0 = 맨 위, 1 = 맨 아래) */
+    const frac = (y: number) => 0.5 - (y - look[1]) / visibleH;
+    return { cam, look, d, frac };
+  };
+
+  it("가운데 통로 위에서 순위판(앞벽, +z)을 정면으로 바라본다", () => {
+    for (const a of aspects) {
+      const { cam, look } = boardCameraRig(a);
+      expect(cam[0]).toBe(0);
+      expect(look[0]).toBe(0);
+      expect(look[2]).toBe(FRONT_WALL_Z);
+      expect(look[2]).toBeGreaterThan(cam[2]);
+    }
+  });
+
+  it("어떤 화면 비율에서도 순위판이 가로로 잘리지 않는다", () => {
+    for (const a of aspects) {
+      const { d } = view(a);
+      expect(d * tanHalf * a).toBeGreaterThanOrEqual(BOARD_EXTENT.halfWidth);
+    }
+  });
+
+  it("순위판 전체가 화면 안에 있고, 아래 하단 패널(약 35%)에 가리지 않는다", () => {
+    for (const a of aspects) {
+      const { frac } = view(a);
+      expect(frac(BOARD_EXTENT.top)).toBeGreaterThanOrEqual(0.02);
+      expect(frac(BOARD_EXTENT.bottom)).toBeLessThanOrEqual(0.65);
+    }
+  });
+
+  it("화면이 가로로 넓을수록 더 가까이 선다 (세로로 긴 휴대폰은 멀리)", () => {
+    let prev = Infinity;
+    for (const a of aspects) {
+      const { d } = view(a);
+      expect(d).toBeLessThanOrEqual(prev + 1e-9);
+      prev = d;
+    }
+    expect(view(0.46).d).toBeGreaterThan(view(1.6).d);
+  });
+
+  it("카메라는 항상 서고 안(앞벽 가까이도 아니고 뒷벽 밖도 아님)에 있다", () => {
+    for (const a of [0.2, ...aspects, 4]) {
+      const { cam, d } = view(a);
+      expect(cam[2]).toBeGreaterThanOrEqual(ROOM.minZ);
+      expect(d).toBeGreaterThanOrEqual(BOARD_VIEW_DIST.min);
+      expect(d).toBeLessThanOrEqual(BOARD_VIEW_DIST.max);
+      expect(cam[1]).toBeLessThan(HALL.wallH);
     }
   });
 });

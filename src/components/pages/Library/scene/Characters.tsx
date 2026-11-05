@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Plane, Raycaster, Vector2, Vector3 } from "three";
-import type { Group, Mesh, MeshBasicMaterial } from "three";
+import type { Group, Mesh, MeshBasicMaterial, PerspectiveCamera } from "three";
 import { Avatar } from "./Avatar";
 import { DissolveEffect, MagicEffect } from "./MagicEffect";
 import { dissolveAlpha, dissolveProgress, dissolveRise } from "./magicMotion";
@@ -18,6 +18,7 @@ import {
   planPath,
   resolveCollision,
   shortestYawTarget,
+  boardCameraRig,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import type { PresenceStudent } from "../libraryPresence";
@@ -64,11 +65,32 @@ export interface PlayerProps {
   dragging: MutableRefObject<boolean>;
   /** 내 현재 위치를 매 프레임 기록 — 광원이 나를 따라가는 데 쓴다 */
   positionRef?: MutableRefObject<Vec2>;
+  /** true면 카메라가 순위판 앞으로 날아가 순위판을 크게 보여 준다 (매 프레임 읽음) */
+  boardView?: MutableRefObject<boolean>;
 }
 
 /** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
 const WALK_DIST = 7.6;
 const SEATED_DIST = 5.2;
+
+/**
+ * 앉을 때 **한 번만** 시점을 내 등 뒤(테이블 쪽 정면)로 맞춘다.
+ * 좌석이 "바뀔 때"만 동작해야 해서 객체가 아니라 id로 비교한다 — `seat` 객체는 부모가
+ * 렌더할 때마다 새로 만들어지므로, 객체를 의존성으로 쓰면 1초마다 시점이 되돌려져
+ * 앉은 채로 주위를 둘러볼 수 없게 된다.
+ */
+export function useFaceSeatOnSit(
+  seatId: string | null,
+  orbit: MutableRefObject<Orbit>,
+) {
+  useEffect(() => {
+    if (!seatId) return;
+    orbit.current.yaw = shortestYawTarget(
+      orbit.current.yaw,
+      deskLayout(seatId).facing + Math.PI,
+    );
+  }, [seatId, orbit]);
+}
 
 export function Player({
   colors,
@@ -86,6 +108,7 @@ export function Player({
   orbit,
   dragging,
   positionRef,
+  boardView,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2>({ ...DOOR, z: DOOR.z - 1 });
@@ -108,22 +131,16 @@ export function Player({
     prevSeat.current = seat;
   }, [seat]);
 
-  // 앉으면 시점을 내 등 뒤로 — 테이블 쪽을 정면으로 보게 (카메라가 부드럽게 따라간다)
-  useEffect(() => {
-    if (seat) {
-      orbit.current.yaw = shortestYawTarget(
-        orbit.current.yaw,
-        seat.facing + Math.PI,
-      );
-    }
-  }, [seat, orbit]);
+  useFaceSeatOnSit(seat?.seatId ?? null, orbit);
 
   useFrame((_, rawDt) => {
     const g = ref.current;
     if (!g) return;
     const dt = Math.min(rawDt, 0.1); // 저프레임 모드에서 순간이동 방지
 
-    const lookingAtBoard = boardLift(orbit.current.yaw) > BOARD_LIFT * 0.6;
+    const lookingAtBoard =
+      Boolean(boardView?.current) ||
+      boardLift(orbit.current.yaw) > BOARD_LIFT * 0.6;
     if (lookingAtBoard !== facingBoard) setFacingBoard(lookingAtBoard);
 
     if (seat) {
@@ -215,6 +232,13 @@ export function Player({
     }
 
     if (positionRef) positionRef.current = { x: g.position.x, z: g.position.z };
+
+    // 순위판 보기: 어디에 있든 순위판 앞으로 날아가 크게 보여 준다 (카메라는 아래에서 부드럽게 따라감)
+    if (boardView?.current) {
+      const r = boardCameraRig((camera as PerspectiveCamera).aspect || 1);
+      camTarget.current.set(...r.cam);
+      lookTarget.current.set(...r.look);
+    }
 
     // 카메라는 부드럽게 따라감 (프레임레이트와 무관한 감쇠).
     // 드래그 중엔 손가락을 바로 따라오도록 더 빠르게.

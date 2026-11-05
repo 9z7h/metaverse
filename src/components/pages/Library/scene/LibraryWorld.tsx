@@ -44,14 +44,13 @@ import { LabelPortalContext } from "./Avatar";
 import {
   DESK_TOP_Y,
   ORBIT_DEFAULT,
-  YAW_FACING_DOOR,
   clampOrbit,
   deskLayout,
   readSceneColors,
-  shortestYawTarget,
   tapTarget,
   ROOM,
   DOOR,
+  CAMERA_FOV,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 
@@ -139,10 +138,6 @@ function sameLeavers(a: Leaver[], b: Leaver[]): Leaver[] {
 /** 드래그 감도 (px → rad) */
 const YAW_PER_PX = 0.008;
 const PITCH_PER_PX = 0.005;
-/** 순위판 보기: 시점 회전에 걸리는 시간(ms)과 도착 시 시선 각도·거리 배율 */
-const TURN_MS = 900;
-const BOARD_PITCH = 0.25;
-const BOARD_ZOOM = 0.5;
 
 /** 이만큼 덜 움직이고 이 시간 안에 손을 떼면 '탭'(이동), 아니면 '드래그'(시점 회전) */
 const TAP_SLOP_PX = 10;
@@ -262,6 +257,19 @@ export function LibraryWorld({
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
   }, []);
 
+  /**
+   * 순위판 보기: 카메라가 서 있는 곳과 상관없이 순위판 앞으로 날아가 순위판을 크게 보여 준다
+   * (서고가 길어서 멀리서 줌만 당기면 너무 작다). 화면을 만지거나 이동 키를 누르면 풀리고
+   * 카메라는 다시 내 곁으로 돌아온다. 카메라가 가는 동안은 60fps로 그린다.
+   */
+  const boardViewRef = useRef(false);
+  const [viewingBoard, setViewingBoard] = useState(false);
+  const setBoardView = useCallback((on: boolean) => {
+    if (boardViewRef.current === on) return;
+    boardViewRef.current = on;
+    setViewingBoard(on);
+  }, []);
+
   /* 탭 이동: 바닥을 탭하면 그곳으로, 빈 책상을 탭하면 걸어가서 앉음 */
   const moveOrder = useRef<MoveOrder | null>(null);
   const pickFloor = useRef<FloorPick | null>(null);
@@ -273,6 +281,7 @@ export function LibraryWorld({
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.code in KEY_DIR) {
+        setBoardView(false);
         keys.current.add(e.code);
         sync();
         e.preventDefault();
@@ -289,7 +298,7 @@ export function LibraryWorld({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [sync, nearSeat, mySeatId, onSit]);
+  }, [sync, nearSeat, mySeatId, onSit, setBoardView]);
 
   // 처음 화면에 있던 학생은 앉은 채로, 이후 들어온 학생만 걸어 들어온다
   const initialIds = useRef(new Set(presence.others.map((s) => s.id)));
@@ -372,13 +381,20 @@ export function LibraryWorld({
   };
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    stopTurn(); // 순위판으로 돌아가는 중이어도 직접 조작이 우선
+    // 순위판을 보는 중이면 이 터치는 보기를 푸는 데만 쓰고, 이동(탭)으로는 치지 않는다
+    const wasViewingBoard = boardViewRef.current;
+    setBoardView(false);
     e.currentTarget.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinchDist.current = null;
     press.current =
       pointers.current.size === 1
-        ? { x: e.clientX, y: e.clientY, at: performance.now(), moved: false }
+        ? {
+            x: e.clientX,
+            y: e.clientY,
+            at: performance.now(),
+            moved: wasViewingBoard,
+          }
         : press.current && { ...press.current, moved: true }; // 두 손가락 = 탭 아님
     draggingRef.current = true;
     setDragging(true);
@@ -433,7 +449,7 @@ export function LibraryWorld({
     }
   };
   const onWheel = (e: WheelEvent<HTMLDivElement>) => {
-    stopTurn();
+    setBoardView(false);
     orbit.current = clampOrbit({
       ...orbit.current,
       zoom: orbit.current.zoom * Math.exp(e.deltaY * 0.001),
@@ -449,49 +465,6 @@ export function LibraryWorld({
   };
   const wheelTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(wheelTimer.current), []);
-
-  /**
-   * 순위판(문 위 앞벽) 쪽으로 시점을 부드럽게 돌린다.
-   * yaw는 가장 짧은 방향으로, 순위판이 높이 걸려 있으므로 시선을 낮추고 조금 가까이 당긴다.
-   * 돌아가는 동안엔 60fps로 그리고, 사용자가 화면을 건드리면 바로 멈춘다.
-   */
-  const turnRaf = useRef(0);
-  const stopTurn = useCallback(() => {
-    if (turnRaf.current) {
-      cancelAnimationFrame(turnRaf.current);
-      turnRaf.current = 0;
-    }
-  }, []);
-  useEffect(() => stopTurn, [stopTurn]);
-  const turnToBoard = () => {
-    stopTurn();
-    const from = orbit.current;
-    const to = clampOrbit({
-      yaw: shortestYawTarget(from.yaw, YAW_FACING_DOOR),
-      pitch: BOARD_PITCH,
-      zoom: BOARD_ZOOM,
-    });
-    const t0 = performance.now();
-    draggingRef.current = true;
-    setDragging(true);
-    const step = (now: number) => {
-      const p = Math.min(1, (now - t0) / TURN_MS);
-      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2; // easeInOutQuad
-      orbit.current = {
-        yaw: from.yaw + (to.yaw - from.yaw) * e,
-        pitch: from.pitch + (to.pitch - from.pitch) * e,
-        zoom: from.zoom + (to.zoom - from.zoom) * e,
-      };
-      if (p < 1) {
-        turnRaf.current = requestAnimationFrame(step);
-      } else {
-        turnRaf.current = 0;
-        draggingRef.current = false;
-        setDragging(false);
-      }
-    };
-    turnRaf.current = requestAnimationFrame(step);
-  };
 
   return (
     <div
@@ -521,7 +494,12 @@ export function LibraryWorld({
           <Canvas
             frameloop="demand"
             dpr={[1, 1.5]}
-            camera={{ fov: 50, position: [0, 5.2, 13], near: 0.1, far: 90 }}
+            camera={{
+              fov: CAMERA_FOV,
+              position: [0, 5.2, 13],
+              near: 0.1,
+              far: 90,
+            }}
             onCreated={({ gl }) => {
               if (import.meta.env.DEV) {
                 // 검증용: 렌더 횟수(gl.info.render.frame)로 실제 fps 측정
@@ -578,6 +556,7 @@ export function LibraryWorld({
               ))}
               <Player
                 positionRef={playerPos}
+                boardView={boardViewRef}
                 colors={colors}
                 desks={desks}
                 input={input}
@@ -608,7 +587,7 @@ export function LibraryWorld({
               ) : null}
               <FrameDriver
                 fps={
-                  seat && !dragging && leavers.length === 0
+                  seat && !dragging && leavers.length === 0 && !viewingBoard
                     ? FPS_SEATED
                     : FPS_WALKING
                 }
@@ -692,8 +671,11 @@ export function LibraryWorld({
               <HouseCrest house={house} size={24} aria-hidden />
               {HOUSES[house].name} 수련생
             </span>
-            <ButtonSmall style="monolight" onClick={turnToBoard}>
-              순위판 보기
+            <ButtonSmall
+              style="monolight"
+              onClick={() => setBoardView(!viewingBoard)}
+            >
+              {viewingBoard ? "돌아가기" : "순위판 보기"}
             </ButtonSmall>
           </div>
         </div>
