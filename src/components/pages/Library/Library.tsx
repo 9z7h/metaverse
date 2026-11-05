@@ -463,21 +463,12 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
   return (
     <div data-theme="library" style={pageStyle}>
       <main style={columnStyle}>
-        {/* 내 기숙사가 가장 먼저 — 첫 입장이면 사신등 의식 안내 */}
-        <HouseCard
-          house={house}
-          rerollAvailable={rerollAvailable}
-          confirming={confirmReroll}
-          onAskReroll={() => setConfirmReroll(true)}
-          onConfirmReroll={reroll}
-          onCancelReroll={() => setConfirmReroll(false)}
-        />
-
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "var(--spacing-12)",
+            paddingTop: "var(--spacing-24)",
           }}
         >
           <p style={captionStyle}>사신학당 · 밤의 장서각</p>
@@ -503,6 +494,16 @@ export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
             수련생들과 함께 집중해 보세요.
           </p>
         </div>
+
+        {/* 타이틀 바로 아래 — 내 기숙사 (첫 입장이면 사신등 의식 안내) */}
+        <HouseCard
+          house={house}
+          rerollAvailable={rerollAvailable}
+          confirming={confirmReroll}
+          onAskReroll={() => setConfirmReroll(true)}
+          onConfirmReroll={reroll}
+          onCancelReroll={() => setConfirmReroll(false)}
+        />
 
         <LiveCount online={presence.onlineCount} free={freeSeats} />
 

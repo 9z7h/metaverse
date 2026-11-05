@@ -9,6 +9,15 @@ import { dayKey } from "./useFocusTimer";
  * jsdom에는 WebGL이 없어서 장서각 입장은 "3D를 열 수 없어요" 안내로 이어진다.
  * 덕분에 입장 화면 ↔ 배정 연출 흐름을 3D 없이 끝까지 따라갈 수 있다.
  */
+/** 입장 화면 본문(main)의 두 번째 블록 — 첫 블록은 타이틀 */
+const houseCard = () => {
+  const main = screen.getByRole("main");
+  expect(
+    within(main.children[0] as HTMLElement).getByRole("heading", { level: 1 }),
+  ).toBeInTheDocument();
+  return main.children[1] as HTMLElement;
+};
+
 const renderLibrary = () =>
   render(
     <Library sortingDurationMs={0} presenceOptions={{ simulate: false }} />,
@@ -25,11 +34,11 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe("입장 화면 — 내 기숙사가 맨 위", () => {
-  it("배정된 기숙사가 있으면 첫 번째 블록이 '내 기숙사' 카드", () => {
+describe("입장 화면 — 타이틀 바로 아래에 내 기숙사", () => {
+  it("배정된 기숙사가 있으면 타이틀 바로 아래가 '내 기숙사' 카드", () => {
     saveHouse("hyeonmu");
     renderLibrary();
-    const first = screen.getByRole("main").firstElementChild as HTMLElement;
+    const first = houseCard();
     expect(first).toHaveAttribute("aria-label", "내 기숙사");
     expect(within(first).getByText("현무관 수련생")).toBeInTheDocument();
     expect(
@@ -37,9 +46,9 @@ describe("입장 화면 — 내 기숙사가 맨 위", () => {
     ).toBeInTheDocument();
   });
 
-  it("첫 입장이면 맨 위에 사신등 의식 안내 카드", () => {
+  it("첫 입장이면 타이틀 바로 아래에 사신등 의식 안내 카드", () => {
     renderLibrary();
-    const first = screen.getByRole("main").firstElementChild as HTMLElement;
+    const first = houseCard();
     expect(first).toHaveAttribute("aria-label", "기숙사 배정 안내");
     expect(
       within(first).getByText(/사신등 의식으로 기숙사가 정해져요/),
@@ -84,7 +93,7 @@ describe("다시 배정 — 하루 1번", () => {
     expect(screen.getByRole("button", { name: "다시 배정" })).toBeDisabled();
     expect(screen.getByText(/내일 다시 배정할 수 있어요/)).toBeInTheDocument();
     // 새 기숙사가 맨 위 카드에 표시된다
-    const first = screen.getByRole("main").firstElementChild as HTMLElement;
+    const first = houseCard();
     expect(within(first).queryByText("현무관 수련생")).toBeNull();
     expect(within(first).getByText(/수련생/)).toBeInTheDocument();
   });
