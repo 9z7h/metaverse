@@ -249,9 +249,16 @@ export interface BotProps {
 export function Bot({ student, colors, entering }: BotProps) {
   const ref = useRef<Group>(null);
   const layout = deskLayout(student.seatId);
-  // 입구 → 중앙 통로(x=0) → 자기 의자. 통로로 돌아가면 책상과 부딪히지 않는다.
+  // 입구 → 중앙 통로(x=0) → 자기 줄 뒤쪽 통로(의자 바로 뒤) → 자기 의자.
+  // 줄 사이 통로로 옆으로 걸어가야 다른 책상·의자를 가로지르지 않는다.
   const path = useRef<Vec2[]>(
-    entering ? [{ x: 0, z: layout.chair.z + 0.8 }, layout.chair] : [],
+    entering
+      ? [
+          { x: 0, z: layout.chair.z + 0.8 },
+          { x: layout.chair.x, z: layout.chair.z + 0.8 },
+          layout.chair,
+        ]
+      : [],
   );
   const pos = useRef<Vec2>(entering ? { ...DOOR } : { ...layout.chair });
   const [pose, setPose] = useState<AvatarPose>(entering ? "walk" : "sit");

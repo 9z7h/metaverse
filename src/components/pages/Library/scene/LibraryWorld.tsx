@@ -21,6 +21,8 @@ import type { FocusTimerState } from "../useFocusTimer";
 import { Bot, FloorPicker, FrameDriver, Player, TapMarker } from "./Characters";
 import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
+import { HallFrame } from "./HallFrame";
+import { Armillary } from "./Armillary";
 import { Atmosphere } from "./Atmosphere";
 import { HouseCrest } from "../HouseCrest";
 import type { RankEntry } from "../houseRanking";
@@ -418,7 +420,7 @@ export function LibraryWorld({
           <Canvas
             frameloop="demand"
             dpr={[1, 1.5]}
-            camera={{ fov: 50, position: [0, 5.2, 13], near: 0.1, far: 60 }}
+            camera={{ fov: 50, position: [0, 5.2, 13], near: 0.1, far: 90 }}
             onCreated={({ gl }) => {
               if (import.meta.env.DEV) {
                 // 검증용: 렌더 횟수(gl.info.render.frame)로 실제 fps 측정
@@ -433,7 +435,8 @@ export function LibraryWorld({
                 attach="background"
                 args={[colors["--color-background-default"]]}
               />
-              <fog attach="fog" args={[colors["--color-scene-fog"], 10, 24]} />
+              {/* 긴 서고의 안쪽이 안개 속으로 깊어지게 — 넓어진 홀(약 31m)에 맞춤 */}
+              <fog attach="fog" args={[colors["--color-scene-fog"], 14, 44]} />
               <ambientLight
                 intensity={0.55}
                 color={colors["--color-scene-light"]}
@@ -445,18 +448,21 @@ export function LibraryWorld({
                   0.5,
                 ]}
               />
-              {[-4, -0.5, 3].map((z) => (
+              {/* 모바일 부담을 줄이려 실제 광원은 통로 위 4개만 — 나머지 불빛은 발광·번짐으로 표현 */}
+              {[-9, -3, 3, 9].map((z) => (
                 <pointLight
                   key={z}
-                  position={[0, 2.8, z]}
+                  position={[0, 3.2, z]}
                   intensity={9}
-                  distance={9}
+                  distance={11}
                   decay={1.6}
                   color={colors["--color-scene-flame"]}
                 />
               ))}
 
               <LibraryRoom colors={colors} desks={desks} />
+              <HallFrame colors={colors} />
+              <Armillary colors={colors} />
               <Atmosphere colors={colors} />
               {presence.others.map((s) => (
                 <Bot

@@ -55,8 +55,9 @@ export interface LibraryPresence {
   leave: () => void;
 }
 
-export const SEATS: LibrarySeat[] = ["A", "B", "C"].flatMap((row) =>
-  [1, 2].map((n) => ({ id: `${row}${n}`, label: `${row}-${n}` })),
+/** 4줄(A~D) × 4열(1~4) = 16석 — 좌표는 scene/sceneLayout.ts의 deskLayout */
+export const SEATS: LibrarySeat[] = ["A", "B", "C", "D"].flatMap((row) =>
+  [1, 2, 3, 4].map((n) => ({ id: `${row}${n}`, label: `${row}-${n}` })),
 );
 
 const INITIAL_OTHERS: PresenceStudent[] = [
@@ -64,7 +65,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     id: "s1",
     name: "하린",
     subject: "알고리즘",
-    seatId: "A1",
+    seatId: "A2",
     focusing: true,
     focusSeconds: 95 * 60,
     house: "jujak",
@@ -74,7 +75,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     id: "s2",
     name: "도윤",
     subject: "토익",
-    seatId: "A2",
+    seatId: "C1",
     focusing: false,
     focusSeconds: 40 * 60,
     house: "baekho",
@@ -84,7 +85,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     id: "s3",
     name: "서아",
     subject: "UX 리서치",
-    seatId: "B2",
+    seatId: "B3",
     focusing: true,
     focusSeconds: 130 * 60,
     house: "hyeonmu",

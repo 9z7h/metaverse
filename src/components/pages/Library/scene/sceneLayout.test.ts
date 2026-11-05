@@ -16,22 +16,124 @@ import {
   clampOrbit,
   DESK_HALF,
   PLAYER_RADIUS,
+  DOOR,
+  HALL,
+  OBSTACLES,
   ROOM,
   deskLayout,
   nearestFreeSeat,
   resolveCollision,
 } from "./sceneLayout";
+import { SEATS } from "../libraryPresence";
 
-const desks = ["A1", "A2", "B1", "B2", "C1", "C2"].map(deskLayout);
+const desks = SEATS.map((s) => deskLayout(s.id));
 
 describe("deskLayout", () => {
-  it("행(A/B/C)은 z, 열(1/2)은 x로 배치되고 의자는 책상 앞(+z)", () => {
+  it("행(A~D)은 z, 열(1~4)은 x로 배치되고 의자는 책상 앞(+z)", () => {
     const a1 = deskLayout("A1");
-    const c2 = deskLayout("C2");
+    const a4 = deskLayout("A4");
+    const d1 = deskLayout("D1");
     expect(a1.desk.x).toBeLessThan(0);
-    expect(c2.desk.x).toBeGreaterThan(0);
-    expect(a1.desk.z).toBeLessThan(c2.desk.z);
+    expect(a4.desk.x).toBeGreaterThan(0);
+    expect(a1.desk.x).toBeLessThan(deskLayout("A2").desk.x);
+    expect(deskLayout("A3").desk.x).toBeLessThan(a4.desk.x);
+    expect(a1.desk.z).toBeLessThan(d1.desk.z);
     expect(a1.chair.z).toBeGreaterThan(a1.desk.z);
+  });
+});
+
+describe("16석 배치", () => {
+  it("좌석 목록은 16석이고 id가 서로 다르다", () => {
+    expect(SEATS).toHaveLength(16);
+    expect(new Set(SEATS.map((s) => s.id)).size).toBe(16);
+  });
+
+  it("모든 좌석이 고유한 위치를 갖는다 (알 수 없는 id의 기본 위치(0,0)로 떨어지지 않음)", () => {
+    const keys = desks.map((d) => `${d.desk.x},${d.desk.z}`);
+    expect(new Set(keys).size).toBe(16);
+    expect(keys).not.toContain("0,0");
+  });
+
+  it("책상과 의자는 모두 방 안에 있고, 책상끼리 겹치지 않는다", () => {
+    for (const { desk, chair } of desks) {
+      expect(Math.abs(desk.x) + DESK_HALF.x).toBeLessThanOrEqual(ROOM.maxX);
+      expect(desk.z - DESK_HALF.z).toBeGreaterThanOrEqual(ROOM.minZ);
+      expect(chair.z).toBeLessThanOrEqual(ROOM.maxZ);
+    }
+    for (let i = 0; i < desks.length; i++)
+      for (let j = i + 1; j < desks.length; j++) {
+        const a = desks[i].desk;
+        const b = desks[j].desk;
+        const overlap =
+          Math.abs(a.x - b.x) < DESK_HALF.x * 2 &&
+          Math.abs(a.z - b.z) < DESK_HALF.z * 2;
+        expect(overlap).toBe(false);
+      }
+  });
+
+  it("가운데 통로는 아바타가 지나갈 만큼 넓다 (책상 가장자리 사이 ≥ 2m)", () => {
+    const innerEdges = desks.map((d) => Math.abs(d.desk.x) - DESK_HALF.x);
+    expect(Math.min(...innerEdges) * 2).toBeGreaterThanOrEqual(2);
+  });
+
+  it("입구에서 모든 의자까지 막힘 없는 길이 있다", () => {
+    for (const d of desks) {
+      const path = planPath(DOOR, d.chair, desks);
+      let cur = DOOR;
+      for (const p of path) {
+        expect(segmentClear(cur, p, desks)).toBe(true);
+        cur = p;
+      }
+      expect(cur).toEqual(d.chair);
+    }
+  });
+});
+
+describe("고정 장식(혼천의) 장애물", () => {
+  const o = OBSTACLES[0];
+
+  it("장애물 안으로 들어가면 바깥으로 밀려난다", () => {
+    const out = resolveCollision({ x: o.x + 0.2, z: o.z }, desks);
+    expect(Math.hypot(out.x - o.x, out.z - o.z)).toBeGreaterThanOrEqual(
+      o.r + PLAYER_RADIUS - 1e-9,
+    );
+  });
+
+  it("정확히 중심이어도 밀려난다 (0으로 나누지 않음)", () => {
+    const out = resolveCollision({ x: o.x, z: o.z }, desks);
+    expect(Number.isFinite(out.x) && Number.isFinite(out.z)).toBe(true);
+    expect(Math.hypot(out.x - o.x, out.z - o.z)).toBeGreaterThan(o.r);
+  });
+
+  it("직선이 장애물을 통과하면 막힌 것으로 보고 돌아간다", () => {
+    const from = { x: o.x - 3, z: o.z };
+    const to = { x: o.x + 1.2, z: o.z };
+    expect(segmentClear(from, to, desks)).toBe(false);
+    const path = planPath(from, to, desks);
+    expect(path.length).toBeGreaterThan(1);
+    let cur = from;
+    for (const p of path) {
+      expect(segmentClear(cur, p, desks)).toBe(true);
+      cur = p;
+    }
+  });
+
+  it("방 안, 책상과 겹치지 않는 자리에 있다", () => {
+    expect(o.x).toBeLessThan(ROOM.maxX);
+    expect(o.z).toBeGreaterThan(ROOM.minZ);
+    for (const { desk } of desks) {
+      const dx = Math.max(Math.abs(o.x - desk.x) - DESK_HALF.x, 0);
+      const dz = Math.max(Math.abs(o.z - desk.z) - DESK_HALF.z, 0);
+      expect(Math.hypot(dx, dz)).toBeGreaterThan(o.r);
+    }
+  });
+});
+
+describe("한옥 서고의 수직 구성", () => {
+  it("회랑 < 윗단 서가 < 천장 순서이고, 카메라는 천장 아래에 머문다", () => {
+    expect(HALL.galleryY).toBeLessThan(HALL.upperShelfY);
+    expect(HALL.upperShelfY).toBeLessThan(HALL.wallH);
+    expect(CAMERA_BOUNDS.maxY).toBeLessThan(HALL.wallH);
   });
 });
 
@@ -185,8 +287,8 @@ describe("탭 이동 — tapTarget / planPath", () => {
 
   it("[버그 재현] 상판을 탭하면 바닥 높이 교차점은 책상 1~2m 뒤 — 상판 높이 교차점으로 판정해야 앉는다", () => {
     const c1 = deskLayout("C1");
-    // 실측: 시작 카메라에서 C-1 상판 중심을 탭 → 바닥 교차점 (-3.13, 1.07)
-    const atFloor = { x: -3.13, z: 1.07 };
+    // 상판을 탭하면 바닥 높이 교차점은 책상보다 안쪽(−z) 1~2m 뒤 바닥이 된다
+    const atFloor = { x: c1.desk.x, z: c1.desk.z - 1.3 };
     expect(tapTarget(atFloor, null, desks, free).kind).toBe("floor");
     expect(tapTarget(atFloor, c1.desk, desks, free)).toEqual({
       kind: "seat",
@@ -207,7 +309,7 @@ describe("탭 이동 — tapTarget / planPath", () => {
 
   it("책상 너머(A1 의자 → A1 뒤쪽)는 책상을 돌아가고, 모든 구간이 책상과 겹치지 않는다", () => {
     const from = deskLayout("A1").chair;
-    const to = { x: -2.6, z: -5.8 };
+    const to = { x: deskLayout("A1").desk.x, z: deskLayout("A1").desk.z - 1.6 };
     expect(segmentClear(from, to, desks)).toBe(false);
     const path = planPath(from, to, desks);
     expect(path.length).toBeGreaterThan(1);
@@ -220,8 +322,8 @@ describe("탭 이동 — tapTarget / planPath", () => {
   });
 
   it("C열 옆 벽 쪽에서 반대편 벽 쪽 B열 뒤로 — 어디서든 길을 찾는다", () => {
-    const from = { x: 5.2, z: 3 };
-    const to = { x: -5.2, z: -1.6 };
+    const from = { x: ROOM.maxX - 0.4, z: 6 };
+    const to = { x: ROOM.minX + 0.4, z: -10 };
     const path = planPath(from, to, desks);
     let cur = from;
     for (const p of path) {

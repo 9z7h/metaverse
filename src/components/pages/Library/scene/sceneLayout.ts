@@ -17,17 +17,43 @@ export interface DeskLayout {
 }
 
 /** 방 안쪽 이동 가능 범위 (벽 두께·책장 깊이 제외) */
-export const ROOM = { minX: -5.6, maxX: 5.6, minZ: -6.6, maxZ: 8 } as const;
+export const ROOM = { minX: -8, maxX: 8, minZ: -13, maxZ: 11 } as const;
 /** 입구 — 새로 들어오는 학생/내가 처음 서는 위치 */
-export const DOOR: Vec2 = { x: 0, z: 7.4 };
+export const DOOR: Vec2 = { x: 0, z: ROOM.maxZ - 0.6 };
+
+/** 높은 한옥 서고의 수직 구성 (벽·회랑·천장) */
+export const HALL = {
+  /** 벽 높이 = 천장(대들보) 높이 */
+  wallH: 10,
+  /** 2층 회랑 바닥 높이 — 그 위로 윗단 서가 */
+  galleryY: 3.55,
+  /** 회랑이 벽에서 방 안쪽으로 튀어나온 폭 */
+  ledge: 0.9,
+  /** 윗단 서가가 시작하는 높이 */
+  upperShelfY: 3.7,
+} as const;
+
+/**
+ * 지나갈 수 없는 고정 장식(원형). 책상과 함께 충돌·경로 계산에 쓰인다.
+ * 혼천의: 뒷벽 오른쪽 모서리 근처.
+ */
+export const OBSTACLES: ReadonlyArray<{ x: number; z: number; r: number }> = [
+  { x: 6.2, z: -11.6, r: 0.7 },
+];
 export const PLAYER_RADIUS = 0.35;
 /** 책상 반폭(x)·반깊이(z) */
 export const DESK_HALF = { x: 1.1, z: 0.5 } as const;
 /** 이 거리 안에 들어오면 "앉기" 버튼 노출 */
 export const SIT_DISTANCE = 1.5;
 
-const ROWS: Record<string, number> = { A: -4, B: -0.5, C: 3 };
-const COLS: Record<string, number> = { "1": -2.6, "2": 2.6 };
+/** 4줄 × 4열 = 16석. 가운데 통로(x ±1.3) 양쪽으로 두 열씩 */
+const ROWS: Record<string, number> = { A: -8, B: -4, C: 0, D: 4 };
+const COLS: Record<string, number> = {
+  "1": -6.4,
+  "2": -2.4,
+  "3": 2.4,
+  "4": 6.4,
+};
 
 /** 좌석 id(`A1`, `B2` …) → 책상/의자 위치 */
 export function deskLayout(seatId: string): DeskLayout {
@@ -51,6 +77,19 @@ export function resolveCollision(pos: Vec2, desks: DeskLayout[]): Vec2 {
       const pz = hz - Math.abs(dz);
       if (px < pz) x = desk.x + Math.sign(dx || 1) * hx;
       else z = desk.z + Math.sign(dz || 1) * hz;
+    }
+  }
+  for (const o of OBSTACLES) {
+    const min = o.r + PLAYER_RADIUS;
+    const dx = x - o.x;
+    const dz = z - o.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < min) {
+      // 중심에서 바깥쪽으로 밀어낸다 (정확히 중심이면 입구 쪽으로)
+      const nx = dist === 0 ? 0 : dx / dist;
+      const nz = dist === 0 ? 1 : dz / dist;
+      x = o.x + nx * min;
+      z = o.z + nz * min;
     }
   }
   return { x, z };
@@ -77,12 +116,17 @@ export function nearestFreeSeat(
 
 /* ── 탭 이동: 탭한 곳 해석 + 책상을 피해 가는 경로 ─────────── */
 
-/** 점이 (아바타 반경만큼 넓힌) 책상 안에 있는지 */
+/** 점이 (아바타 반경만큼 넓힌) 책상·고정 장식 안에 있는지 */
 function insideDesk(p: Vec2, desks: DeskLayout[]): boolean {
-  return desks.some(
-    ({ desk }) =>
-      Math.abs(p.x - desk.x) < DESK_HALF.x + PLAYER_RADIUS &&
-      Math.abs(p.z - desk.z) < DESK_HALF.z + PLAYER_RADIUS,
+  return (
+    desks.some(
+      ({ desk }) =>
+        Math.abs(p.x - desk.x) < DESK_HALF.x + PLAYER_RADIUS &&
+        Math.abs(p.z - desk.z) < DESK_HALF.z + PLAYER_RADIUS,
+    ) ||
+    OBSTACLES.some(
+      (o) => Math.hypot(p.x - o.x, p.z - o.z) < o.r + PLAYER_RADIUS,
+    )
   );
 }
 
@@ -243,14 +287,14 @@ export const FRONT_WALL_Z = ROOM.maxZ + 6.3;
 
 /**
  * 카메라가 머물 수 있는 공간. 좌우·뒤 책장 앞면(벽에서 0.45m)보다 안쪽,
- * 앞벽에서 0.3m 안쪽, 벽 높이(6m)보다 아래.
+ * 앞벽에서 0.3m 안쪽, 천장(10m) 대들보보다 아래.
  */
 export const CAMERA_BOUNDS = {
   minX: ROOM.minX - 0.2,
   maxX: ROOM.maxX + 0.2,
   minZ: ROOM.minZ - 0.2,
   maxZ: FRONT_WALL_Z - 0.3,
-  maxY: 5.6,
+  maxY: 7.6,
 } as const;
 
 export const ORBIT_LIMITS = {
@@ -371,6 +415,7 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-rug",
   "--color-scene-collar",
   "--color-scene-moonlight",
+  "--color-scene-brass",
   "--color-scene-dancheong",
   ...(["baekho", "jujak", "hyeonmu", "cheongryong"] as const).flatMap(
     (h) =>

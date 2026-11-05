@@ -5,9 +5,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
+  AdditiveBlending,
   BufferAttribute,
   CanvasTexture,
   Color,
+  DoubleSide,
   Object3D,
   SRGBColorSpace,
 } from "three";
@@ -15,7 +17,9 @@ import type { InstancedMesh, Points } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { FRONT_WALL_Z, ROOM } from "./sceneLayout";
+import { FRONT_WALL_Z, HALL, ROOM, withAlpha } from "./sceneLayout";
+import { SIDE_SHELF_Z, fillBoxes } from "./LibraryRoom";
+import type { Box } from "./LibraryRoom";
 import { getGlowTexture } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 
@@ -32,7 +36,7 @@ const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
 
 /* ── 청사초롱: 공중에 떠서 흔들리는 비단 등 ─────────────────── */
 
-const LANTERN_COUNT = 28;
+const LANTERN_COUNT = 44;
 
 function Lanterns({ colors }: { colors: SceneColors }) {
   const bodies = useRef<InstancedMesh>(null);
@@ -112,30 +116,107 @@ function Lanterns({ colors }: { colors: SceneColors }) {
   );
 }
 
-/* ── 창호: 문살 격자 사이로 달빛 ─────────────────────────────── */
+/* ── 창호·살창: 문살 격자 사이로 달빛 ──────────────────────── */
 
 interface WindowSpec {
   x: number;
+  y: number;
   z: number;
   ry: number;
+  w: number;
+  h: number;
+  /** 세로·가로 칸 수 (문살 개수 = 칸 수 - 1) */
+  cols: number;
+  rows: number;
+  /** 문살 굵기 */
+  bar: number;
 }
 
-const WIN_W = 1.6;
-const WIN_H = 1.4;
-const WIN_Y = 4.5;
-const BARS_PER_WINDOW = 4 + 3 + 2; // 테두리 4 + 세로 3 + 가로 2
+const barsOf = (s: WindowSpec) => 4 + (s.cols - 1) + (s.rows - 1);
 
 function Windows({ colors }: { colors: SceneColors }) {
   const bars = useRef<InstancedMesh>(null);
   const windows = useMemo<WindowSpec[]>(
     () => [
-      ...[-4, 0, 4].map((x) => ({ x, z: BACK_Z + 0.02, ry: 0 })),
-      ...[-4.5, -1, 2.5].flatMap((z) => [
-        { x: -WALL_X + 0.02, z, ry: Math.PI / 2 },
-        { x: WALL_X - 0.02, z, ry: -Math.PI / 2 },
+      // 뒷벽 가운데: 양옆 서가 사이를 높이 가르는 큰 격자 살창
+      {
+        x: 0,
+        y: 5.4,
+        z: BACK_Z + 0.02,
+        ry: 0,
+        w: 5,
+        h: 6.8,
+        cols: 8,
+        rows: 10,
+        bar: 0.06,
+      },
+      // 옆벽: 윗단 서가 위로, 서가 한 칸마다 높은 살창
+      ...SIDE_SHELF_Z.flatMap((z) => [
+        {
+          x: -WALL_X + 0.02,
+          y: 8.5,
+          z,
+          ry: Math.PI / 2,
+          w: 2.2,
+          h: 2.4,
+          cols: 4,
+          rows: 3,
+          bar: 0.04,
+        },
+        {
+          x: WALL_X - 0.02,
+          y: 8.5,
+          z,
+          ry: -Math.PI / 2,
+          w: 2.2,
+          h: 2.4,
+          cols: 4,
+          rows: 3,
+          bar: 0.04,
+        },
+      ]),
+      // 입구 홀(서가 없는 앞쪽): 순위판 양옆 앞벽과 옆벽에도 살창을 내어 허전하지 않게
+      ...[-5.5, 5.5].map((x) => ({
+        x,
+        y: 6.2,
+        z: FRONT_WALL_Z - 0.02,
+        ry: Math.PI,
+        w: 2.2,
+        h: 4,
+        cols: 4,
+        rows: 6,
+        bar: 0.04,
+      })),
+      ...[12.6, 15.4].flatMap((z) => [
+        {
+          x: -WALL_X + 0.02,
+          y: 7,
+          z,
+          ry: Math.PI / 2,
+          w: 2.2,
+          h: 3.4,
+          cols: 4,
+          rows: 5,
+          bar: 0.04,
+        },
+        {
+          x: WALL_X - 0.02,
+          y: 7,
+          z,
+          ry: -Math.PI / 2,
+          w: 2.2,
+          h: 3.4,
+          cols: 4,
+          rows: 5,
+          bar: 0.04,
+        },
       ]),
     ],
     [],
+  );
+  const totalBars = useMemo(
+    () => windows.reduce((n, w) => n + barsOf(w), 0),
+    [windows],
   );
 
   useLayoutEffect(() => {
@@ -152,18 +233,19 @@ function Windows({ colors }: { colors: SceneColors }) {
       mesh.setMatrixAt(i++, o.matrix);
     };
     for (const w of windows) {
-      parent.position.set(w.x, WIN_Y, w.z);
+      parent.position.set(w.x, w.y, w.z);
       parent.rotation.set(0, w.ry, 0);
       parent.updateMatrix();
       // 테두리
-      put(0, WIN_H / 2, WIN_W + 0.12, 0.1);
-      put(0, -WIN_H / 2, WIN_W + 0.12, 0.1);
-      put(-WIN_W / 2, 0, 0.1, WIN_H);
-      put(WIN_W / 2, 0, 0.1, WIN_H);
-      // 세로 문살 3
-      [-0.4, 0, 0.4].forEach((x) => put(x, 0, 0.035, WIN_H));
-      // 가로 문살 2
-      [-0.23, 0.23].forEach((y) => put(0, y, WIN_W, 0.035));
+      put(0, w.h / 2, w.w + 0.12, 0.1);
+      put(0, -w.h / 2, w.w + 0.12, 0.1);
+      put(-w.w / 2, 0, 0.1, w.h);
+      put(w.w / 2, 0, 0.1, w.h);
+      // 세로·가로 문살
+      for (let c = 1; c < w.cols; c++)
+        put(-w.w / 2 + (c * w.w) / w.cols, 0, w.bar, w.h);
+      for (let r = 1; r < w.rows; r++)
+        put(0, -w.h / 2 + (r * w.h) / w.rows, w.w, w.bar);
     }
     mesh.instanceMatrix.needsUpdate = true;
   }, [windows]);
@@ -173,10 +255,10 @@ function Windows({ colors }: { colors: SceneColors }) {
       {windows.map((w) => (
         <mesh
           key={`${w.x}${w.z}`}
-          position={[w.x, WIN_Y, w.z]}
+          position={[w.x, w.y, w.z]}
           rotation={[0, w.ry, 0]}
         >
-          <planeGeometry args={[WIN_W, WIN_H]} />
+          <planeGeometry args={[w.w, w.h]} />
           {/* 창호지 너머 달빛 — 약하게 발광 */}
           <meshBasicMaterial
             color={colors["--color-scene-moonlight"]}
@@ -184,10 +266,7 @@ function Windows({ colors }: { colors: SceneColors }) {
           />
         </mesh>
       ))}
-      <instancedMesh
-        ref={bars}
-        args={[undefined, undefined, windows.length * BARS_PER_WINDOW]}
-      >
+      <instancedMesh ref={bars} args={[undefined, undefined, totalBars]}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={colors["--color-scene-wood-dark"]} />
       </instancedMesh>
@@ -198,7 +277,8 @@ function Windows({ colors }: { colors: SceneColors }) {
 /* ── 단청 띠: 책장 위로 벽을 두르는 오방색 띠 ─────────────────── */
 
 function DancheongBand({ colors }: { colors: SceneColors }) {
-  const y = 3.45;
+  // 윗단 서가 위, 살창 아래 — 높아진 벽을 가로지르는 띠
+  const y = 7.15;
   const w = WALL_X * 2;
   // 뒷벽 ~ 앞벽(입구 홀 포함)
   const d = FRONT_WALL_Z - BACK_Z;
@@ -335,7 +415,7 @@ function Banner({
 }) {
   const map = useBannerTexture(house, colors);
   return (
-    <mesh position={[x, 4.6, BACK_Z + 0.14]}>
+    <mesh position={[x, 8.3, BACK_Z + 0.14]}>
       <planeGeometry args={[0.85, 2.1]} />
       <meshStandardMaterial
         map={map}
@@ -349,7 +429,8 @@ function Banner({
 }
 
 function HouseBanners({ colors }: { colors: SceneColors }) {
-  const xs = [-5.6, -2, 2, 5.6];
+  // 뒷벽 큰 살창 양옆, 윗단 서가 위
+  const xs = [-7.2, -4.2, 4.2, 7.2];
   return (
     <group>
       {HOUSE_IDS.map((h, i) => (
@@ -361,7 +442,7 @@ function HouseBanners({ colors }: { colors: SceneColors }) {
 
 /* ── 반딧불 파티클 ───────────────────────────────────────── */
 
-const SPARK_COUNT = 140;
+const SPARK_COUNT = 260;
 
 function Sparkles({ colors }: { colors: SceneColors }) {
   const ref = useRef<Points>(null);
@@ -370,7 +451,7 @@ function Sparkles({ colors }: { colors: SceneColors }) {
     return Array.from({ length: SPARK_COUNT }, () => ({
       x: ROOM.minX + rand() * (ROOM.maxX - ROOM.minX),
       z: ROOM.minZ + rand() * (ROOM.maxZ - ROOM.minZ),
-      y: rand() * 5,
+      y: rand() * 9,
       speed: 0.08 + rand() * 0.12,
       phase: rand() * Math.PI * 2,
     }));
@@ -381,7 +462,7 @@ function Sparkles({ colors }: { colors: SceneColors }) {
     const t = clock.elapsedTime;
     seeds.forEach((s, i) => {
       positions[i * 3] = s.x + Math.sin(t * 0.5 + s.phase) * 0.3;
-      positions[i * 3 + 1] = (s.y + t * s.speed) % 5.2;
+      positions[i * 3 + 1] = (s.y + t * s.speed) % 9.4;
       positions[i * 3 + 2] = s.z + Math.cos(t * 0.4 + s.phase) * 0.3;
     });
     const attr = ref.current?.geometry.getAttribute("position") as
@@ -415,9 +496,12 @@ function Scrolls({ colors }: { colors: SceneColors }) {
   const ref = useRef<InstancedMesh>(null);
   const items = useMemo(
     () => [
-      { x: 0.9, y: 2.7, z: -3.4 },
-      { x: -2.4, y: 3.0, z: 0.9 },
-      { x: 3.6, y: 2.6, z: 4.6 },
+      { x: 0.9, y: 2.7, z: -9 },
+      { x: -2.4, y: 3.0, z: -3 },
+      { x: 3.6, y: 2.6, z: 3 },
+      { x: -3.5, y: 2.8, z: 7 },
+      { x: 4, y: 3.1, z: -6 },
+      { x: -0.8, y: 2.6, z: 12 },
     ],
     [],
   );
@@ -443,6 +527,259 @@ function Scrolls({ colors }: { colors: SceneColors }) {
   );
 }
 
+/* ── 등 다발: 높은 천장에서 줄지어 내려오는 놋쇠 고리 등 ───────── */
+
+const LAMP_RING_Y = 6.3;
+const LAMP_RING_R = 0.75;
+const CANDLES_PER_LAMP = 8;
+/** [x, z] — 통로 양옆 두 줄 + 가운데 한 줄 */
+const LAMP_SPOTS: [number, number][] = [
+  ...[-9.5, -4, 1.5, 7, 12.5].flatMap(
+    (z) =>
+      [
+        [-4.4, z],
+        [4.4, z],
+      ] as [number, number][],
+  ),
+  ...[-6.5, -1, 4.5, 10].map((z) => [0, z] as [number, number]),
+];
+
+function HangingLamps({ colors }: { colors: SceneColors }) {
+  const chains = useRef<InstancedMesh>(null);
+  const rings = useRef<InstancedMesh>(null);
+  const candles = useRef<InstancedMesh>(null);
+  const top = HALL.wallH - 0.3;
+
+  const glow = useMemo(() => {
+    const arr = new Float32Array(LAMP_SPOTS.length * 3);
+    LAMP_SPOTS.forEach(([x, z], i) =>
+      arr.set([x, LAMP_RING_Y + 0.2, z], i * 3),
+    );
+    return arr;
+  }, []);
+
+  useLayoutEffect(() => {
+    const chainBoxes: Box[] = LAMP_SPOTS.map(([x, z]) => ({
+      p: [x, (top + LAMP_RING_Y) / 2, z],
+      s: [0.03, top - LAMP_RING_Y, 0.03],
+    }));
+    fillBoxes(chains.current, chainBoxes);
+
+    const o = new Object3D();
+    LAMP_SPOTS.forEach(([x, z], i) => {
+      o.position.set(x, LAMP_RING_Y, z);
+      o.rotation.set(Math.PI / 2, 0, 0);
+      o.scale.set(LAMP_RING_R, LAMP_RING_R, LAMP_RING_R);
+      o.updateMatrix();
+      rings.current?.setMatrixAt(i, o.matrix);
+    });
+    if (rings.current) rings.current.instanceMatrix.needsUpdate = true;
+
+    let k = 0;
+    for (const [x, z] of LAMP_SPOTS)
+      for (let c = 0; c < CANDLES_PER_LAMP; c++) {
+        const a = (c / CANDLES_PER_LAMP) * Math.PI * 2;
+        o.position.set(
+          x + Math.cos(a) * LAMP_RING_R,
+          LAMP_RING_Y + 0.12,
+          z + Math.sin(a) * LAMP_RING_R,
+        );
+        o.rotation.set(0, 0, 0);
+        o.scale.set(0.1, 0.1, 0.1);
+        o.updateMatrix();
+        candles.current?.setMatrixAt(k++, o.matrix);
+      }
+    if (candles.current) candles.current.instanceMatrix.needsUpdate = true;
+  }, [top]);
+
+  const brass = colors["--color-scene-brass"];
+  const flame = colors["--color-scene-flame"];
+  return (
+    <group>
+      <instancedMesh
+        ref={chains}
+        args={[undefined, undefined, LAMP_SPOTS.length]}
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={colors["--color-scene-wood-dark"]} />
+      </instancedMesh>
+      <instancedMesh
+        ref={rings}
+        args={[undefined, undefined, LAMP_SPOTS.length]}
+      >
+        <torusGeometry args={[1, 0.05, 6, 28]} />
+        <meshStandardMaterial
+          color={brass}
+          emissive={brass}
+          emissiveIntensity={0.3}
+          metalness={0.6}
+          roughness={0.4}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={candles}
+        args={[undefined, undefined, LAMP_SPOTS.length * CANDLES_PER_LAMP]}
+      >
+        <sphereGeometry args={[0.5, 8, 8]} />
+        <meshBasicMaterial color={flame} toneMapped={false} />
+      </instancedMesh>
+      {/* 불빛 번짐 */}
+      <points>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[glow, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          map={getGlowTexture()}
+          color={flame}
+          size={3.4}
+          sizeAttenuation
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </points>
+    </group>
+  );
+}
+
+/* ── 달빛 줄기: 옆벽 살창에서 바닥으로 비스듬히 쏟아지는 빛 ─────── */
+
+const SHAFT_DROP_X = 6;
+const SHAFT_TOP_Y = 8.3;
+const SHAFT_WIDTH = 1.8;
+
+function MoonShafts({ colors }: { colors: SceneColors }) {
+  const ref = useRef<InstancedMesh>(null);
+  const moon = colors["--color-scene-moonlight"];
+
+  // 창 쪽(아래쪽 행)이 밝고 바닥 쪽으로 사라지는 세로 그라데이션
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 4;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const g = ctx.createLinearGradient(0, 64, 0, 0);
+      g.addColorStop(0, withAlpha(moon, 0.55));
+      g.addColorStop(1, withAlpha(moon, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 4, 64);
+    }
+    const tex = new CanvasTexture(canvas);
+    tex.colorSpace = SRGBColorSpace;
+    return tex;
+  }, [moon]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  const count = SIDE_SHELF_Z.length * 2;
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const o = new Object3D();
+    const dy = SHAFT_TOP_Y - 0.05;
+    const len = Math.hypot(SHAFT_DROP_X, dy);
+    let i = 0;
+    for (const z of SIDE_SHELF_Z)
+      for (const side of [-1, 1]) {
+        // plane의 +y가 창에서 바닥(안쪽 아래)을 향하도록 z축 회전
+        o.position.set(
+          side * (WALL_X - 0.1 - SHAFT_DROP_X / 2),
+          SHAFT_TOP_Y - dy / 2,
+          z,
+        );
+        o.rotation.set(0, 0, Math.atan2(side * SHAFT_DROP_X, -dy));
+        o.scale.set(SHAFT_WIDTH, len, 1);
+        o.updateMatrix();
+        mesh.setMatrixAt(i++, o.matrix);
+      }
+    mesh.instanceMatrix.needsUpdate = true;
+  }, []);
+
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[undefined, undefined, count]}
+      frustumCulled={false}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0.35}
+        blending={AdditiveBlending}
+        side={DoubleSide}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
+/* ── 큰 살창의 사신 문장 ─────────────────────────────────── */
+
+function Crest({
+  house,
+  colors,
+  x,
+}: {
+  house: HouseId;
+  colors: SceneColors;
+  x: number;
+}) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const tex = new CanvasTexture(canvas);
+    tex.colorSpace = SRGBColorSpace;
+    return tex;
+  }, []);
+
+  useEffect(() => {
+    const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
+    if (!ctx) return;
+    const accent = colors[houseToken(house, "accent")];
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.save();
+    ctx.scale(2, 2); // 문장은 64 좌표계
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const s of CREST_SHAPES[house]) {
+      const path = new Path2D(s.d);
+      if (s.stroke) {
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = s.stroke;
+        ctx.stroke(path);
+      } else {
+        ctx.fillStyle = accent;
+        ctx.fill(path, s.evenodd ? "evenodd" : "nonzero");
+      }
+    }
+    ctx.restore();
+    texture.needsUpdate = true;
+  }, [house, colors, texture]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <mesh position={[x, 2.9, BACK_Z + 0.09]}>
+      <planeGeometry args={[0.9, 0.9]} />
+      <meshBasicMaterial map={texture} transparent toneMapped={false} />
+    </mesh>
+  );
+}
+
+function WindowCrests({ colors }: { colors: SceneColors }) {
+  const xs = [-1.8, -0.6, 0.6, 1.8];
+  return (
+    <group>
+      {HOUSE_IDS.map((h, i) => (
+        <Crest key={h} house={h} colors={colors} x={xs[i]} />
+      ))}
+    </group>
+  );
+}
+
 export function Atmosphere({ colors }: { colors: SceneColors }) {
   return (
     <group>
@@ -453,7 +790,10 @@ export function Atmosphere({ colors }: { colors: SceneColors }) {
         color={colors["--color-scene-moonlight"]}
       />
       <Lanterns colors={colors} />
+      <HangingLamps colors={colors} />
+      <MoonShafts colors={colors} />
       <Windows colors={colors} />
+      <WindowCrests colors={colors} />
       <DancheongBand colors={colors} />
       <HouseBanners colors={colors} />
       <Sparkles colors={colors} />

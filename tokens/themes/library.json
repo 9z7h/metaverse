@@ -146,6 +146,10 @@
         "$value": "{color.moon.300}",
         "comment": "3D — 창호 달빛"
       },
+      "brass": {
+        "$value": "{color.brass.500}",
+        "comment": "3D — 놋쇠 (혼천의·등걸이)"
+      },
       "dancheong": {
         "$value": "{color.dancheong.500}",
         "comment": "3D — 단청 들보 바탕(뇌록)"
