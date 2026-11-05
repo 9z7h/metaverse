@@ -17,6 +17,7 @@ import {
   nearestFreeSeat,
   planPath,
   resolveCollision,
+  shortestYawTarget,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import type { PresenceStudent } from "../libraryPresence";
@@ -99,13 +100,20 @@ export function Player({
   const prevSeat = useRef<DeskLayout | null>(null);
   useEffect(() => {
     if (prevSeat.current && !seat) {
-      pos.current = resolveCollision(
-        { x: prevSeat.current.chair.x, z: prevSeat.current.chair.z + 0.7 },
-        desks,
-      );
+      pos.current = resolveCollision(prevSeat.current.stand);
     }
     prevSeat.current = seat;
-  }, [seat, desks]);
+  }, [seat]);
+
+  // 앉으면 시점을 내 등 뒤로 — 테이블 쪽을 정면으로 보게 (카메라가 부드럽게 따라간다)
+  useEffect(() => {
+    if (seat) {
+      orbit.current.yaw = shortestYawTarget(
+        orbit.current.yaw,
+        seat.facing + Math.PI,
+      );
+    }
+  }, [seat, orbit]);
 
   useFrame((_, rawDt) => {
     const g = ref.current;
@@ -117,7 +125,7 @@ export function Player({
 
     if (seat) {
       g.position.set(seat.chair.x, 0, seat.chair.z);
-      g.rotation.y = Math.PI; // 책상(-z)을 바라봄
+      g.rotation.y = seat.facing; // 테이블 쪽을 바라봄
       if (pose !== "sit") setPose("sit");
       if (nearRef.current !== null) {
         nearRef.current = null;
@@ -143,19 +151,16 @@ export function Player({
         // 키보드 위 = 카메라가 보는 방향. 키보드로 움직이면 탭 이동은 취소
         moveOrder.current = null;
         const move = cameraRelativeMove(x, y, orbit.current.yaw);
-        pos.current = resolveCollision(
-          {
-            x: pos.current.x + move.x * WALK_SPEED * dt,
-            z: pos.current.z + move.z * WALK_SPEED * dt,
-          },
-          desks,
-        );
+        pos.current = resolveCollision({
+          x: pos.current.x + move.x * WALK_SPEED * dt,
+          z: pos.current.z + move.z * WALK_SPEED * dt,
+        });
         facing.current = Math.atan2(move.x, move.z);
         moving = true;
       } else if (moveOrder.current) {
         // 탭 이동: 책상을 피해 가는 경유점을 차례로 따라감
         const order = moveOrder.current;
-        order.path ??= planPath(pos.current, order.target, desks);
+        order.path ??= planPath(pos.current, order.target);
         const next = order.path[0];
         if (next) {
           const dx = next.x - pos.current.x;
@@ -263,17 +268,8 @@ export interface BotProps {
 export function Bot({ student, colors, entering, registry }: BotProps) {
   const ref = useRef<Group>(null);
   const layout = deskLayout(student.seatId);
-  // 입구 → 중앙 통로(x=0) → 자기 줄 뒤쪽 통로(의자 바로 뒤) → 자기 의자.
-  // 줄 사이 통로로 옆으로 걸어가야 다른 책상·의자를 가로지르지 않는다.
-  const path = useRef<Vec2[]>(
-    entering
-      ? [
-          { x: 0, z: layout.chair.z + 0.8 },
-          { x: layout.chair.x, z: layout.chair.z + 0.8 },
-          layout.chair,
-        ]
-      : [],
-  );
+  // 입구 → 자기 의자. 긴 테이블을 돌아가야 하는 벽 쪽 의자도 길찾기가 알아서 찾는다.
+  const path = useRef<Vec2[]>(entering ? planPath(DOOR, layout.chair) : []);
   const pos = useRef<Vec2>(entering ? { ...DOOR } : { ...layout.chair });
   const [pose, setPose] = useState<AvatarPose>(entering ? "walk" : "sit");
 
@@ -299,7 +295,7 @@ export function Bot({ student, colors, entering, registry }: BotProps) {
         g.rotation.y = Math.atan2(dx, dz);
       }
     } else {
-      g.rotation.y = Math.PI;
+      g.rotation.y = layout.facing;
     }
     g.position.set(pos.current.x, 0, pos.current.z);
     registry?.current.set(student.id, {
@@ -388,7 +384,7 @@ export function LeavingBot({
     registry?.current.get(student.id) ?? {
       x: layout.chair.x,
       z: layout.chair.z,
-      ry: Math.PI,
+      ry: layout.facing,
       walking: false,
     },
   );

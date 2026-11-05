@@ -4,7 +4,7 @@ import { parseOthers, parsePayload } from "./remotePresence";
 const base = {
   name: "하린",
   subject: "알고리즘",
-  seatId: "A1",
+  seatId: "L1",
   focusing: true,
   focusSeconds: 600,
   house: "jujak",
@@ -55,7 +55,7 @@ describe("parsePayload — 다른 클라이언트가 보낸 값은 믿지 않는
 describe("parseOthers", () => {
   it("나는 제외하고 다른 학생만", () => {
     const others = parseOthers(
-      { me: [base], u2: [{ ...base, seatId: "A2", name: "도윤" }] },
+      { me: [base], u2: [{ ...base, seatId: "L2", name: "도윤" }] },
       "me",
     );
     expect(others.map((s) => s.id)).toEqual(["u2"]);
@@ -81,7 +81,7 @@ describe("parseOthers", () => {
 
   it("잘못된 payload를 보낸 사용자는 건너뛴다", () => {
     const others = parseOthers(
-      { bad: [{ ...base, seatId: "??" }], u2: [{ ...base, seatId: "B1" }] },
+      { bad: [{ ...base, seatId: "??" }], u2: [{ ...base, seatId: "L3" }] },
       null,
     );
     expect(others.map((s) => s.id)).toEqual(["u2"]);

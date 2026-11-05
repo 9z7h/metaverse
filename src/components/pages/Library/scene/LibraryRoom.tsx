@@ -1,9 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Color, Object3D } from "three";
-import type { Group, InstancedMesh, MeshStandardMaterial, Points } from "three";
+import type { Group, InstancedMesh, MeshStandardMaterial } from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
-import { FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
+import { FRONT_WALL_Z, HALL, ROOM, TABLES, TABLE_CANDLES } from "./sceneLayout";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 
 interface RoomProps {
@@ -211,7 +211,8 @@ function Books({
   );
 }
 
-/* ── 서안(책상) + 의자 + 등잔: 16석 전부를 재질별 InstancedMesh 4개로 ── */
+/* ── 긴 열람 테이블 + 의자 + 등잔 ─────────────────────────────
+ * 서고 길이 방향으로 이어진 테이블 2개, 양쪽에 의자 32석. 재질별 InstancedMesh 4개로 그린다. */
 
 function DeskSet({
   layouts,
@@ -225,7 +226,6 @@ function DeskSet({
   const lights = useRef<InstancedMesh>(null);
   const flames = useRef<InstancedMesh>(null);
   const flameMat = useRef<MeshStandardMaterial>(null);
-  const glow = useRef<Points>(null);
 
   const parts = useMemo(() => {
     const top: Box[] = [];
@@ -233,31 +233,45 @@ function DeskSet({
     const light: Box[] = [];
     const flame: Box[] = [];
     const glowAt: number[] = [];
-    for (const { desk, chair } of layouts) {
-      // 상판
-      top.push({ p: [desk.x, 0.75, desk.z], s: [2.2, 0.08, 1] });
-      // 다리 4
-      for (const sx of [-1, 1])
-        for (const sz of [-1, 1])
+
+    for (const t of TABLES) {
+      // 상판 + 그 아래 받침판(앞치마)으로 하나로 이어진 두툼한 테이블
+      top.push({ p: [t.x, 0.75, t.z], s: [t.hx * 2, 0.08, t.hz * 2] });
+      dark.push({
+        p: [t.x, 0.64, t.z],
+        s: [t.hx * 2 - 0.12, 0.16, t.hz * 2 - 0.2],
+      });
+      // 다리: 길이를 따라 2.8m 안팎 간격으로 한 쌍씩
+      const span = t.hz * 2 - 0.8;
+      const pairs = Math.ceil(span / 2.8) + 1;
+      for (let i = 0; i < pairs; i++) {
+        const z = t.z - t.hz + 0.4 + (span * i) / (pairs - 1);
+        for (const sx of [-1, 1])
           dark.push({
-            p: [desk.x + sx, 0.36, desk.z + sz * 0.4],
-            s: [0.08, 0.72, 0.08],
+            p: [t.x + sx * (t.hx - 0.1), 0.36, z],
+            s: [0.1, 0.72, 0.1],
           });
-      // 의자 — 등받이는 낮게 (뒤에서 보는 카메라가 아바타를 가리지 않도록)
-      dark.push({ p: [chair.x, 0.42, chair.z], s: [0.55, 0.06, 0.5] });
-      dark.push({ p: [chair.x, 0.62, chair.z + 0.25], s: [0.55, 0.36, 0.05] });
-      // 펼친 책 + 등잔 받침
-      light.push({ p: [desk.x, 0.795, desk.z + 0.15], s: [0.6, 0.01, 0.4] });
-      light.push({
-        p: [desk.x + 0.75, 0.9, desk.z - 0.2],
-        s: [0.1, 0.22, 0.1],
+      }
+    }
+
+    for (const { desk, chair, facing } of layouts) {
+      // 의자는 테이블 쪽을 보고, 등받이는 그 반대쪽 — 등받이는 낮게
+      // (뒤에서 보는 카메라가 아바타를 가리지 않도록)
+      const toTable = Math.round(Math.sin(facing));
+      dark.push({ p: [chair.x, 0.42, chair.z], s: [0.5, 0.06, 0.55] });
+      dark.push({
+        p: [chair.x - toTable * 0.25, 0.62, chair.z],
+        s: [0.05, 0.36, 0.55],
       });
-      // 불꽃
-      flame.push({
-        p: [desk.x + 0.75, 1.07, desk.z - 0.2],
-        s: [0.12, 0.12, 0.12],
-      });
-      glowAt.push(desk.x + 0.75, 1.1, desk.z - 0.2);
+      // 좌석 앞에 펼친 책
+      light.push({ p: [desk.x, 0.795, desk.z], s: [0.4, 0.01, 0.6] });
+    }
+
+    // 등잔: 좌석 사이마다 테이블 한가운데에 하나 (양쪽 면이 함께 쓴다)
+    for (const c of TABLE_CANDLES) {
+      light.push({ p: [c.x, 0.9, c.z], s: [0.1, 0.22, 0.1] });
+      flame.push({ p: [c.x, 1.07, c.z], s: [0.12, 0.12, 0.12] });
+      glowAt.push(c.x, 1.1, c.z);
     }
     return { top, dark, light, flame, glowAt: new Float32Array(glowAt) };
   }, [layouts]);
@@ -314,8 +328,8 @@ function DeskSet({
           toneMapped={false}
         />
       </instancedMesh>
-      {/* 등잔 불빛 번짐 — 책상마다 따뜻한 후광 */}
-      <points ref={glow}>
+      {/* 등잔 불빛 번짐 — 텍스처 없이 셰이더로 둥글게 */}
+      <points frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
@@ -323,8 +337,6 @@ function DeskSet({
           />
         </bufferGeometry>
         <pointsMaterial
-          onBeforeCompile={roundGlowShader}
-          customProgramCacheKey={roundGlowKey}
           color={flame}
           size={1.1}
           sizeAttenuation
@@ -332,6 +344,8 @@ function DeskSet({
           opacity={0.45}
           depthWrite={false}
           toneMapped={false}
+          onBeforeCompile={roundGlowShader}
+          customProgramCacheKey={roundGlowKey}
         />
       </points>
     </group>

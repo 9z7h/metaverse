@@ -10,10 +10,14 @@ export interface Vec2 {
 
 export interface DeskLayout {
   seatId: string;
-  /** 책상 중심 */
+  /** 이 좌석 앞 테이블 위의 자리 (책·마법 연출 기준점) */
   desk: Vec2;
-  /** 의자(앉는 위치) — 책상 앞(+z) */
+  /** 의자(앉는 위치) */
   chair: Vec2;
+  /** 앉았을 때 아바타가 바라보는 방향 — y축 회전(rad). 테이블 쪽 */
+  facing: number;
+  /** 일어났을 때 한 발 물러서는 곳 (테이블 반대편 통로) */
+  stand: Vec2;
 }
 
 /** 방 안쪽 이동 가능 범위 (벽 두께·책장 깊이 제외) */
@@ -41,42 +45,83 @@ export const OBSTACLES: ReadonlyArray<{ x: number; z: number; r: number }> = [
   { x: 6.2, z: -11.6, r: 0.7 },
 ];
 export const PLAYER_RADIUS = 0.35;
-/** 책상 반폭(x)·반깊이(z) */
-export const DESK_HALF = { x: 1.1, z: 0.5 } as const;
 /** 이 거리 안에 들어오면 "앉기" 버튼 노출 */
 export const SIT_DISTANCE = 1.5;
 
-/** 4줄 × 4열 = 16석. 가운데 통로(x ±1.3) 양쪽으로 두 열씩 */
-const ROWS: Record<string, number> = { A: -8, B: -4, C: 0, D: 4 };
-const COLS: Record<string, number> = {
-  "1": -6.4,
-  "2": -2.4,
-  "3": 2.4,
-  "4": 6.4,
-};
+/* ── 긴 열람 테이블 ───────────────────────────────────────────
+ * 서고 길이 방향(z)으로 이어지는 테이블이 가운데 통로(x ±2.1) 양쪽에 하나씩.
+ * 각 테이블의 양쪽(통로 쪽·벽 쪽)에 의자가 8석씩 마주 보고 놓인다 → 테이블당 16석, 모두 32석. */
 
-/** 좌석 id(`A1`, `B2` …) → 책상/의자 위치 */
-export function deskLayout(seatId: string): DeskLayout {
-  const z = ROWS[seatId[0]] ?? 0;
-  const x = COLS[seatId.slice(1)] ?? 0;
-  return { seatId, desk: { x, z }, chair: { x, z: z + 0.95 } };
+export interface Table {
+  /** 중심 */
+  x: number;
+  z: number;
+  /** 반폭(x)·반길이(z) */
+  hx: number;
+  hz: number;
 }
 
-/** 방 경계 + 책상 AABB 밀어내기. 반환값은 실제로 이동 가능한 위치. */
-export function resolveCollision(pos: Vec2, desks: DeskLayout[]): Vec2 {
+export const TABLES: ReadonlyArray<Table> = [
+  { x: -3.8, z: -2.1, hx: 0.8, hz: 8.4 },
+  { x: 3.8, z: -2.1, hx: 0.8, hz: 8.4 },
+];
+/** 한쪽 면의 좌석 수와 간격, 첫 좌석(가장 안쪽)의 z */
+export const SEATS_PER_SIDE = 8;
+export const SEAT_PITCH = 2.1;
+export const SEAT_Z0 = -9.45;
+/** 테이블 가장자리에서 의자 중심까지 */
+const CHAIR_GAP = 0.55;
+
+/** 테이블 위 등잔 자리 — 같은 면 좌석 사이마다 하나 (양쪽 면이 함께 쓴다) */
+export const TABLE_CANDLES: ReadonlyArray<Vec2> = TABLES.flatMap((t) =>
+  Array.from({ length: SEATS_PER_SIDE - 1 }, (_, k) => ({
+    x: t.x,
+    z: SEAT_Z0 + k * SEAT_PITCH + SEAT_PITCH / 2,
+  })),
+);
+
+/**
+ * 좌석 id(`L1`~`L16`, `R1`~`R16`) → 테이블/의자 위치.
+ * L·R은 왼쪽·오른쪽 테이블, 1~8은 통로 쪽 면, 9~16은 벽 쪽 면 (각각 안쪽 → 입구 쪽 순서).
+ */
+export function deskLayout(seatId: string): DeskLayout {
+  const t = seatId[0] === "R" ? TABLES[1] : TABLES[0];
+  const n = Math.min(
+    SEATS_PER_SIDE * 2,
+    Math.max(1, Math.floor(Number(seatId.slice(1))) || 1),
+  );
+  const inner = n <= SEATS_PER_SIDE;
+  const k = (n - 1) % SEATS_PER_SIDE;
+  // 이 테이블에서 가운데 통로가 있는 쪽(±1), 그리고 의자가 놓인 쪽
+  const aisleDir = t.x < 0 ? 1 : -1;
+  const chairDir = inner ? aisleDir : -aisleDir;
+  const z = SEAT_Z0 + k * SEAT_PITCH;
+  const chairX = t.x + chairDir * (t.hx + CHAIR_GAP);
+  return {
+    seatId,
+    desk: { x: t.x + chairDir * 0.3, z },
+    chair: { x: chairX, z },
+    // 의자에서 테이블 쪽(-chairDir)을 봄. 아바타 정면은 (sin ry, cos ry)
+    facing: Math.atan2(-chairDir, 0),
+    stand: { x: chairX + chairDir * 0.9, z },
+  };
+}
+
+/** 방 경계 + 테이블·고정 장식 밀어내기. 반환값은 실제로 이동 가능한 위치. */
+export function resolveCollision(pos: Vec2): Vec2 {
   let x = Math.min(ROOM.maxX, Math.max(ROOM.minX, pos.x));
   let z = Math.min(ROOM.maxZ, Math.max(ROOM.minZ, pos.z));
-  for (const { desk } of desks) {
-    const hx = DESK_HALF.x + PLAYER_RADIUS;
-    const hz = DESK_HALF.z + PLAYER_RADIUS;
-    const dx = x - desk.x;
-    const dz = z - desk.z;
+  for (const t of TABLES) {
+    const hx = t.hx + PLAYER_RADIUS;
+    const hz = t.hz + PLAYER_RADIUS;
+    const dx = x - t.x;
+    const dz = z - t.z;
     if (Math.abs(dx) < hx && Math.abs(dz) < hz) {
       // 덜 파고든 축으로 밀어낸다
       const px = hx - Math.abs(dx);
       const pz = hz - Math.abs(dz);
-      if (px < pz) x = desk.x + Math.sign(dx || 1) * hx;
-      else z = desk.z + Math.sign(dz || 1) * hz;
+      if (px < pz) x = t.x + Math.sign(dx || 1) * hx;
+      else z = t.z + Math.sign(dz || 1) * hz;
     }
   }
   for (const o of OBSTACLES) {
@@ -114,15 +159,15 @@ export function nearestFreeSeat(
   return best;
 }
 
-/* ── 탭 이동: 탭한 곳 해석 + 책상을 피해 가는 경로 ─────────── */
+/* ── 탭 이동: 탭한 곳 해석 + 테이블을 피해 가는 경로 ─────────── */
 
-/** 점이 (아바타 반경만큼 넓힌) 책상·고정 장식 안에 있는지 */
-function insideDesk(p: Vec2, desks: DeskLayout[]): boolean {
+/** 점이 (아바타 반경만큼 넓힌) 테이블·고정 장식 안에 있는지 */
+function blocked(p: Vec2): boolean {
   return (
-    desks.some(
-      ({ desk }) =>
-        Math.abs(p.x - desk.x) < DESK_HALF.x + PLAYER_RADIUS &&
-        Math.abs(p.z - desk.z) < DESK_HALF.z + PLAYER_RADIUS,
+    TABLES.some(
+      (t) =>
+        Math.abs(p.x - t.x) < t.hx + PLAYER_RADIUS &&
+        Math.abs(p.z - t.z) < t.hz + PLAYER_RADIUS,
     ) ||
     OBSTACLES.some(
       (o) => Math.hypot(p.x - o.x, p.z - o.z) < o.r + PLAYER_RADIUS,
@@ -130,14 +175,12 @@ function insideDesk(p: Vec2, desks: DeskLayout[]): boolean {
   );
 }
 
-/** a→b 직선으로 걸어갈 때 책상에 걸리지 않는지 (0.1m 간격으로 확인) */
-export function segmentClear(a: Vec2, b: Vec2, desks: DeskLayout[]): boolean {
+/** a→b 직선으로 걸어갈 때 막히지 않는지 (0.1m 간격으로 확인) */
+export function segmentClear(a: Vec2, b: Vec2): boolean {
   const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.1));
   for (let s = 1; s <= steps; s++) {
     const t = s / steps;
-    if (
-      insideDesk({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }, desks)
-    )
+    if (blocked({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }))
       return false;
   }
   return true;
@@ -147,15 +190,18 @@ export type TapTarget =
   | { kind: "seat"; seat: DeskLayout }
   | { kind: "floor"; point: Vec2 };
 
-/** 책상 상판 높이 — 탭 판정용 */
+/** 테이블 상판 높이 — 탭 판정용 */
 export const DESK_TOP_Y = 0.78;
+
+/** 상판을 탭했을 때 이 거리 안의 빈 좌석이 있으면 거기 앉는다 */
+const TAP_SEAT_REACH = 1.3;
 
 /**
  * 탭한 지점 → 이동 목표.
  * 비스듬히 내려다보는 카메라에서는 같은 탭이라도 높이에 따라 닿는 곳이 다르다
  * (상판을 탭해도 바닥 높이로 계산하면 1~2m 뒤 바닥이 된다). 그래서
- * - `atDesk`(상판 높이에서의 교차점)가 빈 책상 위면 그 자리
- * - `atFloor`(바닥 높이)가 빈 의자 근처여도 그 자리
+ * - `atFloor`(바닥 높이)가 빈 의자 근처면 그 자리
+ * - `atDesk`(상판 높이에서의 교차점)가 테이블 위면 가장 가까운 빈 좌석
  * - 아니면 `atFloor`를 갈 수 있는 위치로 보정한 바닥
  */
 export function tapTarget(
@@ -166,15 +212,30 @@ export function tapTarget(
 ): TapTarget {
   for (const d of desks) {
     if (occupied.has(d.seatId)) continue;
-    const onDesk =
-      atDesk !== null &&
-      Math.abs(atDesk.x - d.desk.x) <= DESK_HALF.x + 0.1 &&
-      Math.abs(atDesk.z - d.desk.z) <= DESK_HALF.z + 0.1;
-    const onChair =
-      Math.hypot(atFloor.x - d.chair.x, atFloor.z - d.chair.z) <= 0.7;
-    if (onDesk || onChair) return { kind: "seat", seat: d };
+    if (Math.hypot(atFloor.x - d.chair.x, atFloor.z - d.chair.z) <= 0.7)
+      return { kind: "seat", seat: d };
   }
-  return { kind: "floor", point: resolveCollision(atFloor, desks) };
+  const onTable =
+    atDesk !== null &&
+    TABLES.some(
+      (t) =>
+        Math.abs(atDesk.x - t.x) <= t.hx + 0.1 &&
+        Math.abs(atDesk.z - t.z) <= t.hz + 0.1,
+    );
+  if (atDesk && onTable) {
+    let best: DeskLayout | null = null;
+    let bestD = TAP_SEAT_REACH;
+    for (const d of desks) {
+      if (occupied.has(d.seatId)) continue;
+      const dist = Math.hypot(atDesk.x - d.desk.x, atDesk.z - d.desk.z);
+      if (dist < bestD) {
+        best = d;
+        bestD = dist;
+      }
+    }
+    if (best) return { kind: "seat", seat: best };
+  }
+  return { kind: "floor", point: resolveCollision(atFloor) };
 }
 
 const GRID = 0.5;
@@ -184,8 +245,8 @@ const GRID = 0.5;
  * 보이는 지점까지 건너뛰어(string pulling) 꺾이는 곳만 남긴다.
  * 반환값은 from 다음부터 to까지의 경유점 (마지막은 항상 to).
  */
-export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
-  if (segmentClear(from, to, desks)) return [to];
+export function planPath(from: Vec2, to: Vec2): Vec2[] {
+  if (segmentClear(from, to)) return [to];
 
   const cols = Math.floor((ROOM.maxX - ROOM.minX) / GRID) + 1;
   const rows = Math.floor((ROOM.maxZ - ROOM.minZ) / GRID) + 1;
@@ -194,7 +255,7 @@ export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
     z: ROOM.minZ + r * GRID,
   });
   const walkable = (c: number, r: number) =>
-    c >= 0 && r >= 0 && c < cols && r < rows && !insideDesk(cell(c, r), desks);
+    c >= 0 && r >= 0 && c < cols && r < rows && !blocked(cell(c, r));
   const nearestCell = (p: Vec2): [number, number] => {
     let best: [number, number] = [0, 0];
     let bestD = Infinity;
@@ -203,7 +264,7 @@ export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
         if (!walkable(c, r)) continue;
         const q = cell(c, r);
         const d = Math.hypot(q.x - p.x, q.z - p.z);
-        if (d < bestD && segmentClear(p, q, desks)) {
+        if (d < bestD && segmentClear(p, q)) {
           bestD = d;
           best = [c, r];
         }
@@ -238,7 +299,7 @@ export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
       queue.push([nc, nr]);
     }
   }
-  if (!prev.has(key(gc, gr))) return [resolveCollision(to, desks)];
+  if (!prev.has(key(gc, gr))) return [resolveCollision(to)];
 
   const cells: Vec2[] = [];
   for (let k = key(gc, gr); k !== -1; k = prev.get(k)!) {
@@ -253,7 +314,7 @@ export function planPath(from: Vec2, to: Vec2, desks: DeskLayout[]): Vec2[] {
   while (i < points.length) {
     let far = i;
     for (let j = points.length - 1; j > i; j--) {
-      if (segmentClear(cur, points[j], desks)) {
+      if (segmentClear(cur, points[j])) {
         far = j;
         break;
       }

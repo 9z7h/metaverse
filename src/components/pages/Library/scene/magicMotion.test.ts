@@ -109,7 +109,7 @@ describe("퇴장 — 스르륵 사라지기", () => {
 });
 
 describe("퇴장 추적 — trackLeavers", () => {
-  const student = (id: string, seatId = "A1"): PresenceStudent => ({
+  const student = (id: string, seatId = "L1"): PresenceStudent => ({
     id,
     name: id,
     subject: "",
@@ -120,7 +120,7 @@ describe("퇴장 추적 — trackLeavers", () => {
     mode: "theory",
   });
   const a = student("a");
-  const b = student("b", "A2");
+  const b = student("b", "L2");
 
   it("목록에서 빠진 학생이 퇴장자가 된다", () => {
     const out = trackLeavers([a, b], [b], [], 1000);
