@@ -26,35 +26,34 @@ const meta = {
   ],
   argTypes: {
     status: { control: "select", options: ["idle", "running", "paused"] },
+    elapsedSeconds: { control: { type: "number", min: 0, step: 60 } },
   },
   args: {
-    totalSeconds: 1500,
-    remainingSeconds: 1500,
+    elapsedSeconds: 0,
     label: "알고리즘",
     onStart: fn(),
     onPause: fn(),
-    onReset: fn(),
   },
 } satisfies Meta<typeof FocusTimer>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 시작 전 — 초기화 비활성, "집중 시작" 클릭 시 onStart */
+/** 오늘 첫 집중 전 — "집중 시작" 클릭 시 onStart */
 export const Idle: Story = {
-  args: { status: "idle" },
+  args: { status: "idle", elapsedSeconds: 0 },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("timer")).toHaveTextContent("25:00");
-    await expect(canvas.getByRole("button", { name: "초기화" })).toBeDisabled();
+    await expect(canvas.getByRole("timer")).toHaveTextContent("00:00");
+    await expect(canvas.queryByRole("button", { name: "초기화" })).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "집중 시작" }));
     await expect(args.onStart).toHaveBeenCalledTimes(1);
   },
 };
 
-/** 집중 중 — "일시정지" 클릭 시 onPause */
+/** 집중 중 (17분 3초 누적) — "일시정지" 클릭 시 onPause */
 export const Running: Story = {
-  args: { status: "running", remainingSeconds: 1023 },
+  args: { status: "running", elapsedSeconds: 1023 },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("timer")).toHaveTextContent("17:03");
@@ -63,12 +62,21 @@ export const Running: Story = {
   },
 };
 
-/** 일시정지 — "계속하기" / "초기화" 활성 */
+/** 잠시 멈춤 — "계속하기"로 이어서 누적 */
 export const Paused: Story = {
-  args: { status: "paused", remainingSeconds: 600 },
+  args: { status: "paused", elapsedSeconds: 600 },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "초기화" }));
-    await expect(args.onReset).toHaveBeenCalledTimes(1);
+    await userEvent.click(canvas.getByRole("button", { name: "계속하기" }));
+    await expect(args.onStart).toHaveBeenCalledTimes(1);
+  },
+};
+
+/** 1시간 넘게 누적 — H:MM:SS 표시, 링은 두 바퀴째 (25% 지점) */
+export const OverAnHour: Story = {
+  args: { status: "running", elapsedSeconds: 3600 + 900 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("timer")).toHaveTextContent("1:15:00");
   },
 };

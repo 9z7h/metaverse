@@ -75,6 +75,103 @@ export function nearestFreeSeat(
   return best;
 }
 
+/* ── 카메라: 드래그로 돌리는 궤도(orbit) 카메라 ─────────────── */
+
+export interface Orbit {
+  /** 수평 회전(rad). 0 = 대상 뒤(+z)에서 -z 방향을 봄 */
+  yaw: number;
+  /** 내려다보는 각도(rad) */
+  pitch: number;
+  /** 거리 배율 (휠·핀치 줌) */
+  zoom: number;
+}
+
+export const ORBIT_DEFAULT: Orbit = { yaw: 0, pitch: 0.65, zoom: 1 };
+
+/**
+ * 앞벽(입구) 안쪽 면 z. 시점을 돌릴 수 있게 되면서 앞쪽도 막아야 한다.
+ * 열람실(ROOM) 앞에 6m 입구 홀을 둬서, 입구 근처에 서 있어도
+ * 기본 카메라(뒤로 약 6m)가 벽에 밀려 아바타 바로 뒤로 붙지 않게 한다.
+ */
+export const FRONT_WALL_Z = ROOM.maxZ + 6.3;
+
+/**
+ * 카메라가 머물 수 있는 공간. 좌우·뒤 책장 앞면(벽에서 0.45m)보다 안쪽,
+ * 앞벽에서 0.3m 안쪽, 벽 높이(6m)보다 아래.
+ */
+export const CAMERA_BOUNDS = {
+  minX: ROOM.minX - 0.2,
+  maxX: ROOM.maxX + 0.2,
+  minZ: ROOM.minZ - 0.2,
+  maxZ: FRONT_WALL_Z - 0.3,
+  maxY: 5.6,
+} as const;
+
+export const ORBIT_LIMITS = {
+  pitchMin: 0.2,
+  pitchMax: 1.3,
+  zoomMin: 0.5,
+  zoomMax: 1.8,
+} as const;
+
+export function clampOrbit(o: Orbit): Orbit {
+  return {
+    yaw: o.yaw,
+    pitch: Math.min(
+      ORBIT_LIMITS.pitchMax,
+      Math.max(ORBIT_LIMITS.pitchMin, o.pitch),
+    ),
+    zoom: Math.min(
+      ORBIT_LIMITS.zoomMax,
+      Math.max(ORBIT_LIMITS.zoomMin, o.zoom),
+    ),
+  };
+}
+
+/**
+ * 대상 위치 + 궤도 → 카메라 위치와 바라볼 점.
+ * 시선은 대상보다 `lookAhead`m 앞에 둬서 앞쪽(다른 학생들)이 화면 중앙에 오게 한다.
+ */
+export function cameraRig(
+  target: Vec2,
+  o: Orbit,
+  baseDist: number,
+  lookAhead: number,
+): { cam: [number, number, number]; look: [number, number, number] } {
+  const d = baseDist * o.zoom;
+  const sy = Math.sin(o.yaw);
+  const cy = Math.cos(o.yaw);
+  const horiz = Math.cos(o.pitch) * d;
+  // 카메라가 벽·천장 밖으로 나가면 시선 방향을 따라 안쪽으로 당긴다 (카메라 충돌)
+  const off = { x: sy * horiz, y: Math.sin(o.pitch) * d, z: cy * horiz };
+  let t = 1;
+  const fit = (from: number, delta: number, min: number, max: number) => {
+    if (from + delta * t > max && delta > 0)
+      t = Math.min(t, (max - from) / delta);
+    if (from + delta * t < min && delta < 0)
+      t = Math.min(t, (min - from) / delta);
+  };
+  fit(target.x, off.x, CAMERA_BOUNDS.minX, CAMERA_BOUNDS.maxX);
+  fit(target.z, off.z, CAMERA_BOUNDS.minZ, CAMERA_BOUNDS.maxZ);
+  fit(0, off.y, 0, CAMERA_BOUNDS.maxY);
+  t = Math.max(0, t);
+  return {
+    cam: [target.x + off.x * t, off.y * t, target.z + off.z * t],
+    look: [target.x - sy * lookAhead, 0.9, target.z - cy * lookAhead],
+  };
+}
+
+/**
+ * 조이스틱 입력(화면 기준: y=-1이 위) → 월드 이동 벡터.
+ * "위로 밀기 = 카메라가 보는 방향"이 되도록 yaw만큼 회전한다.
+ */
+export function cameraRelativeMove(x: number, y: number, yaw: number): Vec2 {
+  const sy = Math.sin(yaw);
+  const cy = Math.cos(yaw);
+  // right = (cos, -sin), forward = (-sin, -cos); 이동 = right*x + forward*(-y)
+  return { x: x * cy + y * sy, z: -x * sy + y * cy };
+}
+
 /* ── 색상: CSS 디자인 토큰 → three.js ───────────────────── */
 
 export const SCENE_COLOR_TOKENS = [

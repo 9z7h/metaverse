@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Color, Object3D } from "three";
 import type { Group, InstancedMesh, MeshStandardMaterial } from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
-import { ROOM } from "./sceneLayout";
+import { FRONT_WALL_Z, ROOM } from "./sceneLayout";
 
 interface RoomProps {
   colors: SceneColors;
@@ -269,8 +269,13 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
     [colors],
   );
   const w = ROOM.maxX - ROOM.minX + 2;
-  const d = ROOM.maxZ - ROOM.minZ + 4;
-  const cz = (ROOM.maxZ + ROOM.minZ) / 2;
+  // 뒷벽 ~ 앞벽(입구 홀 포함)
+  const backZ = ROOM.minZ - 0.9;
+  const frontZ = FRONT_WALL_Z + 0.1;
+  const d = frontZ - backZ;
+  const cz = (frontZ + backZ) / 2;
+  const wall = colors["--color-scene-wall"];
+  const dark = colors["--color-scene-wood-dark"];
 
   return (
     <group>
@@ -290,17 +295,40 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
           roughness={1}
         />
       </mesh>
-      {/* 벽 (뒤·좌·우) — 앞쪽은 카메라 시야를 위해 열어둔다 */}
+      {/* 벽 (뒤·좌·우·앞) — 시점을 돌려도 바깥 허공이 보이지 않게 사방을 막는다 */}
       <mesh position={[0, 3, ROOM.minZ - 0.8]}>
         <boxGeometry args={[w, 6, 0.2]} />
-        <meshStandardMaterial color={colors["--color-scene-wall"]} />
+        <meshStandardMaterial color={wall} />
       </mesh>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (ROOM.maxX + 0.8), 3, cz]}>
           <boxGeometry args={[0.2, 6, d]} />
-          <meshStandardMaterial color={colors["--color-scene-wall"]} />
+          <meshStandardMaterial color={wall} />
         </mesh>
       ))}
+      <mesh position={[0, 3, frontZ]}>
+        <boxGeometry args={[w, 6, 0.2]} />
+        <meshStandardMaterial color={wall} />
+      </mesh>
+      {/* 입구 대문: 문틀(기둥 2 + 인방) + 두 짝 문 */}
+      <group position={[0, 0, FRONT_WALL_Z - 0.02]}>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * 1.05, 1.4, 0]}>
+            <boxGeometry args={[0.2, 2.8, 0.2]} />
+            <meshStandardMaterial color={dark} />
+          </mesh>
+        ))}
+        <mesh position={[0, 2.9, 0]}>
+          <boxGeometry args={[2.5, 0.25, 0.25]} />
+          <meshStandardMaterial color={dark} />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={`door${s}`} position={[s * 0.48, 1.3, 0.02]}>
+            <boxGeometry args={[0.92, 2.6, 0.04]} />
+            <meshStandardMaterial color={colors["--color-scene-wood"]} />
+          </mesh>
+        ))}
+      </group>
 
       {shelves.map((s) => (
         <Shelf

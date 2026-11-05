@@ -15,7 +15,7 @@ import type { InstancedMesh, Points } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { ROOM } from "./sceneLayout";
+import { FRONT_WALL_Z, ROOM } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 
 function seeded(seed: number) {
@@ -31,7 +31,7 @@ const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
 
 /* ── 청사초롱: 공중에 떠서 흔들리는 비단 등 ─────────────────── */
 
-const LANTERN_COUNT = 22;
+const LANTERN_COUNT = 28;
 
 function Lanterns({ colors }: { colors: SceneColors }) {
   const bodies = useRef<InstancedMesh>(null);
@@ -40,7 +40,8 @@ function Lanterns({ colors }: { colors: SceneColors }) {
     const rand = seeded(7);
     return Array.from({ length: LANTERN_COUNT }, (_, i) => ({
       x: ROOM.minX + 0.6 + rand() * (ROOM.maxX - ROOM.minX - 1.2),
-      z: ROOM.minZ + 0.6 + rand() * (ROOM.maxZ - ROOM.minZ - 1.2),
+      // 열람실 + 입구 홀까지 (시점을 돌려 입구 쪽을 봐도 어둡지 않게)
+      z: ROOM.minZ + 0.6 + rand() * (FRONT_WALL_Z - 1 - ROOM.minZ - 0.6),
       // 아바타 모자(1.9m) 위, 카메라(4.6m) 아래 — 시야를 가리지 않는 높이
       y: 2.6 + rand() * 1.2,
       phase: rand() * Math.PI * 2,
@@ -195,24 +196,32 @@ function Windows({ colors }: { colors: SceneColors }) {
 function DancheongBand({ colors }: { colors: SceneColors }) {
   const y = 3.45;
   const w = WALL_X * 2;
-  const d = ROOM.maxZ - ROOM.minZ + 2;
-  const cz = (ROOM.maxZ + ROOM.minZ) / 2;
+  // 뒷벽 ~ 앞벽(입구 홀 포함)
+  const d = FRONT_WALL_Z - BACK_Z;
+  const cz = (FRONT_WALL_Z + BACK_Z) / 2;
   const stripes = [
     { dy: 0.16, c: colors["--color-house-ember-primary"] },
     { dy: -0.16, c: colors["--color-house-azure-primary"] },
   ];
   return (
     <group>
-      {/* 뒷벽 */}
-      <mesh position={[0, y, BACK_Z + 0.05]}>
-        <boxGeometry args={[w, 0.36, 0.08]} />
-        <meshStandardMaterial color={colors["--color-scene-dancheong"]} />
-      </mesh>
-      {stripes.map((s) => (
-        <mesh key={s.dy} position={[0, y + s.dy, BACK_Z + 0.1]}>
-          <boxGeometry args={[w, 0.05, 0.02]} />
-          <meshStandardMaterial color={s.c} />
-        </mesh>
+      {/* 뒷벽·앞벽 (앞벽은 방 안쪽을 향하도록 z 방향 반대) */}
+      {[
+        { z: BACK_Z, dir: 1 },
+        { z: FRONT_WALL_Z, dir: -1 },
+      ].map(({ z, dir }) => (
+        <group key={z}>
+          <mesh position={[0, y, z + 0.05 * dir]}>
+            <boxGeometry args={[w, 0.36, 0.08]} />
+            <meshStandardMaterial color={colors["--color-scene-dancheong"]} />
+          </mesh>
+          {stripes.map((s) => (
+            <mesh key={s.dy} position={[0, y + s.dy, z + 0.1 * dir]}>
+              <boxGeometry args={[w, 0.05, 0.02]} />
+              <meshStandardMaterial color={s.c} />
+            </mesh>
+          ))}
+        </group>
       ))}
       {/* 좌우 벽 */}
       {[-1, 1].map((side) => (

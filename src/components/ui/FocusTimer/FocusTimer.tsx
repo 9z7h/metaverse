@@ -1,14 +1,12 @@
 import type { CSSProperties } from "react";
 import { ButtonLarge } from "../Button";
 
-/** Timer status. `idle` = 시작 전, `running` = 집중 중, `paused` = 일시정지. */
+/** Timer status. `idle` = 오늘 아직 시작 전, `running` = 집중 중, `paused` = 잠시 멈춤. */
 export type FocusTimerStatus = "idle" | "running" | "paused";
 
 export interface FocusTimerProps {
-  /** Session length in seconds (e.g. 25분 = 1500). */
-  totalSeconds: number;
-  /** Seconds left in the current session. */
-  remainingSeconds: number;
+  /** 누적 집중 시간(초). 멈췄다 다시 시작해도 이어서 쌓인다. */
+  elapsedSeconds: number;
   /** Current status. Defaults to `idle`. */
   status?: FocusTimerStatus;
   /** Caption above the clock, e.g. the subject. */
@@ -17,18 +15,22 @@ export interface FocusTimerProps {
   onStart?: () => void;
   /** Pause a running session. */
   onPause?: () => void;
-  /** Reset to `totalSeconds`. */
-  onReset?: () => void;
   /** Extra class forwarded to the root element. */
   className?: string;
 }
 
-/** Formats seconds as `MM:SS`. */
+/** 초 → `MM:SS`, 1시간 이상이면 `H:MM:SS`. */
 export function formatClock(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
-  return `${mm}:${ss}`;
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** 링 진행률 — 1시간마다 한 바퀴 (0~1) */
+export function hourProgress(seconds: number): number {
+  return (Math.max(0, seconds) % 3600) / 3600;
 }
 
 // SVG 좌표계(viewBox 0 0 120 120) 안의 값 — 렌더 크기는 CSS로 조절된다.
@@ -62,40 +64,33 @@ const centerStyle: CSSProperties = {
   gap: "var(--spacing-4)",
 };
 
-const actionsStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr auto",
-  gap: "var(--spacing-8)",
-  width: "100%",
-};
-
-const PRIMARY_LABEL: Record<FocusTimerStatus, string> = {
+export const PRIMARY_LABEL: Record<FocusTimerStatus, string> = {
   idle: "집중 시작",
   running: "일시정지",
   paused: "계속하기",
 };
 
+const STATUS_LABEL: Record<FocusTimerStatus, string> = {
+  idle: "오늘의 첫 집중",
+  running: "집중 중",
+  paused: "잠시 멈춤",
+};
+
 /**
- * Circular focus (pomodoro) timer. Controlled: the parent owns the clock and
- * passes `remainingSeconds` / `status`; this component only renders progress
- * and exposes start/pause/reset through the design-system `ButtonLarge`.
+ * 누적 집중 스톱워치. Controlled: 부모가 `elapsedSeconds`와 `status`를 넘기고,
+ * 이 컴포넌트는 표시와 시작/일시정지 버튼(디자인 시스템 `ButtonLarge`)만 담당한다.
+ * 링은 1시간마다 한 바퀴 채워진다.
  */
 export function FocusTimer({
-  totalSeconds,
-  remainingSeconds,
+  elapsedSeconds,
   status = "idle",
   label,
   onStart,
   onPause,
-  onReset,
   className,
 }: FocusTimerProps) {
-  const progress =
-    totalSeconds > 0
-      ? Math.min(1, Math.max(0, 1 - remainingSeconds / totalSeconds))
-      : 0;
-  const clock = formatClock(remainingSeconds);
-  const isPristine = status === "idle" && remainingSeconds === totalSeconds;
+  const progress = hourProgress(elapsedSeconds);
+  const clock = formatClock(elapsedSeconds);
 
   return (
     <div className={className} style={rootStyle}>
@@ -126,7 +121,6 @@ export function FocusTimer({
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
-            style={{ transition: "stroke-dashoffset 1s linear" }}
           />
         </svg>
         <div style={centerStyle}>
@@ -142,7 +136,7 @@ export function FocusTimer({
           ) : null}
           <span
             role="timer"
-            aria-label={`남은 시간 ${clock}`}
+            aria-label={`오늘 누적 집중 ${clock}`}
             style={{
               font: "var(--text-display-lg-bold)",
               color: "var(--color-text-primary)",
@@ -157,24 +151,17 @@ export function FocusTimer({
               color: "var(--color-text-tertiary)",
             }}
           >
-            {status === "running"
-              ? "집중 중"
-              : status === "paused"
-                ? "잠시 멈춤"
-                : "준비"}
+            {STATUS_LABEL[status]}
           </span>
         </div>
       </div>
 
-      <div style={actionsStyle}>
+      <div style={{ display: "grid", width: "100%" }}>
         <ButtonLarge
           style={status === "running" ? "monolight" : "core"}
           onClick={status === "running" ? onPause : onStart}
         >
           {PRIMARY_LABEL[status]}
-        </ButtonLarge>
-        <ButtonLarge style="outline" onClick={onReset} disabled={isPristine}>
-          초기화
         </ButtonLarge>
       </div>
     </div>

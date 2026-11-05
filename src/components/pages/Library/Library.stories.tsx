@@ -25,6 +25,12 @@ const meta = {
   // 기숙사는 localStorage에 유지되므로 스토리마다 초기화 → 항상 첫 입장 상태에서 시작
   beforeEach: () => {
     clearHouse();
+    // 오늘 누적 집중 기록도 초기화 (스토리 간 간섭 방지)
+    try {
+      window.localStorage.removeItem("hanul-academy:focus");
+    } catch {
+      /* noop */
+    }
   },
   args: { sortingDurationMs: 0 },
 } satisfies Meta<typeof Library>;
@@ -111,9 +117,9 @@ export const FullFlow: Story = {
   },
 };
 
-/** 짧은 세션(2초)으로 세션 완료 → 오늘의 기록 반영 확인 */
-export const SessionComplete: Story = {
-  args: { sessionSeconds: 2, presenceOptions: { simulate: false } },
+/** 누적 스톱워치 — 집중 → 일시정지 → 계속하기 해도 이어서 쌓임 */
+export const AccumulateAcrossPause: Story = {
+  args: { presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await enterThroughSorting(canvas, "간편 모드로 입장");
@@ -121,9 +127,16 @@ export const SessionComplete: Story = {
       canvas.getAllByRole("button", { name: "여기 앉기" })[0],
     );
     await userEvent.click(canvas.getByRole("button", { name: "집중 시작" }));
-    await waitFor(() => expect(canvas.getByText("1회")).toBeInTheDocument(), {
-      timeout: 4000,
-    });
+    await waitFor(
+      () => expect(canvas.getByRole("timer")).toHaveTextContent("00:01"),
+      { timeout: 3000 },
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "일시정지" }));
+    await userEvent.click(canvas.getByRole("button", { name: "계속하기" }));
+    await waitFor(
+      () => expect(canvas.getByRole("timer")).toHaveTextContent("00:02"),
+      { timeout: 3000 },
+    );
   },
 };
 

@@ -7,11 +7,13 @@ import { Avatar } from "./Avatar";
 import type { AvatarPose } from "./Avatar";
 import {
   DOOR,
+  cameraRelativeMove,
+  cameraRig,
   deskLayout,
   nearestFreeSeat,
   resolveCollision,
 } from "./sceneLayout";
-import type { DeskLayout, SceneColors, Vec2 } from "./sceneLayout";
+import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import type { PresenceStudent } from "../libraryPresence";
 import { houseToken } from "../houses";
 import type { HouseId } from "../houses";
@@ -36,7 +38,15 @@ export interface PlayerProps {
   house: HouseId;
   /** 근처 빈 좌석이 바뀔 때만 호출 */
   onNearSeatChange: (seatId: string | null) => void;
+  /** 드래그·줌으로 바뀌는 카메라 궤도 — 매 프레임 읽음 */
+  orbit: MutableRefObject<Orbit>;
+  /** 드래그 중인지 (카메라 반응 속도 상향) */
+  dragging: MutableRefObject<boolean>;
 }
+
+/** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
+const WALK_DIST = 7.6;
+const SEATED_DIST = 5.2;
 
 export function Player({
   colors,
@@ -48,6 +58,8 @@ export function Player({
   subject,
   house,
   onNearSeatChange,
+  orbit,
+  dragging,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2>({ ...DOOR, z: DOOR.z - 1 });
@@ -84,22 +96,25 @@ export function Player({
         nearRef.current = null;
         onNearSeatChange(null);
       }
-      // 내 자리 뒤 위쪽에서 방 중앙을 바라봄 — 함께 공부하는 사람들이 보이도록
-      camTarget.current.set(seat.chair.x * 0.6, 3.4, seat.chair.z + 3.6);
-      lookTarget.current.set(0, 0.9, seat.desk.z - 2.5);
+      // 내 자리 뒤에서 앞줄(함께 공부하는 사람들)을 바라봄 — 드래그로 돌려볼 수 있음
+      const rig = cameraRig(seat.chair, orbit.current, SEATED_DIST, 3);
+      camTarget.current.set(...rig.cam);
+      lookTarget.current.set(...rig.look);
     } else {
       const { x, y } = input.current;
       const moving = Math.hypot(x, y) > 0.05;
       if (moving) {
+        // 조이스틱 위 = 카메라가 보는 방향
+        const move = cameraRelativeMove(x, y, orbit.current.yaw);
         const next = resolveCollision(
           {
-            x: pos.current.x + x * WALK_SPEED * dt,
-            z: pos.current.z + y * WALK_SPEED * dt,
+            x: pos.current.x + move.x * WALK_SPEED * dt,
+            z: pos.current.z + move.z * WALK_SPEED * dt,
           },
           desks,
         );
         pos.current = next;
-        facing.current = Math.atan2(x, y);
+        facing.current = Math.atan2(move.x, move.z);
       }
       const nextPose: AvatarPose = moving ? "walk" : "stand";
       if (pose !== nextPose) setPose(nextPose);
@@ -113,13 +128,15 @@ export function Player({
         nearRef.current = near;
         onNearSeatChange(near);
       }
-      camTarget.current.set(pos.current.x, 4.6, pos.current.z + 6);
-      // 시선을 앞쪽(-3m)에 둬 뒷줄이 화면 위 HUD에 가리지 않게 한다
-      lookTarget.current.set(pos.current.x, 0.9, pos.current.z - 3);
+      // 시선을 앞쪽(3m)에 둬 뒷줄이 화면 위 HUD에 가리지 않게 한다
+      const rig = cameraRig(pos.current, orbit.current, WALK_DIST, 3);
+      camTarget.current.set(...rig.cam);
+      lookTarget.current.set(...rig.look);
     }
 
-    // 카메라는 부드럽게 따라감 (프레임레이트와 무관한 감쇠)
-    const k = 1 - Math.exp(-dt * 6);
+    // 카메라는 부드럽게 따라감 (프레임레이트와 무관한 감쇠).
+    // 드래그 중엔 손가락을 바로 따라오도록 더 빠르게.
+    const k = 1 - Math.exp(-dt * (dragging.current ? 18 : 6));
     camera.position.lerp(camTarget.current, k);
     look.current.lerp(lookTarget.current, k);
     camera.lookAt(look.current);

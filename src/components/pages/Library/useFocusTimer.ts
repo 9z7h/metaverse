@@ -2,78 +2,119 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FocusTimerStatus } from "../../ui/FocusTimer";
 
 export interface FocusTimerState {
-  remainingSeconds: number;
+  /** 오늘 누적 집중 시간(초) — 새로고침해도 유지, 자정에 0 */
+  elapsedSeconds: number;
+  /** 이번 연속 집중 시간(초) — 다시 시작하면 0부터, 멈추면 그 값 유지 */
+  runSeconds: number;
   status: FocusTimerStatus;
-  /** 오늘 완료한 세션 수 */
-  completedSessions: number;
-  /** 오늘 누적 집중 시간(초) — 진행 중인 세션 포함 */
-  focusedSeconds: number;
   start: () => void;
   pause: () => void;
-  reset: () => void;
+}
+
+/* ── 저장: 오늘 날짜와 누적 초 ────────────────────────────
+ * 프로토타입이라 브라우저(localStorage)에 저장. 막힌 환경에선 메모리로만 동작.
+ * 실시간 연동 시 사용자 기록(Supabase)으로 옮길 것. */
+
+const STORAGE_KEY = "hanul-academy:focus";
+
+/** 로컬 시간 기준 YYYY-MM-DD */
+export function dayKey(ms: number): string {
+  const d = new Date(ms);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+export function loadToday(now: number): number {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return 0;
+    const v = JSON.parse(raw) as { date?: string; seconds?: number };
+    return v.date === dayKey(now) && typeof v.seconds === "number"
+      ? Math.max(0, v.seconds)
+      : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveToday(now: number, seconds: number) {
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ date: dayKey(now), seconds }),
+    );
+  } catch {
+    /* 저장 불가 환경 — 메모리에만 유지 */
+  }
 }
 
 /**
- * 뽀모도로 타이머 로직. 남은 시간을 `endAt` 타임스탬프로 계산하므로
- * 모바일에서 탭이 백그라운드로 가서 interval이 늦게 돌아도 시간이 밀리지 않는다.
+ * 누적 집중 스톱워치. 시작 시각 기준으로 계산하므로 모바일에서 탭이
+ * 백그라운드로 가서 interval이 늦게 돌아도 시간이 밀리지 않는다.
  */
-export function useFocusTimer(
-  totalSeconds: number,
-  onComplete?: () => void,
-): FocusTimerState {
-  const [remainingSeconds, setRemaining] = useState(totalSeconds);
-  const [status, setStatus] = useState<FocusTimerStatus>("idle");
-  const [completedSessions, setCompleted] = useState(0);
-  // 완료하지 못하고 초기화한 세션의 집중 시간도 오늘 기록에 남긴다
-  const [bankedSeconds, setBanked] = useState(0);
-  const endAtRef = useRef<number | null>(null);
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+export function useFocusTimer(): FocusTimerState {
+  const [banked, setBanked] = useState(() => loadToday(Date.now()));
+  const [status, setStatus] = useState<FocusTimerStatus>(() =>
+    loadToday(Date.now()) > 0 ? "paused" : "idle",
+  );
+  const [now, setNow] = useState(() => Date.now());
+  const [lastRun, setLastRun] = useState(0);
+  const startedAt = useRef<number | null>(null);
+  const day = useRef(dayKey(Date.now()));
+
+  const live = (t: number) =>
+    startedAt.current === null ? 0 : (t - startedAt.current) / 1000;
 
   useEffect(() => {
     if (status !== "running") return;
     const id = window.setInterval(() => {
-      const left = Math.ceil(((endAtRef.current ?? 0) - Date.now()) / 1000);
-      if (left <= 0) {
-        endAtRef.current = null;
-        setStatus("idle");
-        setRemaining(totalSeconds);
-        setCompleted((n) => n + 1);
-        onCompleteRef.current?.();
-      } else {
-        setRemaining(left);
+      const t = Date.now();
+      // 자정을 넘기면 새 날로 — 누적 0부터 다시
+      if (dayKey(t) !== day.current) {
+        day.current = dayKey(t);
+        startedAt.current = t;
+        setBanked(0);
       }
+      setNow(t);
     }, 250);
     return () => window.clearInterval(id);
-  }, [status, totalSeconds]);
+  }, [status]);
+
+  const elapsedSeconds = Math.floor(
+    banked + (status === "running" ? live(now) : 0),
+  );
+
+  // 진행 중에도 저장해 두면 새로고침·앱 종료 시 잃는 시간이 1초 이내
+  useEffect(() => {
+    saveToday(now, elapsedSeconds);
+  }, [now, elapsedSeconds]);
 
   const start = useCallback(() => {
-    endAtRef.current = Date.now() + remainingSeconds * 1000;
+    if (startedAt.current !== null) return;
+    const t = Date.now();
+    startedAt.current = t;
+    day.current = dayKey(t);
+    setNow(t);
     setStatus("running");
-  }, [remainingSeconds]);
+  }, []);
 
   const pause = useCallback(() => {
-    endAtRef.current = null;
+    if (startedAt.current === null) return;
+    const t = Date.now();
+    const run = live(t);
+    startedAt.current = null;
+    setBanked((b) => b + run);
+    setLastRun(run);
+    setNow(t);
     setStatus("paused");
   }, []);
 
-  const reset = useCallback(() => {
-    endAtRef.current = null;
-    setBanked((b) => b + (totalSeconds - remainingSeconds));
-    setStatus("idle");
-    setRemaining(totalSeconds);
-  }, [totalSeconds, remainingSeconds]);
-
   return {
-    remainingSeconds,
+    elapsedSeconds,
+    runSeconds: Math.floor(status === "running" ? live(now) : lastRun),
     status,
-    completedSessions,
-    focusedSeconds:
-      bankedSeconds +
-      completedSessions * totalSeconds +
-      (totalSeconds - remainingSeconds),
     start,
     pause,
-    reset,
   };
 }

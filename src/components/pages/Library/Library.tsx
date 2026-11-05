@@ -27,8 +27,6 @@ const LibraryWorld = lazy(() =>
 type Step = "entrance" | "sorting" | "world" | "seats" | "studying";
 
 export interface LibraryProps {
-  /** 한 세션 길이(초). 기본 25분. 스토리/데모에서 짧게 줄일 수 있다. */
-  sessionSeconds?: number;
   /** 접속자 시뮬레이션 옵션 (테스트에서 `{ simulate: false }`) */
   presenceOptions?: UseLibraryPresenceOptions;
   /** 기숙사 배정 연출 길이(ms). 스토리/테스트에서 0으로 즉시 표시 */
@@ -198,11 +196,7 @@ function OtherSeat({
  * 두 모드는 같은 presence/timer 상태를 공유해서 언제든 전환할 수 있다.
  * `data-theme="library"`로 시맨틱 토큰을 재정의해 기존 UI 컴포넌트를 그대로 테마링한다.
  */
-export function Library({
-  sessionSeconds = 25 * 60,
-  presenceOptions,
-  sortingDurationMs,
-}: LibraryProps) {
+export function Library({ presenceOptions, sortingDurationMs }: LibraryProps) {
   const presence = useLibraryPresence(presenceOptions);
   const [step, setStep] = useState<Step>("entrance");
   // 기숙사는 처음 한 번 배정 후 유지 (localStorage)
@@ -220,9 +214,8 @@ export function Library({
   const enter = (next: Step) => (house ? setStep(next) : assignHouse(next));
   const [subject, setSubject] = useState("");
 
-  const timer = useFocusTimer(sessionSeconds, () =>
-    presence.update({ focusing: false }),
-  );
+  // 오늘 누적 집중 스톱워치 (멈췄다 다시 시작해도 이어서 쌓임)
+  const timer = useFocusTimer();
 
   const seatLabel = (id: string) =>
     presence.seats.find((s) => s.id === id)?.label ?? id;
@@ -238,13 +231,14 @@ export function Library({
       subject: mySubject,
       house: house ?? randomHouse(),
       focusing: false,
-      focusSeconds: timer.focusedSeconds,
+      focusSeconds: timer.elapsedSeconds,
     });
     setStep(next);
   };
 
+  /** 자리를 떠나면 일시정지만 — 오늘 누적은 그대로 */
   const handleLeave = (next: Step = "seats") => {
-    if (timer.status !== "idle") timer.reset();
+    if (timer.status === "running") timer.pause();
     presence.leave();
     setStep(next);
   };
@@ -255,10 +249,6 @@ export function Library({
   };
   const handlePause = () => {
     timer.pause();
-    presence.update({ focusing: false });
-  };
-  const handleReset = () => {
-    timer.reset();
     presence.update({ focusing: false });
   };
 
@@ -287,14 +277,12 @@ export function Library({
           <LibraryWorld
             presence={presence}
             timer={timer}
-            sessionSeconds={sessionSeconds}
             subject={mySubject}
             house={house}
             onSit={(seatId) => handleSit(seatId, "world")}
             onStandUp={() => handleLeave("world")}
             onStart={handleStart}
             onPause={handlePause}
-            onReset={handleReset}
             onExit={() =>
               presence.me ? handleLeave("entrance") : setStep("entrance")
             }
@@ -479,13 +467,11 @@ export function Library({
             />
 
             <FocusTimer
-              totalSeconds={sessionSeconds}
-              remainingSeconds={timer.remainingSeconds}
+              elapsedSeconds={timer.elapsedSeconds}
               status={timer.status}
               label={mySubject}
               onStart={handleStart}
               onPause={handlePause}
-              onReset={handleReset}
             />
 
             <section
@@ -501,14 +487,14 @@ export function Library({
               </h2>
               <div style={seatGridStyle}>
                 <Stat
-                  label="집중한 시간"
+                  label="오늘 누적 집중"
                   value={formatFocusMinutes(
-                    Math.floor(timer.focusedSeconds / 60),
+                    Math.floor(timer.elapsedSeconds / 60),
                   )}
                 />
                 <Stat
-                  label="완료한 세션"
-                  value={`${timer.completedSessions}회`}
+                  label="이번 연속 집중"
+                  value={formatFocusMinutes(Math.floor(timer.runSeconds / 60))}
                 />
               </div>
             </section>
