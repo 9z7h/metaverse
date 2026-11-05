@@ -18,7 +18,17 @@ import {
 import type { LibraryPresence, StudyMode } from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
 import type { FocusTimerState } from "../useFocusTimer";
-import { Bot, FloorPicker, FrameDriver, Player, TapMarker } from "./Characters";
+import {
+  Bot,
+  FloorPicker,
+  FrameDriver,
+  LeavingBot,
+  Player,
+  TapMarker,
+} from "./Characters";
+import type { BotSnapshot } from "./Characters";
+import { DISSOLVE_MS, trackLeavers } from "./magicMotion";
+import type { Leaver } from "./magicMotion";
 import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
 import { HallFrame } from "./HallFrame";
@@ -69,6 +79,20 @@ const MODE_LABEL: Record<StudyMode, string> = {
   theory: "이론",
   practice: "실습",
 };
+
+/** "동작 줄이기" 설정이면 퇴장 연출 없이 바로 사라진다 */
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/** 퇴장 목록이 그대로면 이전 배열을 돌려줘서 불필요한 상태 갱신을 막는다 */
+function sameLeavers(a: Leaver[], b: Leaver[]): Leaver[] {
+  return a.length === b.length && a.every((l, i) => l === b[i]) ? a : b;
+}
 
 /** 드래그 감도 (px → rad) */
 const YAW_PER_PX = 0.008;
@@ -227,9 +251,43 @@ export function LibraryWorld({
 
   // 처음 화면에 있던 학생은 앉은 채로, 이후 들어온 학생만 걸어 들어온다
   const initialIds = useRef(new Set(presence.others.map((s) => s.id)));
+
+  // 나간 학생은 바로 지우지 않고, 마법처럼 스르륵 사라지는 동안만 한 번 더 그린다
+  const botRegistry = useRef(new Map<string, BotSnapshot>());
+  const prevOthers = useRef(presence.others);
+  const [leavers, setLeavers] = useState<Leaver[]>([]);
+  useEffect(() => {
+    const prev = prevOthers.current;
+    prevOthers.current = presence.others;
+    if (prefersReducedMotion()) return;
+    setLeavers((cur) =>
+      sameLeavers(
+        cur,
+        trackLeavers(prev, presence.others, cur, performance.now()),
+      ),
+    );
+  }, [presence.others]);
+  // 연출 시간이 다 된 퇴장자를 정리
+  useEffect(() => {
+    if (leavers.length === 0) return;
+    const id = window.setTimeout(
+      () =>
+        setLeavers((cur) =>
+          sameLeavers(cur, trackLeavers([], [], cur, performance.now())),
+        ),
+      DISSOLVE_MS + 60,
+    );
+    return () => window.clearTimeout(id);
+  }, [leavers]);
+
+  // 사라지는 중인 자리도 아직 "사용 중" — 연출이 끝나기 전에 그 자리에 앉아 겹치지 않게
   const occupied = useMemo(
-    () => new Set(presence.others.map((s) => s.seatId)),
-    [presence.others],
+    () =>
+      new Set([
+        ...presence.others.map((s) => s.seatId),
+        ...leavers.map((l) => l.student.seatId),
+      ]),
+    [presence.others, leavers],
   );
   const seat = mySeatId ? deskLayout(mySeatId) : null;
   const focusing = timer.status === "running";
@@ -470,6 +528,16 @@ export function LibraryWorld({
                   student={s}
                   colors={colors}
                   entering={!initialIds.current.has(s.id)}
+                  registry={botRegistry}
+                />
+              ))}
+              {leavers.map((l) => (
+                <LeavingBot
+                  key={`${l.student.id}:${l.since}`}
+                  student={l.student}
+                  colors={colors}
+                  since={l.since}
+                  registry={botRegistry}
                 />
               ))}
               <Player
@@ -501,7 +569,13 @@ export function LibraryWorld({
               {seat && focusing && mode === "practice" ? (
                 <MagicEffect colors={colors} house={house} at={seat.desk} />
               ) : null}
-              <FrameDriver fps={seat && !dragging ? FPS_SEATED : FPS_WALKING} />
+              <FrameDriver
+                fps={
+                  seat && !dragging && leavers.length === 0
+                    ? FPS_SEATED
+                    : FPS_WALKING
+                }
+              />
             </LabelPortalContext.Provider>
           </Canvas>
         ) : null}

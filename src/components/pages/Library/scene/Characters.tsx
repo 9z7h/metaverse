@@ -4,7 +4,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Plane, Raycaster, Vector2, Vector3 } from "three";
 import type { Group, Mesh, MeshBasicMaterial } from "three";
 import { Avatar } from "./Avatar";
-import { MagicEffect } from "./MagicEffect";
+import { DissolveEffect, MagicEffect } from "./MagicEffect";
+import { dissolveAlpha, dissolveProgress, dissolveRise } from "./magicMotion";
 import type { AvatarPose } from "./Avatar";
 import {
   BOARD_LIFT,
@@ -239,14 +240,27 @@ export function Player({
 
 /* ── 다른 학생 (봇) ────────────────────────────────────── */
 
+/** 봇이 지금 어디서 무엇을 하고 있는지 — 나갈 때 그 자리에서 연출하려고 공유한다 */
+export interface BotSnapshot {
+  x: number;
+  z: number;
+  /** y축 회전 */
+  ry: number;
+  /** 아직 자리로 걸어가는 중 */
+  walking: boolean;
+}
+export type BotRegistry = MutableRefObject<Map<string, BotSnapshot>>;
+
 export interface BotProps {
   student: PresenceStudent;
   colors: SceneColors;
   /** true면 입구에서 걸어 들어와 앉음, false면 처음부터 앉아 있음 */
   entering: boolean;
+  /** 현재 위치를 기록해 둘 곳 (나갈 때 퇴장 연출이 읽는다) */
+  registry?: BotRegistry;
 }
 
-export function Bot({ student, colors, entering }: BotProps) {
+export function Bot({ student, colors, entering, registry }: BotProps) {
   const ref = useRef<Group>(null);
   const layout = deskLayout(student.seatId);
   // 입구 → 중앙 통로(x=0) → 자기 줄 뒤쪽 통로(의자 바로 뒤) → 자기 의자.
@@ -288,6 +302,12 @@ export function Bot({ student, colors, entering }: BotProps) {
       g.rotation.y = Math.PI;
     }
     g.position.set(pos.current.x, 0, pos.current.z);
+    registry?.current.set(student.id, {
+      x: pos.current.x,
+      z: pos.current.z,
+      ry: g.rotation.y,
+      walking: path.current.length > 0,
+    });
   });
 
   const practicing =
@@ -319,6 +339,90 @@ export function Bot({ student, colors, entering }: BotProps) {
       {practicing ? (
         <MagicEffect colors={colors} house={student.house} at={layout.desk} />
       ) : null}
+    </>
+  );
+}
+
+/* ── 퇴장: 마법처럼 스르륵 사라지는 학생 ───────────────────── */
+
+/** 그룹 안 모든 재질의 불투명도를 `alpha` 배로 (원래 불투명도를 처음 한 번 기억해 둔다) */
+function applyFade(root: Group, alpha: number) {
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const m of mats) {
+      m.userData.baseOpacity ??= m.opacity;
+      m.transparent = true;
+      m.opacity = (m.userData.baseOpacity as number) * alpha;
+      // 거의 불투명할 때만 깊이를 써서, 반투명 부품끼리 비쳐 보이게
+      m.depthWrite = alpha > 0.98;
+    }
+  });
+}
+
+export interface LeavingBotProps {
+  /** 나간 순간의 모습 */
+  student: PresenceStudent;
+  colors: SceneColors;
+  /** 퇴장이 시작된 시각 (performance.now 기준 ms) */
+  since: number;
+  /** 봇들이 기록해 둔 위치 — 있으면 나간 순간의 실제 위치·자세에서 연출한다 */
+  registry?: BotRegistry;
+}
+
+/**
+ * 나간 학생을 나간 순간의 자리에서 잠시 더 그린다 (걸어 들어오던 중이면 통로에서): 기숙사색 빛 입자가 솟아오르고,
+ * 아바타는 위로 떠오르며 서서히 투명해진다. 시간이 다 되면 부모가 제거한다.
+ */
+export function LeavingBot({
+  student,
+  colors,
+  since,
+  registry,
+}: LeavingBotProps) {
+  const ref = useRef<Group>(null);
+  const layout = deskLayout(student.seatId);
+  // 첫 렌더에서 한 번만 정한다 — 기록이 없으면(처음부터 앉아 있던 학생) 자기 의자
+  const start = useRef<BotSnapshot>(
+    registry?.current.get(student.id) ?? {
+      x: layout.chair.x,
+      z: layout.chair.z,
+      ry: Math.PI,
+      walking: false,
+    },
+  );
+
+  useFrame(() => {
+    const g = ref.current;
+    if (!g) return;
+    const p = dissolveProgress(performance.now() - since);
+    g.position.set(start.current.x, dissolveRise(p), start.current.z);
+    g.rotation.y = start.current.ry;
+    applyFade(g, dissolveAlpha(p));
+  });
+
+  return (
+    <>
+      <Avatar
+        ref={ref}
+        robe={colors[houseToken(student.house, "primary")]}
+        band={colors[houseToken(student.house, "accent")]}
+        collar={colors["--color-scene-collar"]}
+        houseDot={colors[houseToken(student.house, "accent")]}
+        skin={colors["--color-scene-skin"]}
+        hat={colors["--color-scene-hat"]}
+        pose={start.current.walking ? "walk" : "sit"}
+        name={student.name}
+        // 이름표는 바로 숨김 — 사라지는 아바타 위에 글자만 남지 않도록
+        showLabel={false}
+      />
+      <DissolveEffect
+        colors={colors}
+        house={student.house}
+        at={start.current}
+        since={since}
+      />
     </>
   );
 }

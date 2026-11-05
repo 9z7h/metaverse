@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   CAMERA_BOUNDS,
   planPath,
@@ -401,6 +401,15 @@ describe("boardLift — 문 쪽을 볼 때 시선을 들어 올림", () => {
 });
 
 describe("withAlpha — 토큰 색 + 투명도", () => {
+  it("3자리 hex와 rgb()/rgba()도 알파를 붙인다 — 알파가 사라지면 번짐이 불투명한 네모가 된다", () => {
+    expect(withAlpha("#fff", 0.5)).toBe("rgba(255, 255, 255, 0.5)");
+    expect(withAlpha("#1a2", 1)).toBe("rgba(17, 170, 34, 1)");
+    expect(withAlpha("rgb(245, 245, 245)", 0.4)).toBe(
+      "rgba(245, 245, 245, 0.4)",
+    );
+    expect(withAlpha("rgba(10 20 30 / 1)", 0.2)).toBe("rgba(10, 20, 30, 0.2)");
+  });
+
   it("#rrggbb를 rgba 문자열로", () => {
     expect(withAlpha("#ffffff", 0.5)).toBe("rgba(255, 255, 255, 0.5)");
     expect(withAlpha("#16100d", 1)).toBe("rgba(22, 16, 13, 1)");
@@ -410,5 +419,60 @@ describe("withAlpha — 토큰 색 + 투명도", () => {
   it("hex가 아니면 그대로 돌려준다", () => {
     expect(withAlpha("rebeccapurple", 0.3)).toBe("rebeccapurple");
     expect(withAlpha("", 0.3)).toBe("");
+  });
+});
+
+describe("withAlpha — 브라우저만 해석하는 색(oklch 등)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  /** 브라우저처럼 동작하는 가짜 canvas: oklch/이름 색은 알고, 나머지는 무시한다 */
+  function stubBrowserCanvas() {
+    // 앞선 테스트가 "canvas 없음"을 캐시한 모듈을 버리고 새로 불러오게 한다
+    vi.resetModules();
+    const known: Record<string, [number, number, number]> = {
+      "oklch(96.7% 0.003 264.542)": [243, 244, 246],
+      rebeccapurple: [102, 51, 153],
+    };
+    let style = "#000000";
+    let pixel: [number, number, number] = [0, 0, 0];
+    const ctx = {
+      get fillStyle() {
+        return style;
+      },
+      set fillStyle(v: string) {
+        // 브라우저처럼: 이름 색·아는 색만 받아들이고 해석할 수 없는 값은 무시
+        if (v === "black") style = "#000000";
+        else if (v === "white") style = "#ffffff";
+        else if (v in known) {
+          style = "#aabbcc";
+          pixel = known[v];
+        }
+      },
+      clearRect: () => undefined,
+      fillRect: () => undefined,
+      getImageData: () => ({ data: [...pixel, 255] }),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+  }
+
+  it("oklch 값에도 알파를 붙인다 — Tailwind 기본 팔레트와 토큰 이름이 겹쳐도 번짐이 네모가 되지 않는다", async () => {
+    stubBrowserCanvas();
+    const { withAlpha: fresh } = await import("./sceneLayout");
+    expect(fresh("oklch(96.7% 0.003 264.542)", 0.5)).toBe(
+      "rgba(243, 244, 246, 0.5)",
+    );
+    expect(fresh("rebeccapurple", 0.3)).toBe("rgba(102, 51, 153, 0.3)");
+  });
+
+  it("브라우저도 모르는 값은 그대로, 빈 값은 검은색으로 오해하지 않는다", async () => {
+    stubBrowserCanvas();
+    const { withAlpha: fresh } = await import("./sceneLayout");
+    expect(fresh("not-a-color", 0.5)).toBe("not-a-color");
+    expect(fresh("", 0.5)).toBe("");
   });
 });

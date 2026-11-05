@@ -8,45 +8,45 @@ import {
   Color,
   DoubleSide,
 } from "three";
-import type { MeshBasicMaterial, Texture } from "three";
+import type {
+  Mesh,
+  MeshBasicMaterial,
+  Points,
+  PointsMaterial,
+  Texture,
+} from "three";
 import { MASK_WHITE_TOKEN, rootToken, withAlpha } from "./sceneLayout";
 import type { SceneColors, Vec2 } from "./sceneLayout";
 import { houseToken } from "../houses";
 import type { HouseId, HousePart } from "../houses";
-import { SEGMENTS, STREAKS, streakPoint, tornadoStreak } from "./magicMotion";
+import {
+  DISSOLVE_PARTICLES,
+  SEGMENTS,
+  STREAKS,
+  dissolveParticle,
+  dissolveProgress,
+  streakPoint,
+  tornadoStreak,
+} from "./magicMotion";
 
 /* ── 공유 알파 마스크 ──────────────────────────────────────
  * 흰색(gray/100 토큰)→투명 그라데이션은 "모양(번짐)"만 정하고, 실제 색은 토큰에서 온 색이 곱해진다.
  * 투명도가 있는 색은 `withAlpha`로 토큰에서 만든다 (rgba 직접 작성 금지). */
 
-let glowTexture: Texture | null = null;
-/** 파티클을 네모 대신 부드러운 원형 빛으로 (반딧불 파티클이 공유) */
-export function getGlowTexture(): Texture {
-  if (glowTexture) return glowTexture;
-  const size = 64;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const white = rootToken(MASK_WHITE_TOKEN);
-    const g = ctx.createRadialGradient(
-      size / 2,
-      size / 2,
-      0,
-      size / 2,
-      size / 2,
-      size / 2,
-    );
-    g.addColorStop(0, withAlpha(white, 1));
-    g.addColorStop(0.35, withAlpha(white, 0.6));
-    g.addColorStop(1, withAlpha(white, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-  }
-  glowTexture = new CanvasTexture(canvas);
-  return glowTexture;
+/**
+ * 파티클을 네모 대신 둥근 빛으로. 텍스처 없이 셰이더가 점 안의 거리(gl_PointCoord)로 번짐을 계산한다.
+ * 캔버스 텍스처의 알파에 의존하면 기기·환경에 따라 알파가 사라져 불투명한 네모로 보일 수 있어서다.
+ * `pointsMaterial`의 `onBeforeCompile`과 `customProgramCacheKey`에 함께 넘긴다.
+ */
+export function roundGlowShader(shader: { fragmentShader: string }) {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <map_particle_fragment>",
+    `float glowD = clamp(length(gl_PointCoord - vec2(0.5)) * 2.0, 0.0, 1.0);
+    float glowA = 1.0 - glowD;
+    diffuseColor.a *= glowA * glowA;`,
+  );
 }
+export const roundGlowKey = () => "round-glow";
 
 let streakTexture: Texture | null = null;
 /**
@@ -194,5 +194,96 @@ export function MagicEffect({ colors, house, at }: MagicEffectProps) {
         toneMapped={false}
       />
     </mesh>
+  );
+}
+
+/* ── 퇴장 연출: 기숙사색 빛 입자가 솟아오르고 바닥에 빛 고리가 번진다 ─────── */
+
+export interface DissolveEffectProps {
+  colors: SceneColors;
+  /** 나가는 학생의 기숙사 — 입자 색 */
+  house: HouseId;
+  /** 학생이 서 있던 자리(의자) */
+  at: Vec2;
+  /** 퇴장이 시작된 시각 (performance.now 기준 ms) */
+  since: number;
+}
+
+export function DissolveEffect({
+  colors,
+  house,
+  at,
+  since,
+}: DissolveEffectProps) {
+  const points = useRef<Points>(null);
+  const pointsMat = useRef<PointsMaterial>(null);
+  const ring = useRef<Mesh>(null);
+  const ringMat = useRef<MeshBasicMaterial>(null);
+  const positions = useMemo(() => new Float32Array(DISSOLVE_PARTICLES * 3), []);
+  // 기숙사 accent에 촛불 색을 조금 섞어 따뜻한 빛으로
+  const color = useMemo(
+    () =>
+      new Color(colors[houseToken(house, "accent")]).lerp(
+        new Color(colors["--color-scene-flame"]),
+        0.35,
+      ),
+    [colors, house],
+  );
+
+  useFrame(() => {
+    const p = dissolveProgress(performance.now() - since);
+    for (let i = 0; i < DISSOLVE_PARTICLES; i++) {
+      const q = dissolveParticle(i, p);
+      positions[i * 3] = q.x;
+      positions[i * 3 + 1] = q.y;
+      positions[i * 3 + 2] = q.z;
+    }
+    const attr = points.current?.geometry.getAttribute("position") as
+      | BufferAttribute
+      | undefined;
+    if (attr) attr.needsUpdate = true;
+    // 입자는 빠르게 밝아졌다가 사라짐 (개별 입자 밝기 대신 전체 투명도)
+    if (pointsMat.current)
+      pointsMat.current.opacity = Math.min(1, p * 6) * (1 - p) * 0.95;
+    if (ring.current) ring.current.scale.setScalar(0.3 + p * 1.1);
+    if (ringMat.current)
+      ringMat.current.opacity = Math.min(1, p * 8) * (1 - p) * 0.6;
+  });
+
+  return (
+    <group position={[at.x, 0, at.z]}>
+      <points ref={points} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          ref={pointsMat}
+          color={color}
+          size={0.22}
+          sizeAttenuation
+          transparent
+          opacity={0}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+          onBeforeCompile={roundGlowShader}
+          customProgramCacheKey={roundGlowKey}
+        />
+      </points>
+      {/* 바닥에 번지는 빛 고리 */}
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <ringGeometry args={[0.9, 1, 48]} />
+        <meshBasicMaterial
+          ref={ringMat}
+          color={color}
+          transparent
+          opacity={0}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+        />
+      </mesh>
+    </group>
   );
 }

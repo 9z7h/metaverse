@@ -17,10 +17,10 @@ import type { InstancedMesh, Points } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { FRONT_WALL_Z, HALL, ROOM, withAlpha } from "./sceneLayout";
+import { FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
 import { SIDE_SHELF_Z, fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
-import { getGlowTexture } from "./MagicEffect";
+import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 
 function seeded(seed: number) {
@@ -477,7 +477,8 @@ function Sparkles({ colors }: { colors: SceneColors }) {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        map={getGlowTexture()}
+        onBeforeCompile={roundGlowShader}
+        customProgramCacheKey={roundGlowKey}
         color={colors["--color-scene-flame"]}
         size={0.1}
         sizeAttenuation
@@ -629,9 +630,10 @@ function HangingLamps({ colors }: { colors: SceneColors }) {
           <bufferAttribute attach="attributes-position" args={[glow, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          map={getGlowTexture()}
+          onBeforeCompile={roundGlowShader}
+          customProgramCacheKey={roundGlowKey}
           color={flame}
-          size={3.4}
+          size={2.6}
           sizeAttenuation
           transparent
           opacity={0.4}
@@ -649,28 +651,40 @@ const SHAFT_DROP_X = 6;
 const SHAFT_TOP_Y = 8.3;
 const SHAFT_WIDTH = 1.8;
 
+const SHAFT_VERT = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  vec4 p = vec4(position, 1.0);
+  #ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+  #endif
+  gl_Position = projectionMatrix * modelViewMatrix * p;
+}`;
+const SHAFT_FRAG = `
+uniform vec3 uColor;
+uniform float uOpacity;
+varying vec2 vUv;
+void main() {
+  // uv.y = 0이 창 쪽 — 밝게 시작해 바닥 쪽으로 사라지고, 양옆도 부드럽게 흐려진다
+  float along = 1.0 - vUv.y;
+  float edge = smoothstep(0.0, 0.3, min(vUv.x, 1.0 - vUv.x));
+  gl_FragColor = vec4(uColor, uOpacity * along * edge);
+  #include <colorspace_fragment>
+}`;
+
 function MoonShafts({ colors }: { colors: SceneColors }) {
   const ref = useRef<InstancedMesh>(null);
   const moon = colors["--color-scene-moonlight"];
 
-  // 창 쪽(아래쪽 행)이 밝고 바닥 쪽으로 사라지는 세로 그라데이션
-  const texture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 4;
-    canvas.height = 64;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      const g = ctx.createLinearGradient(0, 64, 0, 0);
-      g.addColorStop(0, withAlpha(moon, 0.55));
-      g.addColorStop(1, withAlpha(moon, 0));
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 4, 64);
-    }
-    const tex = new CanvasTexture(canvas);
-    tex.colorSpace = SRGBColorSpace;
-    return tex;
-  }, [moon]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  // 텍스처 없이 셰이더로 그라데이션 — 창 쪽이 밝고 바닥 쪽·양옆으로 부드럽게 사라진다
+  const uniforms = useMemo(
+    () => ({
+      uColor: { value: new Color(moon) },
+      uOpacity: { value: 0.2 },
+    }),
+    [moon],
+  );
 
   const count = SIDE_SHELF_Z.length * 2;
   useLayoutEffect(() => {
@@ -703,80 +717,16 @@ function MoonShafts({ colors }: { colors: SceneColors }) {
       frustumCulled={false}
     >
       <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial
-        map={texture}
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={SHAFT_VERT}
+        fragmentShader={SHAFT_FRAG}
         transparent
-        opacity={0.35}
         blending={AdditiveBlending}
         side={DoubleSide}
         depthWrite={false}
-        toneMapped={false}
       />
     </instancedMesh>
-  );
-}
-
-/* ── 큰 살창의 사신 문장 ─────────────────────────────────── */
-
-function Crest({
-  house,
-  colors,
-  x,
-}: {
-  house: HouseId;
-  colors: SceneColors;
-  x: number;
-}) {
-  const texture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
-    const tex = new CanvasTexture(canvas);
-    tex.colorSpace = SRGBColorSpace;
-    return tex;
-  }, []);
-
-  useEffect(() => {
-    const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
-    if (!ctx) return;
-    const accent = colors[houseToken(house, "accent")];
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.save();
-    ctx.scale(2, 2); // 문장은 64 좌표계
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const s of CREST_SHAPES[house]) {
-      const path = new Path2D(s.d);
-      if (s.stroke) {
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = s.stroke;
-        ctx.stroke(path);
-      } else {
-        ctx.fillStyle = accent;
-        ctx.fill(path, s.evenodd ? "evenodd" : "nonzero");
-      }
-    }
-    ctx.restore();
-    texture.needsUpdate = true;
-  }, [house, colors, texture]);
-  useEffect(() => () => texture.dispose(), [texture]);
-
-  return (
-    <mesh position={[x, 2.9, BACK_Z + 0.09]}>
-      <planeGeometry args={[0.9, 0.9]} />
-      <meshBasicMaterial map={texture} transparent toneMapped={false} />
-    </mesh>
-  );
-}
-
-function WindowCrests({ colors }: { colors: SceneColors }) {
-  const xs = [-1.8, -0.6, 0.6, 1.8];
-  return (
-    <group>
-      {HOUSE_IDS.map((h, i) => (
-        <Crest key={h} house={h} colors={colors} x={xs[i]} />
-      ))}
-    </group>
   );
 }
 
@@ -793,7 +743,6 @@ export function Atmosphere({ colors }: { colors: SceneColors }) {
       <HangingLamps colors={colors} />
       <MoonShafts colors={colors} />
       <Windows colors={colors} />
-      <WindowCrests colors={colors} />
       <DancheongBand colors={colors} />
       <HouseBanners colors={colors} />
       <Sparkles colors={colors} />

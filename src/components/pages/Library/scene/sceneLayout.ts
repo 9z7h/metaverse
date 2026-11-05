@@ -452,14 +452,73 @@ export function rootToken(name: string): string {
 /** 알파 마스크용 흰색 — gray/100 프리미티브 토큰 */
 export const MASK_WHITE_TOKEN = "--color-gray-100";
 
+const parsedCache = new Map<string, [number, number, number] | null>();
+let probeCtx: CanvasRenderingContext2D | null | undefined;
+
 /**
- * 토큰 값("#rrggbb")에 투명도를 붙여 canvas 색 문자열로 만든다.
+ * hex·rgb()가 아닌 색(oklch, 이름 색 등)을 브라우저의 색 파서로 RGB로 바꾼다.
+ * canvas의 fillStyle에 넣고 한 픽셀을 읽는다. 해석할 수 없는 값이면 null.
+ * (Tailwind 기본 팔레트와 토큰 이름이 겹치면 oklch 값이 들어올 수 있다)
+ */
+function parseWithBrowser(color: string): [number, number, number] | null {
+  const hit = parsedCache.get(color);
+  if (hit !== undefined) return hit;
+  let out: [number, number, number] | null = null;
+  try {
+    if (probeCtx === undefined) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      probeCtx = canvas.getContext("2d", { willReadFrequently: true });
+    }
+    if (probeCtx) {
+      const ctx = probeCtx;
+      // 해석할 수 없는 색을 대입하면 fillStyle이 이전 값 그대로 남는다.
+      // 검정·흰색 두 번 시험해서 하나라도 바뀌면 브라우저가 이해한 색이다
+      // (이름으로 시험하므로 색 리터럴을 쓰지 않고, 색이 검정/흰색 자체여도 구분된다)
+      const accepted = (probe: string) => {
+        ctx.fillStyle = probe;
+        const before = ctx.fillStyle;
+        ctx.fillStyle = color;
+        return ctx.fillStyle !== before;
+      };
+      ctx.clearRect(0, 0, 1, 1);
+      if (accepted("black") || accepted("white")) {
+        ctx.fillRect(0, 0, 1, 1);
+        const d = ctx.getImageData(0, 0, 1, 1).data;
+        out = [d[0], d[1], d[2]];
+      }
+    }
+  } catch {
+    out = null;
+  }
+  parsedCache.set(color, out);
+  return out;
+}
+
+/**
+ * 토큰 값에 투명도를 붙여 canvas 색 문자열로 만든다.
  * 반투명 그라데이션·질감을 그릴 때 `rgba(...)`를 직접 쓰지 않고 토큰에서 만들기 위함.
- * hex가 아니면(이미 다른 형식) 그대로 돌려준다.
+ * `#rrggbb`·`#rgb`·`rgb()/rgba()`는 바로 처리하고, oklch 같은 그 밖의 색은 브라우저가 해석한다.
+ * 해석할 수 없는 값이면 그대로 돌려준다.
+ * (알파가 조용히 사라지면 번짐 텍스처가 불투명한 네모가 되므로, 어떤 형식이든 받는다)
  */
 export function withAlpha(color: string, alpha: number): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
-  if (!m) return color;
-  const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  const c = color.trim();
+  const long = /^#([0-9a-f]{6})$/i.exec(c);
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
+  const hex = long
+    ? long[1]
+    : short
+      ? short[1] + short[1] + short[2] + short[2] + short[3] + short[3]
+      : null;
+  if (hex) {
+    const n = parseInt(hex, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(c);
+  if (rgb) return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`;
+  const parsed = c ? parseWithBrowser(c) : null;
+  if (parsed) return `rgba(${parsed[0]}, ${parsed[1]}, ${parsed[2]}, ${alpha})`;
+  return color;
 }

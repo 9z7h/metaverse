@@ -4,7 +4,7 @@ import { Color, Object3D } from "three";
 import type { Group, InstancedMesh, MeshStandardMaterial, Points } from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
 import { FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
-import { getGlowTexture } from "./MagicEffect";
+import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 
 interface RoomProps {
   colors: SceneColors;
@@ -323,7 +323,8 @@ function DeskSet({
           />
         </bufferGeometry>
         <pointsMaterial
-          map={getGlowTexture()}
+          onBeforeCompile={roundGlowShader}
+          customProgramCacheKey={roundGlowKey}
           color={flame}
           size={1.1}
           sizeAttenuation
