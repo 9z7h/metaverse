@@ -148,76 +148,76 @@
       }
     },
     "house": {
-      "ember": {
+      "baekho": {
         "primary": {
-          "$value": "{color.ember.600}",
-          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+          "$value": "{color.ivory.200}",
+          "comment": "백호관 백색 — 로브, 깃발 (배경 대비 14.36:1)"
         },
         "accent": {
-          "$value": "{color.ember.300}",
-          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+          "$value": "{color.ivory.100}",
+          "comment": "어두운 배경 위 글자색 (15.24:1)"
+        },
+        "subtle": {
+          "$value": "{color.ink.800}",
+          "comment": "백호관 먹색 — 배지 배경"
+        },
+        "on": {
+          "$value": "{color.ink.900}",
+          "comment": "백색 위 먹색 글자 (12.80:1)"
+        }
+      },
+      "jujak": {
+        "primary": {
+          "$value": "{color.ember.600}",
+          "comment": "주작관 붉은색 — 로브, 깃발, 청사초롱 홍색 (배경 대비 3.17:1)"
+        },
+        "accent": {
+          "$value": "{color.amber.300}",
+          "comment": "주작관 따뜻한 금색 — 글자 (10.71:1)"
         },
         "subtle": {
           "$value": "{color.ember.900}",
-          "comment": "기숙사 배지 배경"
+          "comment": "배지 배경"
         },
         "on": {
           "$value": "{color.parchment.100}",
-          "comment": "primary 위 글자색 (≥4.5:1)"
+          "comment": "primary 위 글자 (5.07:1)"
         }
       },
-      "azure": {
+      "hyeonmu": {
         "primary": {
-          "$value": "{color.azure.600}",
-          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+          "$value": "{color.navy.500}",
+          "comment": "현무관 남색 — 로브, 깃발 (배경 대비 3.23:1)"
         },
         "accent": {
-          "$value": "{color.azure.300}",
-          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+          "$value": "{color.silver.300}",
+          "comment": "현무관 은색 — 글자 (11.36:1)"
         },
         "subtle": {
-          "$value": "{color.azure.900}",
-          "comment": "기숙사 배지 배경"
+          "$value": "{color.navy.900}",
+          "comment": "배지 배경"
         },
         "on": {
           "$value": "{color.parchment.100}",
-          "comment": "primary 위 글자색 (≥4.5:1)"
+          "comment": "primary 위 글자 (4.96:1)"
         }
       },
-      "gold": {
+      "cheongryong": {
         "primary": {
-          "$value": "{color.gold.600}",
-          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
+          "$value": "{color.teal.600}",
+          "comment": "청룡관 청록색 — 로브, 깃발, 청사초롱 청색 (배경 대비 3.16:1)"
         },
         "accent": {
-          "$value": "{color.gold.300}",
-          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
+          "$value": "{color.palegold.300}",
+          "comment": "청룡관 옅은 금색 — 글자 (11.96:1)"
         },
         "subtle": {
-          "$value": "{color.gold.900}",
-          "comment": "기숙사 배지 배경"
-        },
-        "on": {
-          "$value": "{color.mahogany.900}",
-          "comment": "primary 위 글자색 (≥4.5:1)"
-        }
-      },
-      "verdant": {
-        "primary": {
-          "$value": "{color.verdant.600}",
-          "comment": "기숙사 대표색 — 로브, 깃발, 배정 연출 배경"
-        },
-        "accent": {
-          "$value": "{color.verdant.300}",
-          "comment": "어두운 배경 위 기숙사 글자색 (≥7.8:1)"
-        },
-        "subtle": {
-          "$value": "{color.verdant.900}",
-          "comment": "기숙사 배지 배경"
+          "$value": "{color.teal.900}",
+          "comment": "배지 배경"
         },
         "on": {
           "$value": "{color.parchment.100}",
-          "comment": "primary 위 글자색 (≥4.5:1)"
+          "comment": "primary 위 글자 (5.08:1)"
         }
       }
     }

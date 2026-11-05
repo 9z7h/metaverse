@@ -46,8 +46,6 @@ export interface LibraryWorldProps {
   onPause: () => void;
   /** 입장 화면으로 */
   onExit: () => void;
-  /** 2D 간편 모드로 전환 */
-  onSimpleMode: () => void;
 }
 
 /** 걷거나 시점을 돌리는 중 60fps, 가만히 앉아 있을 땐 12fps — 장시간 공부 시 발열·배터리 절약 */
@@ -115,7 +113,7 @@ const KEY_DIR: Record<string, [number, number]> = {
 
 /**
  * 3D 도서관 — 아바타로 걸어 다니다 빈 책상에 앉아 집중 타이머를 켠다.
- * 상태(presence, timer)는 상위 `Library`가 소유하고 2D 간편 모드와 공유한다.
+ * 상태(presence, timer)는 상위 `Library`가 소유한다.
  */
 export function LibraryWorld({
   presence,
@@ -127,7 +125,6 @@ export function LibraryWorld({
   onStart,
   onPause,
   onExit,
-  onSimpleMode,
 }: LibraryWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
@@ -400,11 +397,6 @@ export function LibraryWorld({
                 />
                 {presence.onlineCount}명 공부 중
               </span>
-            </div>
-            <div style={auto}>
-              <ButtonSmall style="monolight" onClick={onSimpleMode}>
-                간편 모드
-              </ButtonSmall>
             </div>
           </div>
           {/* 내 기숙사 배지 */}

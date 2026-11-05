@@ -25,7 +25,9 @@
   --radius-2xl: 24px;
   --radius-3xl: 32px;
   --radius-circle: 9999px;
-  --font-family-base: "Pretendard Variable", -apple-system, BlinkMacSystemFont, "system-ui", "Segoe UI", sans-serif;
+  --font-family-base:
+    "Pretendard Variable", -apple-system, BlinkMacSystemFont, "system-ui",
+    "Segoe UI", sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 700;
@@ -108,18 +110,19 @@
   --color-moss-600: #3f5e3a;
   --color-plum-600: #5b3a6b;
   --color-skin-300: #f1c7a0;
-  --color-ember-300: #ff9a8a;
-  --color-ember-600: #b8322a;
+  --color-ivory-100: #f5efe2; /** 백호관 — 백색 (글자) */
+  --color-ivory-200: #e8e0cf; /** 백호관 — 백색 (로브·깃발) */
+  --color-ink-800: #2a2826; /** 백호관 — 먹색 (배지 배경) */
+  --color-ink-900: #1f1d1b; /** 백호관 — 먹색 (백색 위 글자) */
+  --color-ember-600: #b8322a; /** 주작관 — 붉은색 */
   --color-ember-900: #3d1512;
-  --color-azure-300: #9dbcff;
-  --color-azure-600: #2f5fb3;
-  --color-azure-900: #142340;
-  --color-gold-300: #f5cf6a;
-  --color-gold-600: #c99a2e;
-  --color-gold-900: #3a2c0e;
-  --color-verdant-300: #86d6a8;
-  --color-verdant-600: #2a6e49;
-  --color-verdant-900: #12301f;
+  --color-amber-300: #f2c46a; /** 주작관 — 따뜻한 금색 */
+  --color-navy-500: #4a62a8; /** 현무관 — 남색. 어두운 장서각에서 보이도록 밝게 조정 (배경 대비 3.23:1) */
+  --color-navy-900: #141b2e;
+  --color-silver-300: #c9d1de; /** 현무관 — 은색 */
+  --color-teal-600: #1c6f68; /** 청룡관 — 청록색 (위 글자 대비 5.08:1) */
+  --color-teal-900: #0f2b29;
+  --color-palegold-300: #e9d58f; /** 청룡관 — 옅은 금색 */
   --color-moon-300: #9db8e8;
   --color-dancheong-500: #3d6b5a;
   --color-background-Subtle: #fafafa; /** Primitive 매칭 없음 (raw 값) */
@@ -129,16 +132,26 @@
   --color-brand-google-blue: #448aff;
   --color-brand-google-green: #43a047;
   --sds-color-background-neutral-default: #5a5a5a;
-  --text-title-sm-bold: var(--font-weight-bold) var(--font-size-18) / var(--line-height-27) var(--font-family-base); /** title/sm/bold — 제목 (Pretendard Bold 18/27) */
-  --text-title-lg-regular: var(--font-weight-regular) var(--font-size-20) / var(--line-height-30) var(--font-family-base); /** title/lg/regular — PostWriteHeader 서브타이틀, TitleInputBox (Pretendard Regular 20/30) */
-  --text-body-lg-regular: var(--font-weight-regular) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/lg/regular — 본문 (Pretendard Regular 16/24) */
-  --text-body-lg-bold: var(--font-weight-bold) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24) */
-  --text-body-sm-bold: var(--font-weight-bold) var(--font-size-14) / var(--line-height-21) var(--font-family-base); /** body/sm/bold — Chip 라벨 (Pretendard Bold 14/21) */
-  --text-body-sm-regular: var(--font-weight-regular) var(--font-size-14) / var(--line-height-21) var(--font-family-base); /** body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21) */
-  --text-caption-lg-medium: var(--font-weight-medium) var(--font-size-13) / var(--line-height-20) var(--font-family-base); /** caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20) */
-  --text-caption-lg-bold: var(--font-weight-bold) var(--font-size-13) / var(--line-height-20) var(--font-family-base); /** caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20) */
-  --text-display-sm-bold: var(--font-weight-bold) var(--font-size-24) / var(--line-height-36) var(--font-family-base); /** display/sm/bold — Category 선택 탭 (Pretendard Bold 24/36) */
-  --text-display-lg-bold: var(--font-weight-bold) var(--font-size-32) / var(--line-height-48) var(--font-family-base); /** display/lg/bold — PostFilterHeader/PostWriteHeader 타이틀 (Pretendard Bold 32/48) */
+  --text-title-sm-bold: var(--font-weight-bold) var(--font-size-18) /
+    var(--line-height-27) var(--font-family-base); /** title/sm/bold — 제목 (Pretendard Bold 18/27) */
+  --text-title-lg-regular: var(--font-weight-regular) var(--font-size-20) /
+    var(--line-height-30) var(--font-family-base); /** title/lg/regular — PostWriteHeader 서브타이틀, TitleInputBox (Pretendard Regular 20/30) */
+  --text-body-lg-regular: var(--font-weight-regular) var(--font-size-16) /
+    var(--line-height-24) var(--font-family-base); /** body/lg/regular — 본문 (Pretendard Regular 16/24) */
+  --text-body-lg-bold: var(--font-weight-bold) var(--font-size-16) /
+    var(--line-height-24) var(--font-family-base); /** body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24) */
+  --text-body-sm-bold: var(--font-weight-bold) var(--font-size-14) /
+    var(--line-height-21) var(--font-family-base); /** body/sm/bold — Chip 라벨 (Pretendard Bold 14/21) */
+  --text-body-sm-regular: var(--font-weight-regular) var(--font-size-14) /
+    var(--line-height-21) var(--font-family-base); /** body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21) */
+  --text-caption-lg-medium: var(--font-weight-medium) var(--font-size-13) /
+    var(--line-height-20) var(--font-family-base); /** caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20) */
+  --text-caption-lg-bold: var(--font-weight-bold) var(--font-size-13) /
+    var(--line-height-20) var(--font-family-base); /** caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20) */
+  --text-display-sm-bold: var(--font-weight-bold) var(--font-size-24) /
+    var(--line-height-36) var(--font-family-base); /** display/sm/bold — Category 선택 탭 (Pretendard Bold 24/36) */
+  --text-display-lg-bold: var(--font-weight-bold) var(--font-size-32) /
+    var(--line-height-48) var(--font-family-base); /** display/lg/bold — PostFilterHeader/PostWriteHeader 타이틀 (Pretendard Bold 32/48) */
   --color-text-primary: var(--color-gray-1000);
   --color-text-secondary: var(--color-gray-600);
   --color-text-tertiary: var(--color-gray-500);

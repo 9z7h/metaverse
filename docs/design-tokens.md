@@ -229,18 +229,18 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 > three.js 재질은 CSS를 직접 쓸 수 없으므로 `readSceneColors()`(`src/components/pages/Library/scene/sceneLayout.ts`)가
 > `data-theme="library"` 요소의 computed style에서 이 토큰을 읽어 재질 색으로 넘긴다. 3D 코드에 hex를 쓰지 않는다.
 
-| CSS Property                        | 참조                                  | 용도               |
-| ----------------------------------- | ------------------------------------- | ------------------ |
-| --color-scene-floor                 | wood-900                              | 바닥               |
-| --color-scene-wall                  | mahogany-800                          | 벽                 |
-| --color-scene-fog                   | mahogany-900                          | 원경 안개          |
-| --color-scene-wood / -dark / -light | wood-500 / 700 / 300                  | 책상·책장·펼친 책  |
-| --color-scene-flame                 | candle-300                            | 촛불(발광), 점광원 |
-| --color-scene-light                 | candle-400                            | 환경광             |
-| --color-scene-skin                  | skin-300                              | 아바타 얼굴        |
-| --color-scene-hat                   | mahogany-900                          | 고깔모자, 눈       |
-| --color-scene-robe-1 ~ 4            | blue-800, red-800, moss-600, plum-600 | 다른 학생 로브, 책 |
-| --color-scene-rug                   | red-1000                              | 중앙 통로 러그     |
+| CSS Property                        | 참조                                  | 용도                               |
+| ----------------------------------- | ------------------------------------- | ---------------------------------- |
+| --color-scene-floor                 | wood-900                              | 바닥                               |
+| --color-scene-wall                  | mahogany-800                          | 벽                                 |
+| --color-scene-fog                   | mahogany-900                          | 원경 안개                          |
+| --color-scene-wood / -dark / -light | wood-500 / 700 / 300                  | 책상·책장·펼친 책                  |
+| --color-scene-flame                 | candle-300                            | 촛불(발광), 점광원                 |
+| --color-scene-light                 | candle-400                            | 환경광                             |
+| --color-scene-skin                  | skin-300                              | 아바타 얼굴                        |
+| --color-scene-hat                   | mahogany-900                          | 고깔모자, 눈                       |
+| --color-scene-robe-1 ~ 4            | blue-800, red-800, moss-600, plum-600 | 책장 책 색 (로브는 기숙사 primary) |
+| --color-scene-rug                   | red-1000                              | 중앙 통로 러그                     |
 
 새 프리미티브: `--color-wood-300/500/700/900`, `--color-moss-600`, `--color-plum-600`, `--color-skin-300` (`tokens/color.json`).
 
@@ -248,15 +248,18 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 
 ### 기숙사 토큰 (`--color-house-*`, library 테마 전용)
 
-> 한울 마법학당 4기숙사. 원본: `tokens/themes/library.json` → `color.house.<id>.*`.
-> 정의·이름은 `src/components/pages/Library/houses.ts`. 대비는 mahogany-800/900 배경 기준 검증.
+> 사신학당 4기숙사 (사신수 모티브 창작 설정). 원본: `tokens/themes/library.json` → `color.house.<id>.*`.
+> 정의·이름·표어는 `src/components/pages/Library/houses.ts`. 대비는 mahogany-800/900 배경 기준 검증.
+> primary는 어두운 장서각에서 로브·깃발이 보이도록 배경 대비 3:1 이상으로 맞춤 (현무 남색은 원래보다 밝게 조정).
 
-| 기숙사 (id)      | primary (로브·깃발·초롱) | accent (글자·문장, ≥7.8:1) | subtle (배지 배경)  | on (primary 위 글자, ≥4.5:1) |
-| ---------------- | ------------------------ | -------------------------- | ------------------- | ---------------------------- |
-| 주작당 (ember)   | ember-600 #b8322a        | ember-300 #ff9a8a          | ember-900 #3d1512   | parchment-100 (5.07:1)       |
-| 청룡당 (azure)   | azure-600 #2f5fb3        | azure-300 #9dbcff          | azure-900 #142340   | parchment-100 (5.25:1)       |
-| 해태당 (gold)    | gold-600 #c99a2e         | gold-300 #f5cf6a           | gold-900 #3a2c0e    | mahogany-900 (7.31:1)        |
-| 장생당 (verdant) | verdant-600 #2a6e49      | verdant-300 #86d6a8        | verdant-900 #12301f | parchment-100 (5.22:1)       |
+| 기숙사 (id)          | 상징색             | primary (로브·깃발·초롱)  | accent (글자·문장)           | subtle (배지 배경) | on (primary 위 글자)   |
+| -------------------- | ------------------ | ------------------------- | ---------------------------- | ------------------ | ---------------------- |
+| 백호관 (baekho)      | 백색·먹색          | ivory-200 #e8e0cf (14.36) | ivory-100 #f5efe2 (15.24)    | ink-800 #2a2826    | ink-900 (12.80:1)      |
+| 주작관 (jujak)       | 붉은색·따뜻한 금색 | ember-600 #b8322a (3.17)  | amber-300 #f2c46a (10.71)    | ember-900 #3d1512  | parchment-100 (5.07:1) |
+| 현무관 (hyeonmu)     | 짙은 남색·은색     | navy-500 #4a62a8 (3.23)   | silver-300 #c9d1de (11.36)   | navy-900 #141b2e   | parchment-100 (4.96:1) |
+| 청룡관 (cheongryong) | 청록색·옅은 금색   | teal-600 #1c6f68 (3.16)   | palegold-300 #e9d58f (11.96) | teal-900 #0f2b29   | parchment-100 (5.08:1) |
+
+청사초롱은 주작 primary(홍)와 청룡 primary(청)를, 단청 띠의 줄무늬도 같은 두 색을 쓴다.
 
 사용: CSS는 `houseVar(id, "accent")` → `var(--color-house-<id>-accent)`, 3D는 `houseToken(id, part)`로 `readSceneColors()` 결과에서 조회.
 

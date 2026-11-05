@@ -193,7 +193,7 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-rug",
   "--color-scene-moonlight",
   "--color-scene-dancheong",
-  ...(["ember", "azure", "gold", "verdant"] as const).flatMap(
+  ...(["baekho", "jujak", "hyeonmu", "cheongryong"] as const).flatMap(
     (h) =>
       [
         `--color-house-${h}-primary`,

@@ -1,5 +1,5 @@
 /**
- * 한울 마법학당 장서각 분위기 요소 — 청사초롱, 창호 달빛, 단청 띠, 기숙사 깃발, 반딧불 파티클.
+ * 사신학당 장서각 분위기 요소 — 청사초롱, 창호 달빛, 단청 띠, 기숙사 깃발, 반딧불 파티클.
  * 모바일 성능을 위해 반복 요소는 InstancedMesh/Points 한 덩어리로 그린다.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -57,8 +57,8 @@ function Lanterns({ colors }: { colors: SceneColors }) {
         i,
         c.set(
           it.blue
-            ? colors["--color-house-azure-primary"]
-            : colors["--color-house-ember-primary"],
+            ? colors["--color-house-cheongryong-primary"]
+            : colors["--color-house-jujak-primary"],
         ),
       );
     });
@@ -67,14 +67,16 @@ function Lanterns({ colors }: { colors: SceneColors }) {
   }, [items, colors]);
 
   const o = useMemo(() => new Object3D(), []);
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const t = clock.elapsedTime;
     items.forEach((it, i) => {
       const y = it.y + Math.sin(t * 0.8 + it.phase) * 0.12;
       const sway = Math.sin(t * 0.6 + it.phase) * 0.08;
-      o.position.set(it.x, y, it.z);
+      // 카메라 가까이(3m 이내)의 초롱은 화면을 크게 가리므로 숨김 (3~4.5m 사이는 서서히 작아짐)
+      const dist = camera.position.distanceTo(o.position.set(it.x, y, it.z));
+      const s = Math.min(1, Math.max(0, (dist - 3) / 1.5));
       o.rotation.set(sway, t * 0.2 + it.phase, sway * 0.5);
-      o.scale.set(1, 1, 1);
+      o.scale.set(s, s, s);
       o.updateMatrix();
       bodies.current?.setMatrixAt(i, o.matrix);
       // 위·아래 덮개 (같은 변환에 y만 이동)
@@ -200,8 +202,8 @@ function DancheongBand({ colors }: { colors: SceneColors }) {
   const d = FRONT_WALL_Z - BACK_Z;
   const cz = (FRONT_WALL_Z + BACK_Z) / 2;
   const stripes = [
-    { dy: 0.16, c: colors["--color-house-ember-primary"] },
-    { dy: -0.16, c: colors["--color-house-azure-primary"] },
+    { dy: 0.16, c: colors["--color-house-jujak-primary"] },
+    { dy: -0.16, c: colors["--color-house-cheongryong-primary"] },
   ];
   return (
     <group>

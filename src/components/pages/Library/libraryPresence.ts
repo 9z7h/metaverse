@@ -54,7 +54,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "A1",
     focusing: true,
     focusSeconds: 95 * 60,
-    house: "ember",
+    house: "jujak",
   },
   {
     id: "s2",
@@ -63,7 +63,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "A2",
     focusing: false,
     focusSeconds: 40 * 60,
-    house: "gold",
+    house: "baekho",
   },
   {
     id: "s3",
@@ -72,7 +72,7 @@ const INITIAL_OTHERS: PresenceStudent[] = [
     seatId: "B2",
     focusing: true,
     focusSeconds: 130 * 60,
-    house: "azure",
+    house: "hyeonmu",
   },
 ];
 
@@ -84,7 +84,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     subject: "통계학",
     focusing: true,
     focusSeconds: 15 * 60,
-    house: "verdant",
+    house: "cheongryong",
   },
   {
     id: "v2",
@@ -92,7 +92,7 @@ const VISITORS: Omit<PresenceStudent, "seatId">[] = [
     subject: "한국사",
     focusing: true,
     focusSeconds: 55 * 60,
-    house: "ember",
+    house: "jujak",
   },
 ];
 

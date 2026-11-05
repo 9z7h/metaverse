@@ -1,57 +1,64 @@
 /**
- * 한울 마법학당 기숙사 — 한국 전통 상징(사신, 십장생)에서 가져온 오리지널 설정.
+ * 사신학당 네 기숙사 — 사신수(백호·주작·현무·청룡)에서 모티브를 얻은 창작 설정.
+ * 기숙사를 가르는 것은 재능이나 혈통이 아니라 "마법의 힘으로 무엇을 지키고 이루려 하는가"다.
  * 색 토큰은 `--color-house-<id>-{primary|accent|subtle|on}` (tokens/themes/library.json).
  */
 
-export type HouseId = "ember" | "azure" | "gold" | "verdant";
+export type HouseId = "baekho" | "jujak" | "hyeonmu" | "cheongryong";
 export type HousePart = "primary" | "accent" | "subtle" | "on";
 
 export interface House {
   id: HouseId;
   /** 기숙사 이름 */
   name: string;
-  /** 상징 */
-  creature: string;
-  /** 색 이름 (스크린리더·설명용) */
+  /** 가호하는 사신수 */
+  guardian: string;
+  /** 상징색 (스크린리더·설명용) */
   colorName: string;
-  /** 한 줄 성향 */
-  trait: string;
-  /** 배정 화면 환영 문구 */
-  welcome: string;
+  /** 기숙사 표어 */
+  motto: string;
+  /** 핵심 가치 */
+  values: string;
+  /** 기숙사가 학생에게 던지는 질문 */
+  question: string;
 }
 
 export const HOUSES: Record<HouseId, House> = {
-  ember: {
-    id: "ember",
-    name: "주작당",
-    creature: "주작",
-    colorName: "빨강",
-    trait: "불꽃처럼 몰입하는 열정",
-    welcome: "한번 타오르면 끝을 보는 이들이 모이는 곳입니다.",
+  baekho: {
+    id: "baekho",
+    name: "백호관",
+    guardian: "백호",
+    colorName: "백색과 먹색",
+    motto: "힘을 얻은 자는 먼저 나선다.",
+    values: "정의 · 용맹 · 책임",
+    question: "부당한 일을 보았을 때 나설 수 있는가?",
   },
-  azure: {
-    id: "azure",
-    name: "청룡당",
-    creature: "청룡",
-    colorName: "파랑",
-    trait: "깊은 물처럼 파고드는 탐구",
-    welcome: "질문을 끝까지 따라가는 이들이 모이는 곳입니다.",
+  jujak: {
+    id: "jujak",
+    name: "주작관",
+    guardian: "주작",
+    colorName: "붉은색과 따뜻한 금색",
+    motto: "작은 숨결도 가벼이 여기지 않는다.",
+    values: "생명 존중 · 공감 · 회복",
+    question: "상처 입은 존재를 끝까지 돌볼 수 있는가?",
   },
-  gold: {
-    id: "gold",
-    name: "해태당",
-    creature: "해태",
-    colorName: "노랑",
-    trait: "서로를 지켜주는 든든함",
-    welcome: "옆자리 동료를 먼저 챙기는 이들이 모이는 곳입니다.",
+  hyeonmu: {
+    id: "hyeonmu",
+    name: "현무관",
+    guardian: "현무",
+    colorName: "짙은 남색과 은색",
+    motto: "깊이 살피고, 때가 오면 움직인다.",
+    values: "지혜 · 탐구 · 신중함",
+    question: "눈앞의 답을 의심하고 진실을 찾을 수 있는가?",
   },
-  verdant: {
-    id: "verdant",
-    name: "장생당",
-    creature: "거북",
-    colorName: "초록",
-    trait: "느려도 끝까지 가는 끈기",
-    welcome: "하루하루 쌓아 멀리 가는 이들이 모이는 곳입니다.",
+  cheongryong: {
+    id: "cheongryong",
+    name: "청룡관",
+    guardian: "청룡",
+    colorName: "청록색과 옅은 금색",
+    motto: "새 길을 열어, 함께 살아갈 터를 넓힌다.",
+    values: "개척 · 포부 · 번영",
+    question: "아직 없는 길을 열고 그 결과를 책임질 수 있는가?",
   },
 };
 
@@ -78,6 +85,7 @@ export const houseToken = (id: HouseId, part: HousePart) =>
 /* ── 저장: 한 번 배정되면 유지 ──────────────────────────────
  * 프로토타입이라 브라우저(localStorage)에 저장한다. 비공개 창 등에서 저장이
  * 막혀도 동작은 하고, 그 경우 새로고침 시 다시 배정된다.
+ * 이전 설정(주작당·해태당 등)의 값은 isHouseId에서 걸러져 새로 배정된다.
  * 실시간 연동 시 사용자 프로필(Supabase)로 옮길 것. */
 
 const STORAGE_KEY = "hanul-academy:house";

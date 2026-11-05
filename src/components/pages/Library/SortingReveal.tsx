@@ -89,7 +89,7 @@ export function SortingReveal({
           color: "var(--color-text-tertiary)",
         }}
       >
-        한울 마법학당 입학을 축하합니다
+        사신학당 입학을 축하합니다
       </p>
 
       <HouseCrest
@@ -118,7 +118,7 @@ export function SortingReveal({
                 color: "var(--color-text-secondary)",
               }}
             >
-              당신의 기숙사는
+              사신등에 응답한 빛은
             </p>
             <h1
               style={{
@@ -136,7 +136,7 @@ export function SortingReveal({
                 color: houseVar(house, "accent"),
               }}
             >
-              {h.creature} · {h.trait}
+              “{h.motto}”
             </p>
             <p
               style={{
@@ -145,7 +145,20 @@ export function SortingReveal({
                 color: "var(--color-text-secondary)",
               }}
             >
-              {h.welcome}
+              {h.values}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                marginTop: "var(--spacing-8)",
+                padding: "var(--spacing-12) var(--spacing-16)",
+                borderRadius: "var(--radius-lg)",
+                background: houseVar(house, "subtle"),
+                font: "var(--text-body-sm-regular)",
+                color: "var(--color-text-primary)",
+              }}
+            >
+              {h.guardian}가 묻습니다 — {h.question}
             </p>
           </>
         ) : (
@@ -156,7 +169,7 @@ export function SortingReveal({
               color: "var(--color-text-primary)",
             }}
           >
-            기숙사를 정하는 중…
+            사신등의 빛이 정해지는 중…
           </p>
         )}
       </div>
