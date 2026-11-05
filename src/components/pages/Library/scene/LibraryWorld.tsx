@@ -435,7 +435,7 @@ export function LibraryWorld({
               ) : null}
               {/* 내가 실습 중이면 내 책상 위로 기숙사 마법 */}
               {seat && focusing && mode === "practice" ? (
-                <MagicEffect colors={colors} at={seat.desk} />
+                <MagicEffect colors={colors} house={house} at={seat.desk} />
               ) : null}
               <FrameDriver fps={seat && !dragging ? FPS_SEATED : FPS_WALKING} />
             </LabelPortalContext.Provider>

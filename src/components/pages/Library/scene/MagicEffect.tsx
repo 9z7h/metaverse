@@ -10,6 +10,8 @@ import {
 } from "three";
 import type { MeshBasicMaterial, Texture } from "three";
 import type { SceneColors, Vec2 } from "./sceneLayout";
+import { houseToken } from "../houses";
+import type { HouseId, HousePart } from "../houses";
 import { SEGMENTS, STREAKS, streakPoint, tornadoStreak } from "./magicMotion";
 
 /* ── 공유 알파 마스크 ──────────────────────────────────────
@@ -80,6 +82,8 @@ function getStreakTexture(): Texture {
 
 export interface MagicEffectProps {
   colors: SceneColors;
+  /** 시전자의 기숙사 — 노란 빛줄기 사이에 기숙사 색 가닥이 섞인다 */
+  house: HouseId;
   /** 책상 중심 (월드 좌표) */
   at: Vec2;
 }
@@ -87,11 +91,24 @@ export interface MagicEffectProps {
 const VERTS_PER_STREAK = SEGMENTS * 2;
 
 /**
+ * 회오리에 섞을 기숙사 색. 노란 빛과 구분돼야 하므로
+ * 주작(금색)·청룡(옅은 금색) accent 대신 primary를 쓰고, 어두운 primary는
+ * 빛을 더하는(additive) 렌더링에서 흐려지므로 밝기 배율(gain)을 곱한다.
+ * 현무는 은색 accent가 백호의 은백색과 겹쳐서 남색 primary를 쓴다.
+ */
+const MAGIC_TINT: Record<HouseId, { part: HousePart; gain: number }> = {
+  baekho: { part: "accent", gain: 1 }, // 은백색
+  jujak: { part: "primary", gain: 1.6 }, // 붉은색
+  hyeonmu: { part: "primary", gain: 1.6 }, // 푸른 남색
+  cheongryong: { part: "primary", gain: 1.9 }, // 청록색
+};
+
+/**
  * 실습 중 책상 위로 솟는 노란 마법 회오리. 흐릿한(블러) 빛줄기 14가닥이 깔때기 모양으로
  * 돌며 솟아오른다. 전체가 메시 하나(draw call 1회)이고, 매 프레임 정점 위치·밝기만 갱신한다.
  * 색은 촛불 토큰(--color-scene-flame, --color-scene-light) 두 가지를 가닥마다 번갈아 쓴다.
  */
-export function MagicEffect({ colors, at }: MagicEffectProps) {
+export function MagicEffect({ colors, house, at }: MagicEffectProps) {
   const mat = useRef<MeshBasicMaterial>(null);
   const born = useRef<number | null>(null);
 
@@ -120,12 +137,14 @@ export function MagicEffect({ colors, at }: MagicEffectProps) {
     geometry.setAttribute("color", colorAttr);
     geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
     geometry.setIndex(index);
+    // 가닥마다 번갈아: 노란 빛(촛불 토큰) / 기숙사 색.
+    const tint = MAGIC_TINT[house];
     const palette = [
       new Color(colors["--color-scene-flame"]),
-      new Color(colors["--color-scene-light"]),
+      new Color(colors[houseToken(house, tint.part)]).multiplyScalar(tint.gain),
     ];
     return { geometry, positions, colorAttr, palette };
-  }, [colors]);
+  }, [colors, house]);
 
   const tmp = useMemo(() => new Color(), []);
   // 실습을 멈추면 언마운트 → 정점 버퍼 해제 (텍스처는 공유라 유지)

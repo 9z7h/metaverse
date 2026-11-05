@@ -288,7 +288,9 @@ export function Bot({ student, colors, entering }: BotProps) {
         showLabel={pose === "sit"}
       />
       {/* 실습 중 + 집중 중이면 책상 위로 기숙사 마법이 피어오름 */}
-      {practicing ? <MagicEffect colors={colors} at={layout.desk} /> : null}
+      {practicing ? (
+        <MagicEffect colors={colors} house={student.house} at={layout.desk} />
+      ) : null}
     </>
   );
 }
