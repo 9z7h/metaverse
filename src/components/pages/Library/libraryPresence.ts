@@ -9,6 +9,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HouseId } from "./houses";
+import {
+  appendChat,
+  canSendChat,
+  makeChatMessage,
+  normalizeChatText,
+} from "./chat";
+import type { ChatMessage } from "./chat";
 import { zeroHouseSeconds } from "./houseRanking";
 import type { HouseSeconds } from "./houseRanking";
 
@@ -37,6 +44,14 @@ export type StudyMode = "theory" | "practice";
 
 export type MyPresence = Omit<PresenceStudent, "id" | "name">;
 
+/** 서고의 속삭임(채팅) */
+export interface LibraryChat {
+  /** 최근 대화 (오래된 것 → 최근) */
+  messages: ChatMessage[];
+  /** 내 글을 보낸다. 보냈으면 true, 막혔으면(빈 글·너무 빠름·연결 전) false */
+  send: (text: string, house: HouseId) => boolean;
+}
+
 export interface LibraryPresence {
   seats: LibrarySeat[];
   /** 나를 제외한 접속자 */
@@ -53,6 +68,7 @@ export interface LibraryPresence {
   join: (presence: MyPresence) => void;
   update: (patch: Partial<MyPresence>) => void;
   leave: () => void;
+  chat: LibraryChat;
 }
 
 /**
@@ -133,6 +149,16 @@ export const DAY_ROSTER_HOUSES: HouseId[] = [
   ...VISITORS,
 ].map((s) => s.house);
 
+/** 체험 모드에서 가짜 학생들이 가끔 건네는 말 */
+const MOCK_PHRASES = [
+  "오늘은 집중이 잘 되네요",
+  "다들 파이팅!",
+  "이 부분 같이 볼 분 있나요?",
+  "잠깐 쉬었다가 다시 할게요",
+  "먹빛각은 밤에 더 조용해요",
+  "과제 마감이 코앞이에요…",
+];
+
 const ME_ID = "me";
 const ME_NAME = "수련생";
 
@@ -159,6 +185,8 @@ export function useLibraryPresence({
   const { others, banked } = world;
   const [me, setMe] = useState<PresenceStudent | null>(null);
   const [tick, setTick] = useState(0);
+  const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
+  const lastSentAt = useRef<number | null>(null);
   // 시뮬레이션 effect가 내 좌석을 피하도록 최신 값을 ref로 읽는다 (effect 재실행 방지)
   const meRef = useRef(me);
   meRef.current = me;
@@ -248,6 +276,51 @@ export function useLibraryPresence({
 
   const leave = useCallback(() => setMe(null), []);
 
+  // 체험 모드의 가짜 학생이 11초마다 한마디 (앉아 있는 학생 중 돌아가며)
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  useEffect(() => {
+    if (!simulate || tick === 0 || tick % 11 !== 5) return;
+    const list = othersRef.current;
+    if (list.length === 0) return;
+    const n = Math.floor(tick / 11);
+    const who = list[n % list.length];
+    setChatLog((log) =>
+      appendChat(
+        log,
+        makeChatMessage({
+          senderId: who.id,
+          name: who.name,
+          house: who.house,
+          text: MOCK_PHRASES[n % MOCK_PHRASES.length],
+          at: Date.now(),
+          mine: false,
+        }),
+      ),
+    );
+  }, [tick, simulate]);
+
+  const sendChat = useCallback((text: string, house: HouseId) => {
+    const clean = normalizeChatText(text);
+    const now = Date.now();
+    if (!clean || !canSendChat(lastSentAt.current, now)) return false;
+    lastSentAt.current = now;
+    setChatLog((log) =>
+      appendChat(
+        log,
+        makeChatMessage({
+          senderId: ME_ID,
+          name: ME_NAME,
+          house,
+          text: clean,
+          at: now,
+          mine: true,
+        }),
+      ),
+    );
+    return true;
+  }, []);
+
   const houseTotals = useMemo(() => {
     const totals = { ...banked };
     for (const s of others) totals[s.house] += s.focusSeconds;
@@ -264,7 +337,8 @@ export function useLibraryPresence({
       join,
       update,
       leave,
+      chat: { messages: chatLog, send: sendChat },
     }),
-    [others, houseTotals, me, join, update, leave],
+    [others, houseTotals, me, join, update, leave, chatLog, sendChat],
   );
 }

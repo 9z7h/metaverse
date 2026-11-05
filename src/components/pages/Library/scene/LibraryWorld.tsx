@@ -18,6 +18,8 @@ import {
 } from "../../../ui/FocusTimer";
 import type { LibraryPresence, StudyMode } from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
+import { ChatPanel } from "../ChatPanel";
+import { ME_BUBBLE_KEY, activeBubbles, isTypingTarget } from "../chat";
 import type { FocusTimerState } from "../useFocusTimer";
 import {
   Bot,
@@ -257,6 +259,31 @@ export function LibraryWorld({
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
   }, []);
 
+  /* 서고의 속삭임: 대화창 열기·끄기와 머리 위 말풍선 */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const chatMessages = presence.chat.messages;
+  const [bubbleNow, setBubbleNow] = useState(() => Date.now());
+  // 글이 올 때마다 시각을 갱신해 말풍선을 띄우고, 떠 있는 동안에는 0.5초마다 확인해 6초 뒤 거둔다
+  useEffect(() => {
+    setBubbleNow(Date.now());
+  }, [chatMessages]);
+  // 대화창이 열려 있는 동안은 같은 내용이 목록에 보이고, 창이 화면 위쪽을 덮어
+  // 머리 위 말풍선이 잘려 보이므로 말풍선은 숨긴다 (닫으면 다시 보인다)
+  const bubbles = useMemo(
+    () =>
+      chatEnabled && !chatOpen
+        ? activeBubbles(chatMessages, bubbleNow)
+        : new Map(),
+    [chatEnabled, chatOpen, chatMessages, bubbleNow],
+  );
+  const hasBubble = bubbles.size > 0;
+  useEffect(() => {
+    if (!hasBubble) return;
+    const id = window.setInterval(() => setBubbleNow(Date.now()), 500);
+    return () => window.clearInterval(id);
+  }, [hasBubble]);
+
   /**
    * 순위판 보기: 카메라가 서 있는 곳과 상관없이 순위판 앞으로 날아가 순위판을 크게 보여 준다
    * (서고가 길어서 멀리서 줌만 당기면 너무 작다). 화면을 만지거나 이동 키를 누르면 풀리고
@@ -280,6 +307,8 @@ export function LibraryWorld({
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // 대화창 같은 입력칸에서 글자를 치는 중이면 이동·앉기 키(W·A·S·D·E)를 가로채지 않는다
+      if (isTypingTarget(e.target)) return;
       if (e.code in KEY_DIR) {
         setBoardView(false);
         keys.current.add(e.code);
@@ -543,6 +572,7 @@ export function LibraryWorld({
                   colors={colors}
                   entering={!initialIds.current.has(s.id)}
                   registry={botRegistry}
+                  bubble={bubbles.get(s.id)?.text}
                 />
               ))}
               {leavers.map((l) => (
@@ -556,6 +586,7 @@ export function LibraryWorld({
               ))}
               <Player
                 positionRef={playerPos}
+                bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                 boardView={boardViewRef}
                 colors={colors}
                 desks={desks}
@@ -677,7 +708,32 @@ export function LibraryWorld({
             >
               {viewingBoard ? "돌아가기" : "순위판 보기"}
             </ButtonSmall>
+            <ButtonSmall
+              style="monolight"
+              aria-expanded={chatOpen}
+              onClick={() => setChatOpen((v) => !v)}
+            >
+              대화
+            </ButtonSmall>
           </div>
+          {chatOpen ? (
+            <div style={{ ...auto, alignSelf: "stretch" }}>
+              <ChatPanel
+                messages={chatEnabled ? chatMessages : []}
+                onSend={(text) => presence.chat.send(text, house)}
+                enabled={chatEnabled}
+                onToggleEnabled={() => setChatEnabled((v) => !v)}
+                onClose={() => setChatOpen(false)}
+                onFocusChange={(focused) => {
+                  // 입력을 시작할 때 눌려 있던 이동 키가 남아 아바타가 계속 걷지 않게 정리
+                  if (focused) {
+                    keys.current.clear();
+                    sync();
+                  }
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         {seat ? (

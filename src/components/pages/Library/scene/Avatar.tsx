@@ -40,7 +40,31 @@ export interface AvatarProps {
   practicing?: boolean;
   /** 지팡이 색 (나무) / 지팡이 끝 빛 — practicing일 때만 사용 */
   wand?: { wood: string; glow: string };
+  /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
+  bubble?: string;
 }
+
+/**
+ * 말풍선 모양. 폭은 `max-content`(글 길이만큼)로 두고 `maxWidth`에서만 줄바꿈한다.
+ * 주의: `overflow-wrap: anywhere`는 글상자의 "최소 너비"를 글자 하나로 만들어,
+ * 자동 너비로 놓이는 이 상자가 한 글자 폭의 세로 줄이 된다 → `break-word`를 쓴다.
+ */
+export const bubbleStyle: CSSProperties = {
+  width: "max-content",
+  maxWidth: "calc(var(--spacing-48) * 3)",
+  padding: "var(--spacing-8) var(--spacing-12)",
+  borderRadius: "var(--radius-xl)",
+  background: "var(--color-background-default)",
+  color: "var(--color-text-primary)",
+  font: "var(--text-body-sm-regular)",
+  textAlign: "center",
+  whiteSpace: "normal",
+  // 한글은 단어 단위로 줄바꿈하되, 띄어쓰기 없는 긴 글도 넘치지 않게
+  wordBreak: "keep-all",
+  overflowWrap: "break-word",
+  pointerEvents: "none",
+  userSelect: "none",
+};
 
 const tagStyle = (highlight: boolean): CSSProperties => ({
   display: "flex",
@@ -80,6 +104,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     showLabel = true,
     practicing = false,
     wand,
+    bubble,
   },
   ref,
 ) {
@@ -260,6 +285,21 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                   : ""}
               </span>
             ) : null}
+          </div>
+        </Html>
+      ) : null}
+
+      {/* 서고의 속삭임: 이름표 위에 잠깐 떠오르는 말풍선 */}
+      {bubble ? (
+        <Html
+          position={[0, 2.75, 0]}
+          center
+          distanceFactor={7}
+          zIndexRange={[11, 1]}
+          portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
+        >
+          <div style={bubbleStyle} aria-hidden>
+            {bubble}
           </div>
         </Html>
       ) : null}

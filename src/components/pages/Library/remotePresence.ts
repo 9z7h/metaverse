@@ -11,6 +11,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHouseId } from "./houses";
+import type { HouseId } from "./houses";
+import {
+  acceptIncoming,
+  appendChat,
+  canSendChat,
+  createReceiveLimiter,
+  makeChatMessage,
+  normalizeChatText,
+  parseIncomingChat,
+} from "./chat";
+import type { ChatMessage } from "./chat";
 import { zeroHouseSeconds } from "./houseRanking";
 import type { HouseSeconds } from "./houseRanking";
 import { SEATS } from "./libraryPresence";
@@ -95,6 +106,9 @@ export function useRemotePresence({
   const [totals, setTotals] = useState<HouseSeconds>(zeroHouseSeconds);
   const [me, setMe] = useState<PresenceStudent | null>(null);
   const [ready, setReady] = useState(false);
+  const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
+  const receiveLimiter = useRef(createReceiveLimiter());
+  const lastSentAt = useRef<number | null>(null);
   const channelRef = useRef<ReturnType<SupabaseClient["channel"]> | null>(null);
 
   // 채널 구독 — 접속 중인 학생들의 상태를 받는다
@@ -110,6 +124,18 @@ export function useRemotePresence({
           channel.presenceState() as Record<string, unknown[]>,
           userId,
         ),
+      );
+    });
+    // 서고의 속삭임 — 저장하지 않는 방송. 받은 값은 모양·길이·속도를 모두 다시 검사한다
+    channel.on("broadcast", { event: "chat" }, ({ payload }) => {
+      const incoming = parseIncomingChat(payload);
+      if (!incoming || incoming.senderId === userId) return;
+      const now = Date.now();
+      if (!acceptIncoming(receiveLimiter.current, incoming.senderId, now)) {
+        return;
+      }
+      setChatLog((log) =>
+        appendChat(log, makeChatMessage({ ...incoming, at: now, mine: false })),
       );
     });
     channel.subscribe((status) => {
@@ -169,6 +195,38 @@ export function useRemotePresence({
   }, []);
   const leave = useCallback(() => setMe(null), []);
 
+  const sendChat = useCallback(
+    (text: string, house: HouseId) => {
+      const channel = channelRef.current;
+      const clean = normalizeChatText(text);
+      const now = Date.now();
+      if (!channel || !ready || !userId || !clean) return false;
+      if (!canSendChat(lastSentAt.current, now)) return false;
+      lastSentAt.current = now;
+      void channel.send({
+        type: "broadcast",
+        event: "chat",
+        payload: { id: userId, name: nickname, house, text: clean },
+      });
+      // 내 글은 방송으로 돌아오지 않으므로 바로 내 대화창에 더한다
+      setChatLog((log) =>
+        appendChat(
+          log,
+          makeChatMessage({
+            senderId: userId,
+            name: nickname,
+            house,
+            text: clean,
+            at: now,
+            mine: true,
+          }),
+        ),
+      );
+      return true;
+    },
+    [ready, userId, nickname],
+  );
+
   return useMemo(
     () => ({
       seats: SEATS,
@@ -179,7 +237,8 @@ export function useRemotePresence({
       join,
       update,
       leave,
+      chat: { messages: chatLog, send: sendChat },
     }),
-    [others, totals, me, join, update, leave],
+    [others, totals, me, join, update, leave, chatLog, sendChat],
   );
 }

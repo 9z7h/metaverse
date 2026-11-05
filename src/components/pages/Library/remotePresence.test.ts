@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { parseOthers, parsePayload } from "./remotePresence";
+import { act, renderHook } from "@testing-library/react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { zeroHouseSeconds } from "./houseRanking";
+import type { AcademyApi } from "./academyApi";
+import { describe, expect, it, vi } from "vitest";
+import { parseOthers, parsePayload, useRemotePresence } from "./remotePresence";
 
 const base = {
   name: "하린",
@@ -89,5 +93,154 @@ describe("parseOthers", () => {
 
   it("빈 상태", () => {
     expect(parseOthers({}, "me")).toEqual([]);
+  });
+});
+
+/* ── 서고의 속삭임(채팅): 가짜 Realtime 채널로 송수신을 확인 ─────────── */
+
+function fakeRemote(options: { subscribed?: boolean } = {}) {
+  const handlers: Record<string, (arg: { payload: unknown }) => void> = {};
+  const channel = {
+    on: vi.fn(
+      (
+        type: string,
+        filter: { event: string },
+        cb: (arg: { payload: unknown }) => void,
+      ) => {
+        handlers[`${type}:${filter.event}`] = cb;
+        return channel;
+      },
+    ),
+    subscribe: vi.fn((cb: (status: string) => void) => {
+      if (options.subscribed !== false) cb("SUBSCRIBED");
+      return channel;
+    }),
+    track: vi.fn(),
+    untrack: vi.fn(),
+    send: vi.fn(async () => "ok"),
+    presenceState: vi.fn(() => ({})),
+  };
+  const client = {
+    channel: vi.fn(() => channel),
+    removeChannel: vi.fn(),
+  } as unknown as SupabaseClient;
+  const api = {
+    userId: "me-id",
+    houseTotals: vi.fn(async () => zeroHouseSeconds()),
+  } as unknown as AcademyApi;
+  const hook = renderHook(() =>
+    useRemotePresence({ client, api, nickname: "수련생007" }),
+  );
+  const receive = (payload: unknown) =>
+    act(() => handlers["broadcast:chat"]({ payload }));
+  return { channel, hook, receive };
+}
+
+describe("서버 모드 채팅 — 받기", () => {
+  it("다른 학생이 보낸 글이 대화 목록에 들어온다", () => {
+    const { hook, receive } = fakeRemote();
+    receive({ id: "u2", name: "하린", house: "jujak", text: "안녕하세요" });
+    const [m] = hook.result.current.chat.messages;
+    expect(m).toMatchObject({
+      senderId: "u2",
+      name: "하린",
+      house: "jujak",
+      text: "안녕하세요",
+      mine: false,
+    });
+  });
+
+  it("내 id로 온 글은 무시한다 (내 글은 보내는 쪽에서 이미 더했다)", () => {
+    const { hook, receive } = fakeRemote();
+    receive({ id: "me-id", name: "나", house: "jujak", text: "에코" });
+    expect(hook.result.current.chat.messages).toHaveLength(0);
+  });
+
+  it("모양이 이상한 값은 버린다", () => {
+    const { hook, receive } = fakeRemote();
+    receive(null);
+    receive("hello");
+    receive({ id: "", text: "x" });
+    receive({ id: "u2", text: "   " });
+    expect(hook.result.current.chat.messages).toHaveLength(0);
+  });
+
+  it("같은 사람이 너무 빨리 보낸 두 번째 글은 버린다", () => {
+    const { hook, receive } = fakeRemote();
+    receive({ id: "u2", name: "하린", house: "jujak", text: "첫째" });
+    receive({ id: "u2", name: "하린", house: "jujak", text: "둘째" });
+    const texts = hook.result.current.chat.messages.map((m) => m.text);
+    expect(texts).toEqual(["첫째"]);
+  });
+
+  it("글은 정리·길이 제한이 적용된다", () => {
+    const { hook, receive } = fakeRemote();
+    receive({
+      id: "u2",
+      name: "하린",
+      house: "jujak",
+      text: `  ${"가".repeat(200)}  `,
+    });
+    expect(hook.result.current.chat.messages[0].text).toHaveLength(60);
+  });
+});
+
+describe("서버 모드 채팅 — 보내기", () => {
+  it("방송으로 보내고, 내 대화창에는 바로 내 글로 더한다", () => {
+    const { channel, hook } = fakeRemote();
+    let ok = false;
+    act(() => {
+      ok = hook.result.current.chat.send("  안녕하세요  ", "hyeonmu");
+    });
+    expect(ok).toBe(true);
+    expect(channel.send).toHaveBeenCalledWith({
+      type: "broadcast",
+      event: "chat",
+      payload: {
+        id: "me-id",
+        name: "수련생007",
+        house: "hyeonmu",
+        text: "안녕하세요",
+      },
+    });
+    expect(hook.result.current.chat.messages[0]).toMatchObject({
+      text: "안녕하세요",
+      mine: true,
+      senderId: "me-id",
+    });
+  });
+
+  it("연달아 빠르게 보내면 두 번째는 막힌다", () => {
+    const { channel, hook } = fakeRemote();
+    let second = true;
+    act(() => {
+      hook.result.current.chat.send("하나", "hyeonmu");
+    });
+    act(() => {
+      second = hook.result.current.chat.send("둘", "hyeonmu");
+    });
+    expect(second).toBe(false);
+    expect(channel.send).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.chat.messages).toHaveLength(1);
+  });
+
+  it("빈 글은 보내지 않는다", () => {
+    const { channel, hook } = fakeRemote();
+    let ok = true;
+    act(() => {
+      ok = hook.result.current.chat.send("   ", "hyeonmu");
+    });
+    expect(ok).toBe(false);
+    expect(channel.send).not.toHaveBeenCalled();
+  });
+
+  it("채널이 아직 연결되지 않았으면 보내지 않는다", () => {
+    const { channel, hook } = fakeRemote({ subscribed: false });
+    let ok = true;
+    act(() => {
+      ok = hook.result.current.chat.send("안녕", "hyeonmu");
+    });
+    expect(ok).toBe(false);
+    expect(channel.send).not.toHaveBeenCalled();
   });
 });

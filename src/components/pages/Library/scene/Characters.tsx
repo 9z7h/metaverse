@@ -67,6 +67,8 @@ export interface PlayerProps {
   positionRef?: MutableRefObject<Vec2>;
   /** true면 카메라가 순위판 앞으로 날아가 순위판을 크게 보여 준다 (매 프레임 읽음) */
   boardView?: MutableRefObject<boolean>;
+  /** 내 머리 위 말풍선 글 */
+  bubble?: string;
 }
 
 /** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
@@ -109,6 +111,7 @@ export function Player({
   dragging,
   positionRef,
   boardView,
+  bubble,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2>({ ...DOOR, z: DOOR.z - 1 });
@@ -264,6 +267,7 @@ export function Player({
         glow: colors["--color-scene-flame"],
       }}
       name="나"
+      bubble={bubble}
       subject={seat ? subject : undefined}
       highlight
       // 앉아 있을 땐 내 이름표 숨김 (카메라가 가까워 화면을 가림), 순위판을 볼 때도 숨김
@@ -292,9 +296,11 @@ export interface BotProps {
   entering: boolean;
   /** 현재 위치를 기록해 둘 곳 (나갈 때 퇴장 연출이 읽는다) */
   registry?: BotRegistry;
+  /** 머리 위 말풍선 글 */
+  bubble?: string;
 }
 
-export function Bot({ student, colors, entering, registry }: BotProps) {
+export function Bot({ student, colors, entering, registry, bubble }: BotProps) {
   const ref = useRef<Group>(null);
   const layout = deskLayout(student.seatId);
   // 입구 → 자기 의자. 긴 테이블을 돌아가야 하는 벽 쪽 의자도 길찾기가 알아서 찾는다.
@@ -357,6 +363,7 @@ export function Bot({ student, colors, entering, registry }: BotProps) {
         }}
         name={student.name}
         subject={student.subject}
+        bubble={bubble}
         // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
         showLabel={pose === "sit"}
       />

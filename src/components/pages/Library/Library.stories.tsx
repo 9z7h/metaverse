@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { useState } from "react";
 import { Library } from "./Library";
+import { ChatPanel } from "./ChatPanel";
+import { makeChatMessage, normalizeChatText } from "./chat";
+import type { ChatMessage } from "./chat";
 import { clearHouse, clearRerollDay, saveHouse } from "./houses";
 
 const meta = {
@@ -128,5 +132,98 @@ export const World3D: Story = {
     await expect(
       canvas.queryByRole("button", { name: "간편 모드" }),
     ).toBeNull();
+  },
+};
+
+/** 대화창 단독 — 글을 쓰면 목록에 쌓이고, 채팅을 끄면 대화와 입력이 막힌다 */
+function ChatPanelDemo() {
+  const [enabled, setEnabled] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    makeChatMessage({
+      senderId: "s1",
+      name: "하린",
+      house: "jujak",
+      text: "오늘은 집중이 잘 되네요",
+      at: Date.now(),
+      mine: false,
+    }),
+  ]);
+  return (
+    <div
+      data-theme="library"
+      style={{
+        padding: "var(--spacing-16)",
+        background: "var(--color-background-default)",
+        minHeight: "100vh",
+      }}
+    >
+      <ChatPanel
+        messages={enabled ? messages : []}
+        enabled={enabled}
+        onToggleEnabled={() => setEnabled((v) => !v)}
+        onClose={() => undefined}
+        onSend={(text) => {
+          const clean = normalizeChatText(text);
+          if (!clean) return false;
+          setMessages((list) => [
+            ...list,
+            makeChatMessage({
+              senderId: "me",
+              name: "수련생",
+              house: "hyeonmu",
+              text: clean,
+              at: Date.now(),
+              mine: true,
+            }),
+          ]);
+          return true;
+        }}
+      />
+    </div>
+  );
+}
+
+export const ChatPanelOnly: Story = {
+  render: () => <ChatPanelDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("오늘은 집중이 잘 되네요"),
+    ).toBeInTheDocument();
+    // W·A·S·D·E도 글자로 들어간다 (3D 이동 키로 가로채이지 않음)
+    const input = canvas.getByRole("textbox", { name: "속삭일 말" });
+    await userEvent.type(input, "wasde");
+    await expect(input).toHaveValue("wasde");
+    await userEvent.clear(input);
+    await userEvent.type(input, "같이 공부해요{Enter}");
+    await expect(canvas.getByText("같이 공부해요")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "채팅 끄기" }));
+    await expect(canvas.getByText(/채팅이 꺼져 있어요/)).toBeInTheDocument();
+    await expect(input).toBeDisabled();
+  },
+};
+
+/** [3D] 먹빛각에서 '대화' 버튼으로 대화창을 열고 글을 보낸다 */
+export const World3DChat: Story = {
+  args: { presenceOptions: { simulate: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "먹빛각 입장하기" }),
+    );
+    await waitFor(
+      () =>
+        expect(
+          canvas.getByRole("button", { name: "대화" }),
+        ).toBeInTheDocument(),
+      { timeout: 10000 },
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "대화" }));
+    const input = canvas.getByRole("textbox", { name: "속삭일 말" });
+    await userEvent.type(input, "안녕하세요{Enter}");
+    await expect(
+      canvas.getByRole("log", { name: "최근 대화" }),
+    ).toHaveTextContent("안녕하세요");
   },
 };
