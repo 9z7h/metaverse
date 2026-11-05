@@ -34,12 +34,12 @@ import { AlreadyRerolledError } from "./academyApi";
 import { useAcademyConnection, useFocusReport } from "./useAcademy";
 import { useRemotePresence } from "./remotePresence";
 
-// three.js 번들(수백 KB)은 장서각에 들어갈 때만 내려받는다
+// three.js 번들(수백 KB)은 먹빛각에 들어갈 때만 내려받는다
 const LibraryWorld = lazy(() =>
   import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
 );
 
-/** entrance → (첫 입장이면 sorting) → world(3D 장서각) */
+/** entrance → (첫 입장이면 sorting) → world(3D 먹빛각) */
 type Step = "entrance" | "sorting" | "world";
 
 export interface LibraryProps {
@@ -305,7 +305,7 @@ function Unsupported({ onBack }: { onBack: () => void }) {
           color: "var(--color-text-primary)",
         }}
       >
-        이 기기에서는 3D 장서각을 열 수 없어요
+        이 기기에서는 3D 먹빛각을 열 수 없어요
       </h1>
       <p
         style={{
@@ -329,8 +329,8 @@ function Unsupported({ onBack }: { onBack: () => void }) {
 /* ── 페이지 ───────────────────────────────────────────── */
 
 /**
- * 사신학당 장서각 — 함께 공부하는 모바일 페이지.
- * 입장(과목 입력) → 첫 입장 시 사신등 의식(기숙사 배정) → 3D 장서각.
+ * 사신학당 먹빛각 — 함께 공부하는 모바일 페이지.
+ * 입장(과목 입력) → 첫 입장 시 사신등 의식(기숙사 배정) → 3D 먹빛각.
  * `data-theme="library"`로 시맨틱 토큰을 재정의해 기존 UI 컴포넌트를 그대로 테마링한다.
  */
 export function Library({
@@ -365,7 +365,7 @@ export function Library({
   const [mode, setMode] = useState<StudyMode>("theory");
   // 오늘 누적 집중 스톱워치 (멈췄다 다시 시작해도 이어서 쌓임)
   const timer = useFocusTimer();
-  // 장서각에 들어갈 때 한 번만 확인
+  // 먹빛각에 들어갈 때 한 번만 확인
   const webgl = useMemo(
     () => (step === "world" ? supportsWebGL() : true),
     [step],
@@ -514,7 +514,7 @@ export function Library({
           <Suspense
             fallback={
               <p style={{ ...captionStyle, padding: "var(--spacing-24)" }}>
-                장서각 문을 여는 중…
+                먹빛각 문을 여는 중…
               </p>
             }
           >
@@ -557,7 +557,7 @@ export function Library({
             paddingTop: "var(--spacing-24)",
           }}
         >
-          <p style={captionStyle}>사신학당 · 밤의 장서각</p>
+          <p style={captionStyle}>사신학당 · 숨은골의 먹빛각</p>
           <h1
             style={{
               margin: 0,
@@ -576,8 +576,8 @@ export function Library({
               color: "var(--color-text-secondary)",
             }}
           >
-            산과 인간 세상의 경계에 선 사신학당의 서고예요. 같은 서고에 앉은
-            수련생들과 함께 집중해 보세요.
+            산골짜기 숨은골에 자리한 사신학당의 서고, 먹빛각이에요. 같은 서고에
+            앉은 수련생들과 함께 집중해 보세요.
           </p>
         </div>
 
@@ -601,7 +601,7 @@ export function Library({
 
         <HouseRanking
           title="오늘의 사신제"
-          caption="기숙사별 오늘 집중 시간 합계 · 내 집중도 내 기숙사에 더해져요"
+          caption="기숙사별 오늘 수련(집중) 시간 합계 · 내 수련도 내 기숙사에 더해져요"
           entries={ranking}
           myHouse={house}
         />

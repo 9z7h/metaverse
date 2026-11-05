@@ -7,7 +7,7 @@ import { clearHouse, clearRerollDay } from "./houses";
 
 /**
  * 서버(Supabase) 모드 — 가짜 클라이언트로 RPC 응답을 흉내 낸다.
- * jsdom에는 WebGL이 없어 장서각은 열리지 않으므로, 입장 화면 ↔ 배정 흐름만 확인한다.
+ * jsdom에는 WebGL이 없어 먹빛각은 열리지 않으므로, 입장 화면 ↔ 배정 흐름만 확인한다.
  */
 
 interface ServerStudent {
@@ -205,7 +205,7 @@ describe("서버 모드", () => {
     expect(screen.getByRole("button", { name: "도서관 입장" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "도서관 입장" }));
     expect(
-      await screen.findByRole("button", { name: "장서각 입장하기" }),
+      await screen.findByRole("button", { name: "먹빛각 입장하기" }),
     ).toBeInTheDocument();
     // 체험 모드에서는 기존처럼 이 기기에 저장
     expect(window.localStorage.getItem("hanul-academy:house")).not.toBeNull();

@@ -28,7 +28,7 @@ describe("parseStudent — 서버 응답 검증", () => {
   it.each([
     ["null", null],
     ["문자열", "jujak"],
-    ["없는 기숙사", { ...student, house: "gryffindor" }],
+    ["없는 기숙사", { ...student, house: "no-such-house" }],
     ["날짜 형식 오류", { ...student, today: "오늘" }],
     ["today 없음", { house: "jujak" }],
   ])("모양이 다르면 null — %s", (_name, raw) => {

@@ -20,7 +20,7 @@ describe("SortingReveal — 사신등 의식", () => {
       screen.getByText(/눈앞의 답을 의심하고 진실을 찾을 수 있는가\?/),
     ).toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: "장서각 입장하기" }),
+      screen.getByRole("button", { name: "먹빛각 입장하기" }),
     );
     expect(onEnter).toHaveBeenCalledOnce();
   });
@@ -34,7 +34,7 @@ describe("SortingReveal — 사신등 의식", () => {
     expect(screen.queryByRole("heading", { name: "주작관" })).toBeNull();
     // 연출 중 버튼은 숨김(visibility: hidden) → 보조기기·포커스 대상에서도 빠짐
     expect(
-      screen.queryByRole("button", { name: "장서각 입장하기" }),
+      screen.queryByRole("button", { name: "먹빛각 입장하기" }),
     ).toBeNull();
 
     act(() => {
@@ -42,7 +42,7 @@ describe("SortingReveal — 사신등 의식", () => {
     });
     expect(screen.getByRole("heading", { name: "주작관" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "장서각 입장하기" }),
+      screen.getByRole("button", { name: "먹빛각 입장하기" }),
     ).toBeEnabled();
   });
 });

@@ -1,5 +1,5 @@
 /**
- * 사신학당 장서각 분위기 요소 — 청사초롱, 창호 달빛, 단청 띠, 기숙사 깃발, 반딧불 파티클.
+ * 사신학당 먹빛각 분위기 요소 — 청사초롱, 창호 달빛, 단청 띠, 기숙사 깃발, 반딧불 파티클.
  * 모바일 성능을 위해 반복 요소는 InstancedMesh/Points 한 덩어리로 그린다.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";

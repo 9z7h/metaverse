@@ -6,7 +6,7 @@ import { clearHouse, clearRerollDay, saveHouse } from "./houses";
 import { dayKey } from "./useFocusTimer";
 
 /**
- * jsdom에는 WebGL이 없어서 장서각 입장은 "3D를 열 수 없어요" 안내로 이어진다.
+ * jsdom에는 WebGL이 없어서 먹빛각 입장은 "3D를 열 수 없어요" 안내로 이어진다.
  * 덕분에 입장 화면 ↔ 배정 연출 흐름을 3D 없이 끝까지 따라갈 수 있다.
  */
 /** 입장 화면 본문(main)의 두 번째 블록 — 첫 블록은 타이틀 */
@@ -84,7 +84,7 @@ describe("다시 배정 — 하루 1번", () => {
 
     // 입장 → (jsdom: 3D 불가 안내) → 입장 화면으로
     await userEvent.click(
-      screen.getByRole("button", { name: "장서각 입장하기" }),
+      screen.getByRole("button", { name: "먹빛각 입장하기" }),
     );
     await userEvent.click(
       screen.getByRole("button", { name: "입장 화면으로" }),

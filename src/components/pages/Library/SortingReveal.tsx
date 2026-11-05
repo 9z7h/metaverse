@@ -183,7 +183,7 @@ export function SortingReveal({
         }}
       >
         <ButtonLarge onClick={onEnter} disabled={!done}>
-          장서각 입장하기
+          먹빛각 입장하기
         </ButtonLarge>
       </div>
     </section>

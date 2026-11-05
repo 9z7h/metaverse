@@ -36,7 +36,7 @@ export const Entrance: Story = {
       "청사초롱 아래서함께 공부해요",
     );
     await expect(
-      canvas.getByText("사신학당 · 밤의 장서각"),
+      canvas.getByText("사신학당 · 숨은골의 먹빛각"),
     ).toBeInTheDocument();
     await expect(canvas.getByText(/사신등 의식/)).toBeInTheDocument();
     // 간편 모드 제거 — 입장 버튼은 하나
@@ -108,14 +108,14 @@ export const RerollOncePerDay: Story = {
   },
 };
 
-/** [3D] 입장 → 배정 → 3D 장서각 로드, 기숙사 배지·탭 이동 안내 노출 */
+/** [3D] 입장 → 배정 → 3D 먹빛각 로드, 기숙사 배지·탭 이동 안내 노출 */
 export const World3D: Story = {
   args: { presenceOptions: { simulate: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "도서관 입장" }));
     await userEvent.click(
-      canvas.getByRole("button", { name: "장서각 입장하기" }),
+      canvas.getByRole("button", { name: "먹빛각 입장하기" }),
     );
     await waitFor(
       () =>

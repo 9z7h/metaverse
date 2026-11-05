@@ -18,7 +18,7 @@ describe("parsePayload — 다른 클라이언트가 보낸 값은 믿지 않는
 
   it.each([
     ["없는 좌석", { ...base, seatId: "Z9" }],
-    ["없는 기숙사", { ...base, house: "slytherin" }],
+    ["없는 기숙사", { ...base, house: "no-such-house" }],
     ["없는 모드", { ...base, mode: "cheat" }],
     ["객체 아님", "hello"],
     ["null", null],
