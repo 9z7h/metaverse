@@ -48,8 +48,10 @@ export function useAuthSession() {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
-  const state: AuthState = session ? "logout" : "login";
-  const user: AuthUser | null = session ? toAuthUser(session) : null;
+  // 도서관 입장 때 만들어지는 익명 세션은 "로그인한 사용자"가 아니다
+  const signedIn = session && !session.user.is_anonymous ? session : null;
+  const state: AuthState = signedIn ? "logout" : "login";
+  const user: AuthUser | null = signedIn ? toAuthUser(signedIn) : null;
 
   return {
     session,

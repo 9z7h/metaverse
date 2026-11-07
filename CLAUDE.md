@@ -72,6 +72,12 @@
 - QA 리포트/전체 검사/릴리즈 전 검사 → `@agent-qa-reporter`에 위임
 - Figma MCP 호출은 반드시 서브에이전트에서 실행할 것 (컨텍스트 보호)
 
+## 세계관 (사신학당 /library)
+
+- 화면 문구·데이터·주석에서 설정을 쓸 때는 `docs/world.md`를 기준으로 한다.
+- 다른 작품의 고유명은 앱·주석·문서 어디에도 쓰지 않는다.
+- 3D 공간 이름은 "먹빛각". 순위는 "수련 시간"으로 부르고 공적과 섞지 않는다.
+
 ## 빌드 및 테스트 명령어
 
 - `npm run build:tokens` — Style Dictionary 빌드 (tokens/\*.json → CSS)

@@ -183,3 +183,88 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 1. Figma MCP가 hex 색상 반환 → 이 테이블에서 찾아서 `var(--color-*)` 사용
 2. Figma가 스페이싱 숫자 반환 → `var(--spacing-*)` 매핑
 3. 테이블에 없는 값 → 새 변수 만들지 말고 `/* ⚠️ 누락된 토큰 */` 플래그
+
+## Primitive — 마법 도서관 팔레트 (library 테마 전용)
+
+> 원본: `tokens/color.json`. Figma 변수 없음 — 코드에서 먼저 정의. 대비는 WCAG AA 검증 완료.
+
+| CSS Property          | 값      | 용도                            |
+| --------------------- | ------- | ------------------------------- |
+| --color-mahogany-900  | #16100d | 테마 기본 배경                  |
+| --color-mahogany-800  | #21180f | 카드 표면                       |
+| --color-mahogany-700  | #2e2219 | 한 단계 올라온 표면             |
+| --color-mahogany-600  | #463428 | (예비)                          |
+| --color-mahogany-500  | #5e4737 | 테두리, 비활성 텍스트           |
+| --color-parchment-100 | #f5ecd9 | 본문 텍스트 (16.05:1)           |
+| --color-parchment-300 | #d8c8a6 | 보조 텍스트 (11.43:1)           |
+| --color-parchment-500 | #a8977a | 3차 텍스트 (6.62:1)             |
+| --color-candle-300    | #ffd98a | 강조 hover                      |
+| --color-candle-400    | #f2bf55 | 강조/브랜드 (배경 대비 11.09:1) |
+| --color-candle-500    | #d9a03a | (예비)                          |
+| --color-candle-900    | #3b2a12 | 강조 subtle 배경                |
+
+## 테마 — `[data-theme="library"]`
+
+> 원본: `tokens/themes/library.json` → 빌드 결과 `src/tokens/_theme-library.css`.
+> 새 변수를 만들지 않고 **기존 시맨틱 토큰 이름을 재정의**한다. 그래서 Button/Chip/Input 등
+> 기존 컴포넌트를 수정 없이 `data-theme="library"` 하위에 두기만 하면 어두운 도서관 테마가 적용된다.
+
+| 시맨틱 토큰                    | 기본 테마 | library 테마  |
+| ------------------------------ | --------- | ------------- |
+| --color-background-default     | gray-100  | mahogany-900  |
+| --color-background-Subtle      | #fafafa   | mahogany-800  |
+| --color-background-muted       | #f5f7fa   | mahogany-700  |
+| --color-background-brandsubtle | blue-100  | candle-900    |
+| --color-text-primary           | gray-1000 | parchment-100 |
+| --color-text-secondary         | gray-600  | parchment-300 |
+| --color-text-tertiary          | gray-500  | parchment-500 |
+| --color-text-onbrand           | gray-100  | mahogany-900  |
+| --color-interactive-primary    | blue-600  | candle-400    |
+| --color-border-default         | gray-400  | mahogany-500  |
+| --color-border-brand           | blue-600  | candle-400    |
+| --color-content-strong         | gray-900  | parchment-100 |
+
+### 3D 장면 토큰 (`--color-scene-*`, library 테마 전용)
+
+> three.js 재질은 CSS를 직접 쓸 수 없으므로 `readSceneColors()`(`src/components/pages/Library/scene/sceneLayout.ts`)가
+> `data-theme="library"` 요소의 computed style에서 이 토큰을 읽어 재질 색으로 넘긴다. 3D 코드에 hex를 쓰지 않는다.
+
+| CSS Property                        | 참조                                  | 용도                               |
+| ----------------------------------- | ------------------------------------- | ---------------------------------- |
+| --color-scene-floor                 | wood-900                              | 바닥                               |
+| --color-scene-wall                  | mahogany-800                          | 벽                                 |
+| --color-scene-fog                   | mahogany-900                          | 원경 안개                          |
+| --color-scene-wood / -dark / -light | wood-500 / 700 / 300                  | 책상·책장·펼친 책                  |
+| --color-scene-flame                 | candle-300                            | 촛불(발광), 점광원                 |
+| --color-scene-light                 | candle-400                            | 환경광                             |
+| --color-scene-skin                  | skin-300                              | 아바타 얼굴                        |
+| --color-scene-hat                   | mahogany-900                          | 고깔모자, 눈                       |
+| --color-scene-robe-1 ~ 4            | blue-800, red-800, moss-600, plum-600 | 책장 책 색 (로브는 기숙사 primary) |
+| --color-scene-rug                   | red-1000                              | 중앙 통로 러그                     |
+
+새 프리미티브: `--color-wood-300/500/700/900`, `--color-moss-600`, `--color-plum-600`, `--color-skin-300` (`tokens/color.json`).
+
+전체 목록은 `tokens/themes/library.json` 참고. 테마 추가 시 `style-dictionary.config.mjs`의 `themes` 배열에 이름을 추가한다.
+
+### 기숙사 토큰 (`--color-house-*`, library 테마 전용)
+
+> 사신학당 4기숙사 (사신수 모티브 창작 설정). 원본: `tokens/themes/library.json` → `color.house.<id>.*`.
+> 정의·이름·표어는 `src/components/pages/Library/houses.ts`. 대비는 mahogany-800/900 배경 기준 검증.
+> primary는 어두운 먹빛각에서 로브·깃발이 보이도록 배경 대비 3:1 이상으로 맞춤 (현무 남색은 원래보다 밝게 조정).
+
+| 기숙사 (id)          | 상징색        | primary (로브·깃발·초롱)  | accent (글자·문장)           | subtle (배지 배경) | on (primary 위 글자)   |
+| -------------------- | ------------- | ------------------------- | ---------------------------- | ------------------ | ---------------------- |
+| 백호관 (baekho)      | 아이보리·먹색 | ivory-200 #e8e0cf (14.36) | ivory-100 #f5efe2 (15.24)    | ink-800 #2a2826    | ink-900 (12.80:1)      |
+| 주작관 (jujak)       | 주홍·금색     | ember-600 #b8322a (3.17)  | amber-300 #f2c46a (10.71)    | ember-900 #3d1512  | parchment-100 (5.07:1) |
+| 현무관 (hyeonmu)     | 남색·은색     | navy-500 #4a62a8 (3.23)   | silver-300 #c9d1de (11.36)   | navy-900 #141b2e   | parchment-100 (4.96:1) |
+| 청룡관 (cheongryong) | 청록·금색     | teal-600 #1c6f68 (3.16)   | palegold-300 #e9d58f (11.96) | teal-900 #0f2b29   | parchment-100 (5.08:1) |
+
+청사초롱은 주작 primary(홍)와 청룡 primary(청)를, 단청 띠의 줄무늬도 같은 두 색을 쓴다.
+
+사용: CSS는 `houseVar(id, "accent")` → `var(--color-house-<id>-accent)`, 3D는 `houseToken(id, part)`로 `readSceneColors()` 결과에서 조회.
+
+추가 장면 토큰: `--color-scene-moonlight`(moon-300, 창호 달빛), `--color-scene-dancheong`(dancheong-500, 단청 띠 바탕), `--color-scene-brass`(brass-500, 혼천의·등 다발 고리의 놋쇠), `--color-scene-collar`(ivory-100, 도포 깃의 흰 동정 — 모든 기숙사 공통).
+
+숨돌림 뜰 토큰: `--color-scene-water`(pond-600, 연못), `--color-scene-stone`(stone-500, 돌담·석등·징검돌), `--color-scene-roof-tile`(roof-700, 기와), `--color-scene-leaf`(moss-600, 소나무·대나무 잎). 원본 primitive는 `pond-600`·`stone-500`·`roof-700`이며 brass-500은 서고와 공용이다.
+
+아바타 의상: 도포 = 기숙사 primary, 고름·세조대 = 기숙사 accent, 갓 = `--color-scene-hat`.
