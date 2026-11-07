@@ -545,7 +545,7 @@ export function Library({
           >
             <GardenWorld
               house={house}
-              presence={remotePresence}
+              presence={presence}
               onBack={() => setStep("world")}
             />
           </Suspense>
