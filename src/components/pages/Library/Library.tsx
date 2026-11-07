@@ -183,7 +183,7 @@ function HouseCard({
             color: "var(--color-text-primary)",
           }}
         >
-          첫 입장 날 밤, 사신등 의식으로 기숙사가 정해져요
+          첫 입장 날 밤, 사신갓이 기숙사를 정해 줘요
         </p>
         <p style={captionStyle}>
           백호관·주작관·현무관·청룡관 중 한 곳에 배정돼요.

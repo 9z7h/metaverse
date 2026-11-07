@@ -21,6 +21,8 @@ export interface House {
   values: string;
   /** 기숙사가 학생에게 던지는 질문 */
   question: string;
+  /** 사신갓이 학생을 읽어 주는 말 — [성격과 행동, 이 기숙사는 어떤 곳인지] */
+  gatLines: readonly [string, string];
 }
 
 export const HOUSES: Record<HouseId, House> = {
@@ -32,6 +34,10 @@ export const HOUSES: Record<HouseId, House> = {
     motto: "힘을 얻은 자는 먼저 나선다.",
     values: "정의 · 용기 · 책임",
     question: "부당한 일을 보았을 때 나설 수 있는가?",
+    gatLines: [
+      "너는 정의감이 강하고 겁이 없다. 옳지 않은 일을 보면 먼저 나선다.",
+      "백호관은 부당함에 맞서고, 맡은 일을 끝까지 책임지는 사람들의 집이다.",
+    ],
   },
   jujak: {
     id: "jujak",
@@ -41,6 +47,10 @@ export const HOUSES: Record<HouseId, House> = {
     motto: "작은 숨결도 가벼이 여기지 않는다.",
     values: "생명 · 공감 · 회복",
     question: "상처 입은 존재를 끝까지 돌볼 수 있는가?",
+    gatLines: [
+      "너는 마음이 따뜻하고 남을 잘 돌본다. 아픈 사람을 보면 그냥 못 지나친다.",
+      "주작관은 다친 이를 살리고, 끝까지 곁을 지키는 사람들의 집이다.",
+    ],
   },
   hyeonmu: {
     id: "hyeonmu",
@@ -50,6 +60,10 @@ export const HOUSES: Record<HouseId, House> = {
     motto: "깊이 살피고, 때가 오면 움직인다.",
     values: "지혜 · 탐구 · 신중함",
     question: "눈앞의 답을 의심하고 진실을 찾을 수 있는가?",
+    gatLines: [
+      "너는 신중하고 생각이 깊다. 답이 나와도 한 번 더 따져 본다.",
+      "현무관은 쉽게 믿지 않고, 끝까지 파고들어 진실을 찾는 사람들의 집이다.",
+    ],
   },
   cheongryong: {
     id: "cheongryong",
@@ -59,6 +73,10 @@ export const HOUSES: Record<HouseId, House> = {
     motto: "새 길을 열어, 함께 살아갈 터를 넓힌다.",
     values: "개척 · 포부 · 번영",
     question: "아직 없는 길을 열고 그 결과를 책임질 수 있는가?",
+    gatLines: [
+      "너는 도전적이고 포부가 크다. 길이 없으면 직접 만든다.",
+      "청룡관은 새 길을 열고, 그 길을 함께 넓혀 가는 사람들의 집이다.",
+    ],
   },
 };
 

@@ -46,12 +46,12 @@ describe("입장 화면 — 타이틀 바로 아래에 내 기숙사", () => {
     ).toBeInTheDocument();
   });
 
-  it("첫 입장이면 타이틀 바로 아래에 사신등 의식 안내 카드", () => {
+  it("첫 입장이면 타이틀 바로 아래에 사신갓 안내 카드", () => {
     renderLibrary();
     const first = houseCard();
     expect(first).toHaveAttribute("aria-label", "기숙사 배정 안내");
     expect(
-      within(first).getByText(/사신등 의식으로 기숙사가 정해져요/),
+      within(first).getByText(/사신갓이 기숙사를 정해 줘요/),
     ).toBeInTheDocument();
   });
 });
