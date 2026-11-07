@@ -34,6 +34,8 @@ import type {
 import type { AcademyApi } from "./academyApi";
 
 const CHANNEL = "academy:library";
+/** 앉지 않은 사람까지 세는 접속자 전용 채널 */
+const LOBBY_CHANNEL = "academy:lobby";
 const TOTALS_POLL_MS = 15_000;
 const DAY_SECONDS = 86_400;
 
@@ -87,6 +89,20 @@ export function parseOthers(
   return out;
 }
 
+/** 로비 presence 상태에서 접속자 수. 나는 항상 포함하고, 같은 사용자의 여러 탭은 한 명으로 */
+export function countConnected(
+  state: Record<string, unknown[]>,
+  selfId: string | null,
+): number {
+  const keys = new Set(
+    Object.entries(state)
+      .filter(([, metas]) => Array.isArray(metas) && metas.length > 0)
+      .map(([key]) => key),
+  );
+  if (selfId) keys.add(selfId);
+  return keys.size;
+}
+
 export interface UseRemotePresenceOptions {
   /** null이면 아무것도 하지 않는다 (연결 전·데모 모드) */
   client: SupabaseClient | null;
@@ -106,6 +122,7 @@ export function useRemotePresence({
   const [totals, setTotals] = useState<HouseSeconds>(zeroHouseSeconds);
   const [me, setMe] = useState<PresenceStudent | null>(null);
   const [ready, setReady] = useState(false);
+  const [connectedCount, setConnectedCount] = useState(0);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const receiveLimiter = useRef(createReceiveLimiter());
   const lastSentAt = useRef<number | null>(null);
@@ -145,6 +162,23 @@ export function useRemotePresence({
       setReady(false);
       channelRef.current = null;
       void client.removeChannel(channel);
+    };
+  }, [client, userId]);
+
+  // 접속 중인 사람 — 자리에 앉지 않아도 사이트를 여는 순간부터 센다
+  useEffect(() => {
+    if (!client || !userId) return;
+    const lobby = client.channel(LOBBY_CHANNEL, {
+      config: { presence: { key: userId } },
+    });
+    lobby.on("presence", { event: "sync" }, () => {
+      setConnectedCount(countConnected(lobby.presenceState(), userId));
+    });
+    lobby.subscribe((status) => {
+      if (status === "SUBSCRIBED") void lobby.track({});
+    });
+    return () => {
+      void client.removeChannel(lobby);
     };
   }, [client, userId]);
 
@@ -233,12 +267,25 @@ export function useRemotePresence({
       others,
       houseTotals: totals,
       onlineCount: others.length + (me ? 1 : 0),
+      // 로비 구독 전에도 나는 접속 중이므로 최소 1
+      connectedCount: Math.max(connectedCount, userId ? 1 : 0),
       me,
       join,
       update,
       leave,
       chat: { messages: chatLog, send: sendChat },
     }),
-    [others, totals, me, join, update, leave, chatLog, sendChat],
+    [
+      others,
+      totals,
+      me,
+      connectedCount,
+      userId,
+      join,
+      update,
+      leave,
+      chatLog,
+      sendChat,
+    ],
   );
 }

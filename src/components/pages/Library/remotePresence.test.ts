@@ -3,7 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { zeroHouseSeconds } from "./houseRankingLogic";
 import type { AcademyApi } from "./academyApi";
 import { describe, expect, it, vi } from "vitest";
-import { parseOthers, parsePayload, useRemotePresence } from "./remotePresence";
+import {
+  countConnected,
+  parseOthers,
+  parsePayload,
+  useRemotePresence,
+} from "./remotePresence";
 
 const base = {
   name: "하린",
@@ -53,6 +58,21 @@ describe("parsePayload — 다른 클라이언트가 보낸 값은 믿지 않는
     expect(parsePayload("u1", { ...base, focusing: "true" })?.focusing).toBe(
       false,
     );
+  });
+});
+
+describe("countConnected — 앉지 않아도 접속자로 센다", () => {
+  it("나 혼자면 1명 (아직 sync 전이어도)", () => {
+    expect(countConnected({}, "me")).toBe(1);
+  });
+
+  it("다른 접속자를 더하고, 같은 사용자의 여러 탭은 한 명", () => {
+    const state = { me: [{}], a: [{}, {}], b: [{}] };
+    expect(countConnected(state, "me")).toBe(3);
+  });
+
+  it("빈 메타는 떠난 사람이므로 세지 않는다", () => {
+    expect(countConnected({ a: [] }, "me")).toBe(1);
   });
 });
 

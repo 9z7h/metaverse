@@ -64,6 +64,8 @@ export interface LibraryPresence {
   houseTotals: HouseSeconds;
   /** 나를 포함한 현재 접속자 수 */
   onlineCount: number;
+  /** 자리에 앉지 않았어도 지금 사이트를 열어 둔 사람의 수 (나 포함) */
+  connectedCount: number;
   me: PresenceStudent | null;
   join: (presence: MyPresence) => void;
   update: (patch: Partial<MyPresence>) => void;
@@ -333,6 +335,8 @@ export function useLibraryPresence({
       others,
       houseTotals,
       onlineCount: others.length + (me ? 1 : 0),
+      // 데모에서는 가짜 학생이 모두 앉아 있으므로 같은 값
+      connectedCount: others.length + 1,
       me,
       join,
       update,

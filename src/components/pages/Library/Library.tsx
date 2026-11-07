@@ -98,7 +98,15 @@ const captionStyle: CSSProperties = {
   margin: 0,
 };
 
-function LiveCount({ online, free }: { online: number; free: number }) {
+function LiveCount({
+  connected,
+  online,
+  free,
+}: {
+  connected: number;
+  online: number;
+  free: number;
+}) {
   return (
     <p
       style={{
@@ -121,7 +129,8 @@ function LiveCount({ online, free }: { online: number; free: number }) {
         }}
       />
       <span>
-        지금 <strong>{online}명</strong>이 공부 중 · 빈 자리 {free}석
+        지금 <strong>{connected}명</strong> 접속 · {online}명 공부 중 · 빈 자리{" "}
+        {free}석
       </span>
     </p>
   );
@@ -629,7 +638,11 @@ export function Library({
           </p>
         )}
 
-        <LiveCount online={presence.onlineCount} free={freeSeats} />
+        <LiveCount
+          connected={presence.connectedCount}
+          online={presence.onlineCount}
+          free={freeSeats}
+        />
 
         <HouseRanking
           title="오늘의 사신제"
