@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  TABLE_GAP,
+  type DeskLayout,
   CAMERA_BOUNDS,
   planPath,
   BOARD_LIFT,
@@ -42,6 +44,13 @@ import {
 import { SEATS } from "../libraryPresence";
 
 const desks = SEATS.map((s) => deskLayout(s.id));
+/** 이 좌석 앞의 테이블 토막 — 같은 줄에서 좌석 z를 품은 것 */
+const tableOf = (d: DeskLayout) =>
+  TABLES.find(
+    (t) =>
+      t.x === TABLES[d.seatId[0] === "R" ? 1 : 0].x &&
+      Math.abs(d.chair.z - t.z) < t.hz,
+  )!;
 
 describe("deskLayout — 긴 테이블 양면 좌석", () => {
   it("L은 왼쪽, R은 오른쪽 테이블이고 1~16은 통로 쪽, 17~32는 벽 쪽 면", () => {
@@ -63,7 +72,7 @@ describe("deskLayout — 긴 테이블 양면 좌석", () => {
 
   it("아바타는 항상 테이블 쪽을 바라본다 (정면 (sin, cos)가 테이블 중심을 향함)", () => {
     for (const d of desks) {
-      const t = TABLES[d.seatId[0] === "R" ? 1 : 0];
+      const t = tableOf(d);
       const toward = Math.sign(t.x - d.chair.x);
       expect(Math.sign(Math.sin(d.facing))).toBe(toward);
       // 정면으로 한 발 나가면 테이블 쪽으로 가까워진다
@@ -83,7 +92,7 @@ describe("deskLayout — 긴 테이블 양면 좌석", () => {
 
   it("테이블 위 자리(desk)는 상판 위, 일어설 자리(stand)는 의자 뒤쪽 통로", () => {
     for (const d of desks) {
-      const t = TABLES[d.seatId[0] === "R" ? 1 : 0];
+      const t = tableOf(d);
       expect(Math.abs(d.desk.x - t.x)).toBeLessThanOrEqual(t.hx);
       expect(Math.abs(d.desk.z - t.z)).toBeLessThanOrEqual(t.hz);
       // stand는 테이블 반대쪽으로 의자보다 더 멀다
@@ -109,7 +118,7 @@ describe("64석 배치", () => {
 
   it("의자는 모두 방 안, 테이블 길이 범위 안에 있다", () => {
     for (const d of desks) {
-      const t = TABLES[d.seatId[0] === "R" ? 1 : 0];
+      const t = tableOf(d);
       expect(d.chair.x).toBeGreaterThan(ROOM.minX);
       expect(d.chair.x).toBeLessThan(ROOM.maxX);
       expect(Math.abs(d.chair.z - t.z)).toBeLessThan(t.hz);
@@ -166,7 +175,7 @@ describe("64석 배치", () => {
 
 describe("테이블 위 등잔", () => {
   it("좌석 사이마다 하나, 모두 상판 위(테이블 한가운데)에 있다", () => {
-    expect(TABLE_CANDLES).toHaveLength(TABLES.length * (SEATS_PER_SIDE - 1));
+    expect(TABLE_CANDLES).toHaveLength(2 * (SEATS_PER_SIDE - 2)); // 가운데 통로 자리는 뺌
     for (const c of TABLE_CANDLES) {
       expect(
         TABLES.some((t) => t.x === c.x && Math.abs(c.z - t.z) < t.hz),
@@ -617,10 +626,25 @@ describe("서고 길이에서 계산하는 값 — 서가·살창·대들보", (
     }
   });
 
-  it("테이블은 서고 길이에 맞춰 뒷벽 가까이에서 시작하고 충분히 길다", () => {
-    for (const t of TABLES) {
-      expect(t.z - t.hz - ROOM.minZ).toBeLessThan(4);
-      expect(t.hz * 2).toBeGreaterThan(30);
+  it("테이블은 가운데에서 한 번 끊겨 한 줄에 두 토막이고, 뒷벽 가까이에서 시작한다", () => {
+    expect(TABLES).toHaveLength(4);
+    for (const side of [0, 1]) {
+      const [back, front] = TABLES.filter((t) => t.x === TABLES[side].x).sort(
+        (a, b) => a.z - b.z,
+      );
+      expect(back.z - back.hz - ROOM.minZ).toBeLessThan(4);
+      const gap = front.z - front.hz - (back.z + back.hz);
+      expect(gap).toBeCloseTo(TABLE_GAP);
+      expect(back.hz * 2 + front.hz * 2).toBeGreaterThan(30);
+    }
+  });
+
+  it("가운데 틈으로 테이블 줄을 가로질러 건너갈 수 있다", () => {
+    const mid = (TABLES[0].z + TABLES[0].hz + TABLES[2].z - TABLES[2].hz) / 2;
+    for (const t of [TABLES[0], TABLES[1]]) {
+      const from = { x: t.x - 3, z: mid };
+      const to = { x: t.x + 3, z: mid };
+      expect(segmentClear(from, to)).toBe(true);
     }
   });
 });
