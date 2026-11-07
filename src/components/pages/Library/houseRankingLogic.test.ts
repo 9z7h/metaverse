@@ -9,7 +9,7 @@ import {
   houseHeadcounts,
   rankHouses,
   zeroHouseSeconds,
-} from "./houseRanking";
+} from "./houseRankingLogic";
 import { HOUSE_IDS } from "./houses";
 import type { HouseId } from "./houses";
 

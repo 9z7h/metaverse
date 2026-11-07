@@ -16,8 +16,8 @@ import {
   normalizeChatText,
 } from "./chat";
 import type { ChatMessage } from "./chat";
-import { zeroHouseSeconds } from "./houseRanking";
-import type { HouseSeconds } from "./houseRanking";
+import { zeroHouseSeconds } from "./houseRankingLogic";
+import type { HouseSeconds } from "./houseRankingLogic";
 
 export interface LibrarySeat {
   id: string;

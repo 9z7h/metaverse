@@ -2,8 +2,8 @@ import type { CSSProperties } from "react";
 import { HouseCrest } from "./HouseCrest";
 import { HOUSES, houseVar } from "./houses";
 import type { HouseId } from "./houses";
-import { formatTotal } from "./houseRanking";
-import type { RankEntry } from "./houseRanking";
+import { formatTotal } from "./houseRankingLogic";
+import type { RankEntry } from "./houseRankingLogic";
 
 export interface HouseRankingProps {
   /** 순위 순서로 정렬된 기숙사별 합계 (`rankHouses` 결과) */

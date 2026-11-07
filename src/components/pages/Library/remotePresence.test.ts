@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { zeroHouseSeconds } from "./houseRanking";
+import { zeroHouseSeconds } from "./houseRankingLogic";
 import type { AcademyApi } from "./academyApi";
 import { describe, expect, it, vi } from "vitest";
 import { parseOthers, parsePayload, useRemotePresence } from "./remotePresence";

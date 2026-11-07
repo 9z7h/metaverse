@@ -16,8 +16,8 @@ import type { Group, Mesh, MeshBasicMaterial } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { flagLength, formatTotal } from "../houseRanking";
-import type { RankEntry } from "../houseRanking";
+import { flagLength, formatTotal } from "../houseRankingLogic";
+import type { RankEntry } from "../houseRankingLogic";
 import {
   FRONT_WALL_Z,
   MASK_WHITE_TOKEN,

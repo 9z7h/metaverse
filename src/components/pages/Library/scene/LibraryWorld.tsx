@@ -38,7 +38,7 @@ import { HallFrame } from "./HallFrame";
 import { Armillary } from "./Armillary";
 import { Atmosphere } from "./Atmosphere";
 import { HouseCrest } from "../HouseCrest";
-import type { RankEntry } from "../houseRanking";
+import type { RankEntry } from "../houseRankingLogic";
 import { RankingBoard } from "./RankingBoard";
 import { HOUSES, houseToken, houseVar } from "../houses";
 import type { HouseId } from "../houses";

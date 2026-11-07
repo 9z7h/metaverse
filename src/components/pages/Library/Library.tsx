@@ -27,7 +27,7 @@ import {
   balancedHouse,
   houseHeadcounts,
   rankHouses,
-} from "./houseRanking";
+} from "./houseRankingLogic";
 import { DAY_ROSTER_HOUSES } from "./libraryPresence";
 import type { HouseId } from "./houses";
 import { AlreadyRerolledError } from "./academyApi";
