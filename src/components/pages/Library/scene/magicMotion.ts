@@ -155,3 +155,34 @@ export function trackLeavers(
     .map((student) => ({ student, since: now }));
   return added.length ? [...alive, ...added] : alive;
 }
+
+/* ── 프레임 속도 ─────────────────────────────────────────── */
+
+/** 걷거나 시점을 돌리는 중 */
+export const FPS_WALKING = 60;
+/** 앉아서 마법이나 다른 사람의 움직임을 볼 때 — 끊기지 않는 선에서 아낀다 */
+export const FPS_MOVING = 30;
+/** 가만히 앉아 공부만 할 때 — 장시간 공부 시 발열·배터리 절약 */
+export const FPS_SEATED = 12;
+
+export interface FpsInput {
+  /** 내가 앉아 있는가 */
+  seated: boolean;
+  /** 드래그·퇴장 연출·순위판 보기처럼 카메라나 장면이 크게 움직이는 중 */
+  busy: boolean;
+  /** 내 마법이나 보이는 다른 사람의 마법이 켜져 있는가 */
+  magic: boolean;
+  /** 서고를 걸어 다니는 다른 접속자가 있는가 */
+  othersMoving: boolean;
+}
+
+/** 지금 장면을 몇 fps로 그릴지. 움직임이 있을 때만 올리고 가만히 있을 때는 아낀다 */
+export function pickFps({
+  seated,
+  busy,
+  magic,
+  othersMoving,
+}: FpsInput): number {
+  if (!seated || busy) return FPS_WALKING;
+  return magic || othersMoving ? FPS_MOVING : FPS_SEATED;
+}

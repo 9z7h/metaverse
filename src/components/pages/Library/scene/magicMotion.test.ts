@@ -2,12 +2,16 @@ import { describe, it, expect } from "vitest";
 import {
   DISSOLVE_MS,
   DISSOLVE_PARTICLES,
+  FPS_MOVING,
+  FPS_SEATED,
+  FPS_WALKING,
   SEGMENTS,
   STREAKS,
   dissolveAlpha,
   dissolveParticle,
   dissolveProgress,
   dissolveRise,
+  pickFps,
   streakPoint,
   tornadoStreak,
   trackLeavers,
@@ -155,5 +159,31 @@ describe("퇴장 추적 — trackLeavers", () => {
   it("여러 명이 한꺼번에 나가도 모두 추적한다", () => {
     const out = trackLeavers([a, b], [], [], 50);
     expect(out.map((l) => l.student.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("pickFps — 움직임이 있을 때만 프레임을 올린다", () => {
+  const idle = { seated: true, busy: false, magic: false, othersMoving: false };
+
+  it("가만히 앉아 공부만 하면 아낀다", () => {
+    expect(pickFps(idle)).toBe(FPS_SEATED);
+  });
+
+  it("마법이 켜져 있으면 끊기지 않게 올린다", () => {
+    expect(pickFps({ ...idle, magic: true })).toBe(FPS_MOVING);
+  });
+
+  it("걸어 다니는 다른 접속자가 있어도 올린다", () => {
+    expect(pickFps({ ...idle, othersMoving: true })).toBe(FPS_MOVING);
+  });
+
+  it("걷는 중이거나 화면이 크게 움직이는 중에는 최대", () => {
+    expect(pickFps({ ...idle, seated: false })).toBe(FPS_WALKING);
+    expect(pickFps({ ...idle, busy: true, magic: true })).toBe(FPS_WALKING);
+  });
+
+  it("움직임이 있을 때가 아낄 때보다 빠르고, 걷는 중이 가장 빠르다", () => {
+    expect(FPS_SEATED).toBeLessThan(FPS_MOVING);
+    expect(FPS_MOVING).toBeLessThan(FPS_WALKING);
   });
 });

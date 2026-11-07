@@ -35,7 +35,7 @@ import {
   TapMarker,
 } from "./Characters";
 import type { BotSnapshot } from "./Characters";
-import { DISSOLVE_MS, trackLeavers } from "./magicMotion";
+import { DISSOLVE_MS, pickFps, trackLeavers } from "./magicMotion";
 import type { Leaver } from "./magicMotion";
 import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
@@ -81,10 +81,6 @@ export interface LibraryWorldProps {
   /** 서고 문 밖 숨돌림 뜰로 나가기 */
   onGoGarden: () => void;
 }
-
-/** 걷거나 시점을 돌리는 중 60fps, 가만히 앉아 있을 땐 12fps — 장시간 공부 시 발열·배터리 절약 */
-const FPS_WALKING = 60;
-const FPS_SEATED = 12;
 
 const MODE_LABEL: Record<StudyMode, string> = {
   theory: "이론",
@@ -646,11 +642,16 @@ export function LibraryWorld({
                 <MagicEffect colors={colors} house={house} at={seat.desk} />
               ) : null}
               <FrameDriver
-                fps={
-                  seat && !dragging && leavers.length === 0 && !viewingBoard
-                    ? FPS_SEATED
-                    : FPS_WALKING
-                }
+                fps={pickFps({
+                  seated: Boolean(seat),
+                  busy: dragging || leavers.length > 0 || viewingBoard,
+                  magic:
+                    (focusing && mode === "practice") ||
+                    presence.others.some(
+                      (s) => s.focusing && s.mode === "practice",
+                    ),
+                  othersMoving: presence.walkers.length > 0,
+                })}
               />
             </LabelPortalContext.Provider>
           </Canvas>
