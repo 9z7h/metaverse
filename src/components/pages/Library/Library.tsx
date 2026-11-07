@@ -21,7 +21,7 @@ import {
   saveHouse,
   saveRerollDay,
 } from "./houses";
-import { HouseRanking } from "./HouseRanking";
+import { WorldIntro } from "./WorldIntro";
 import {
   addMine,
   balancedHouse,
@@ -476,6 +476,8 @@ export function Library({
 
   const freeSeats =
     presence.seats.length - presence.others.length - (presence.me ? 1 : 0);
+  // 서버 연결 중에는 기숙사를 아직 몰라 첫 입장인지 알 수 없으니, 연결이 정해진 뒤에 소개를 그린다
+  const introReady = conn.status !== "connecting";
   const mySubject = subject.trim() || DEFAULT_SUBJECT;
 
   const handleSit = (seatId: string) => {
@@ -629,7 +631,7 @@ export function Library({
           </p>
         </div>
 
-        {/* 타이틀 바로 아래 — 내 기숙사 (첫 입장이면 사신등 의식 안내) */}
+        {/* 내 기숙사 (첫 입장이면 사신등 의식 안내) */}
         <HouseCard
           house={house}
           rerollAvailable={rerollAvailable}
@@ -638,6 +640,9 @@ export function Library({
           onConfirmReroll={reroll}
           onCancelReroll={() => setConfirmReroll(false)}
         />
+
+        {/* 첫 입장(기숙사 배정 전)이면 세계관 소개를 내 기숙사 카드 바로 아래에 펼쳐 둔다 */}
+        {introReady && !house ? <WorldIntro initialOpen /> : null}
 
         {notice && (
           <p role="status" style={captionStyle}>
@@ -651,12 +656,8 @@ export function Library({
           free={freeSeats}
         />
 
-        <HouseRanking
-          title="오늘의 사신제"
-          caption="기숙사별 오늘 수련(집중) 시간 합계 · 내 수련도 내 기숙사에 더해져요"
-          entries={ranking}
-          myHouse={house}
-        />
+        {/* 재방문자에게는 접힌 '학당 소개 보기' 버튼 (첫 입장 때는 위쪽에 펼쳐져 있음) */}
+        {introReady && house ? <WorldIntro /> : null}
 
         <form
           style={{
