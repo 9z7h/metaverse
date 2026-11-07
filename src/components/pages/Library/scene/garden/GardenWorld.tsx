@@ -11,6 +11,7 @@ import { ButtonLarge, ButtonMedium } from "../../../../ui/Button";
 import { isTypingTarget } from "../../chat";
 import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
+import type { LibraryPresence } from "../../libraryPresence";
 import { FloorPicker, FrameDriver, TapMarker } from "../Characters";
 import type { FloorPick } from "../Characters";
 import { LabelPortalContext } from "../Avatar";
@@ -21,12 +22,19 @@ import {
   readSceneColors,
 } from "../sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
-import { BroomRider } from "./Broom";
+import { BroomRider, RemoteRider } from "./Broom";
 import { GardenScenery } from "./GardenScenery";
 import { GARDEN_HALF, resolveWalk } from "./gardenLayout";
 
+/** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
+export type GardenPresence = Pick<
+  LibraryPresence,
+  "walkers" | "moves" | "sendMove"
+>;
+
 export interface GardenWorldProps {
   house: HouseId;
+  presence: GardenPresence;
   /** 서고로 돌아가기 (HUD 화살표·문 앞 버튼·E 키) */
   onBack: () => void;
 }
@@ -87,9 +95,9 @@ const auto: CSSProperties = { pointerEvents: "auto" };
 
 /**
  * 숨돌림 뜰 — 서고 밖 달밤의 후원. 걷다가 도깨비 몽당 싸리비를 타고 천천히 날며 머리를 식힌다.
- * 혼자만의 공간이라 다른 수련생·대화·타이머는 없다(타이머는 상위가 멈춰 둔다).
+ * 같은 정원에 있는 다른 수련생이 걷거나 싸리비를 타는 모습이 보인다. 대화·타이머는 없다(타이머는 상위가 멈춰 둔다).
  */
-export function GardenWorld({ house, onBack }: GardenWorldProps) {
+export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<SceneColors | null>(null);
   useLayoutEffect(() => {
@@ -326,6 +334,15 @@ export function GardenWorld({ house, onBack }: GardenWorldProps) {
                 color={colors["--color-scene-light"]}
               />
               <GardenScenery colors={colors} />
+              {presence.walkers.map((w) => (
+                <RemoteRider
+                  key={w.id}
+                  walker={w}
+                  colors={colors}
+                  moves={presence.moves}
+                  reducedMotion={reduced}
+                />
+              ))}
               <BroomRider
                 colors={colors}
                 house={house}
@@ -337,6 +354,7 @@ export function GardenWorld({ house, onBack }: GardenWorldProps) {
                 onNearDoorChange={handleNearDoor}
                 onMovingChange={setMoving}
                 reducedMotion={reduced}
+                onMove={presence.sendMove}
               />
               <FloorPicker pickRef={pickFloor} />
               {marker ? (

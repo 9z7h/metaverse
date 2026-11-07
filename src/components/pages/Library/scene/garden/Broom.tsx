@@ -11,11 +11,13 @@ import { Vector3 } from "three";
 import type { BufferAttribute, Group, Points } from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
+import { FOLLOW_RATE, IDLE_SEND_MS, MOVE_SEND_MS } from "../Characters";
 import { roundGlowKey, roundGlowShader } from "../MagicEffect";
 import { cameraRelativeMove, cameraRig } from "../sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
+import type { RemoteMove, Walker } from "../../libraryPresence";
 import {
   GARDEN_CAMERA_BOUNDS,
   GARDEN_SPAWN,
@@ -92,6 +94,15 @@ export interface BroomRiderProps {
   onMovingChange: (moving: boolean) => void;
   /** "동작 줄이기" — 흔들림·기울어짐·자취를 없애고 천천히 */
   reducedMotion: boolean;
+  /** 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
+  onMove?: (
+    x: number,
+    z: number,
+    ry: number,
+    moving: boolean,
+    y: number,
+    riding: boolean,
+  ) => void;
 }
 
 const CAMERA_DIST = { walk: 7.6, fly: 10.5 };
@@ -107,7 +118,9 @@ export function BroomRider({
   onNearDoorChange,
   onMovingChange,
   reducedMotion,
+  onMove,
 }: BroomRiderProps) {
+  const lastSent = useRef({ at: 0, moving: false });
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
   const avatar = useRef<Group>(null);
@@ -243,6 +256,18 @@ export function BroomRider({
     }
     if (avatar.current) avatar.current.position.y = flying ? SIT_Y : 0;
 
+    // ── 내 위치를 알린다 (멈추는 순간은 바로, 그 밖에는 걷거나 날 때 300ms · 가만히 있을 땐 2초)
+    if (onMove) {
+      const now = performance.now();
+      const sent = lastSent.current;
+      const stopped = sent.moving && !moving;
+      const due = now - sent.at >= (moving ? MOVE_SEND_MS : IDLE_SEND_MS);
+      if (stopped || due) {
+        lastSent.current = { at: now, moving };
+        onMove(cur.x, cur.z, cur.heading, moving, cur.y, flying);
+      }
+    }
+
     // ── 반딧불 자취: 날아가는 동안 뒤에 남는 빛
     if (trail.current) {
       if (
@@ -338,5 +363,111 @@ export function BroomRider({
         />
       </points>
     </>
+  );
+}
+
+/* ── 정원의 다른 접속자 ─────────────────────────────────────── */
+
+export interface RemoteRiderProps {
+  walker: Walker;
+  colors: SceneColors;
+  /** 걷는 사람들의 최근 위치 — 매 프레임 읽는다 */
+  moves: MutableRefObject<Map<string, RemoteMove>>;
+  /** "동작 줄이기" — 기울어짐·흔들림을 없앤다 */
+  reducedMotion: boolean;
+}
+
+/**
+ * 정원에서 걷거나 싸리비를 타고 나는 다른 접속자.
+ * 받은 위치(300ms 간격)를 따라가며 보간하고, 날 때는 내 `BroomRider`와 같은 모습(빗자루·기울임)으로 그린다.
+ */
+export function RemoteRider({
+  walker,
+  colors,
+  moves,
+  reducedMotion,
+}: RemoteRiderProps) {
+  const root = useRef<Group>(null);
+  const tilt = useRef<Group>(null);
+  const avatar = useRef<Group>(null);
+  const cur = useRef<{
+    x: number;
+    y: number;
+    z: number;
+    heading: number;
+  } | null>(null);
+  const prevHeading = useRef(0);
+  const bank = useRef(0);
+  const [pose, setPose] = useState<AvatarPose>("stand");
+  const [showBroom, setShowBroom] = useState(false);
+
+  useFrame(({ clock }, rawDt) => {
+    const g = root.current;
+    if (!g) return;
+    const move = moves.current.get(walker.id);
+    // 첫 위치를 받기 전, 또는 서고에서 보낸 위치는 숨긴다 (좌표계가 다르다)
+    if (!move || move.place !== "garden") {
+      g.visible = false;
+      cur.current = null;
+      return;
+    }
+    g.visible = true;
+    if (!cur.current) {
+      cur.current = { x: move.x, y: move.y, z: move.z, heading: move.ry };
+      prevHeading.current = move.ry;
+    }
+    const c = cur.current;
+    const dt = Math.min(rawDt, 0.1);
+    const k = 1 - Math.exp(-dt * FOLLOW_RATE);
+    const dx = move.x - c.x;
+    const dz = move.z - c.z;
+    c.x += dx * k;
+    c.z += dz * k;
+    c.y += (move.y - c.y) * k;
+    c.heading += wrapAngle(move.ry - c.heading) * k;
+
+    const flying = c.y > 0.04 || move.riding;
+    if (flying !== showBroom) setShowBroom(flying);
+    const walking = move.moving || Math.hypot(dx, dz) > 0.1;
+    const nextPose: AvatarPose = flying ? "sit" : walking ? "walk" : "stand";
+    if (nextPose !== pose) setPose(nextPose);
+
+    const t = clock.elapsedTime;
+    const bob = flying && !reducedMotion ? Math.sin(t * 1.6 + c.x) * 0.05 : 0;
+    g.position.set(c.x, c.y + bob, c.z);
+    g.rotation.y = c.heading;
+    if (tilt.current) {
+      // 돌아가는 쪽으로 기울이는 방식은 BroomRider와 같다
+      const turnRate =
+        wrapAngle(c.heading - prevHeading.current) / Math.max(dt, 1e-6);
+      prevHeading.current = c.heading;
+      const wantBank =
+        reducedMotion || !flying
+          ? 0
+          : -Math.max(-0.35, Math.min(0.35, turnRate * 0.18 * 0.5));
+      bank.current += (wantBank - bank.current) * Math.min(1, dt * 4);
+      tilt.current.rotation.z = bank.current;
+    }
+    if (avatar.current) avatar.current.position.y = flying ? SIT_Y : 0;
+  });
+
+  return (
+    <group ref={root}>
+      <group ref={tilt}>
+        {showBroom ? <BroomModel colors={colors} /> : null}
+        <Avatar
+          ref={avatar}
+          robe={colors[houseToken(walker.house, "primary")]}
+          band={colors[houseToken(walker.house, "accent")]}
+          collar={colors["--color-scene-collar"]}
+          houseDot={colors[houseToken(walker.house, "accent")]}
+          skin={colors["--color-scene-skin"]}
+          hat={colors["--color-scene-hat"]}
+          pose={pose}
+          name={walker.name}
+          showLabel
+        />
+      </group>
+    </group>
   );
 }

@@ -60,6 +60,9 @@ export interface Walker {
   house: HouseId;
 }
 
+/** 지금 어느 화면에 있는지 — 같은 곳에 있는 사람만 서로 보인다 */
+export type PresencePlace = "entrance" | "library" | "garden";
+
 /** 걷는 사람이 마지막으로 알려 온 위치 (매 프레임 읽으므로 state가 아니라 ref로 둔다) */
 export interface RemoteMove {
   x: number;
@@ -67,6 +70,12 @@ export interface RemoteMove {
   /** y축 회전 */
   ry: number;
   moving: boolean;
+  /** 땅에서 뜬 높이 — 싸리비를 타고 날 때만 0보다 크다 */
+  y: number;
+  /** 싸리비를 타고 있는지 */
+  riding: boolean;
+  /** 이 위치를 보낸 사람이 있던 곳 (좌표계가 곳마다 다르다) */
+  place: PresencePlace;
   /** 받은 시각(ms) */
   at: number;
 }
@@ -90,7 +99,14 @@ export interface LibraryPresence {
   /** 걷는 사람들의 최근 위치 — 키는 Walker.id */
   moves: MutableRefObject<Map<string, RemoteMove>>;
   /** 내 위치를 알린다 (호출 빈도는 부르는 쪽이 조절) */
-  sendMove: (x: number, z: number, ry: number, moving: boolean) => void;
+  sendMove: (
+    x: number,
+    z: number,
+    ry: number,
+    moving: boolean,
+    y?: number,
+    riding?: boolean,
+  ) => void;
   me: PresenceStudent | null;
   join: (presence: MyPresence) => void;
   update: (patch: Partial<MyPresence>) => void;

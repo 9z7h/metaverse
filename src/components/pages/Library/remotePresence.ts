@@ -29,11 +29,12 @@ import type {
   LibraryPresence,
   MyPresence,
   PresenceStudent,
+  PresencePlace,
   RemoteMove,
   StudyMode,
   Walker,
 } from "./libraryPresence";
-import { ROOM } from "./scene/sceneLayout";
+import { GARDEN_HALF } from "./scene/garden/gardenLayout";
 import type { AcademyApi } from "./academyApi";
 
 const CHANNEL = "academy:library";
@@ -41,7 +42,11 @@ const CHANNEL = "academy:library";
 const LOBBY_CHANNEL = "academy:lobby";
 /** 같은 사람이 보낸 위치를 이보다 자주 받으면 버린다 (보내는 쪽은 약 300ms 간격) */
 const MIN_MOVE_GAP_MS = 120;
-/** 서고 밖으로 나간 값은 모양이 이상한 것으로 보고 서고 안으로 붙인다 */
+/** 정원이 서고보다 넓으므로 정원 크기로 붙인다 — 이 범위를 벗어난 값은 모양이 이상한 것 */
+const MAX_COORD = GARDEN_HALF;
+const MAX_HEIGHT = 40;
+const isPlace = (v: unknown): v is PresencePlace =>
+  v === "entrance" || v === "library" || v === "garden";
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
 const TOTALS_POLL_MS = 15_000;
@@ -98,7 +103,9 @@ export function parseOthers(
 }
 
 /** 로비에 올린 이름·기숙사. 기숙사가 아직 없거나 이상하면 null (접속자 수에는 센다) */
-export function parseMember(raw: unknown): Omit<Walker, "id"> | null {
+export function parseMember(
+  raw: unknown,
+): (Omit<Walker, "id"> & { place: PresencePlace }) | null {
   if (typeof raw !== "object" || raw === null) return null;
   const r = raw as Record<string, unknown>;
   if (!isHouseId(r.house)) return null;
@@ -108,6 +115,8 @@ export function parseMember(raw: unknown): Omit<Walker, "id"> | null {
         ? r.name.trim().slice(0, 12)
         : "수련생",
     house: r.house,
+    // 예전 클라이언트는 place가 없다 — 서고에 있는 것으로 본다
+    place: isPlace(r.place) ? r.place : "library",
   };
 }
 
@@ -126,25 +135,31 @@ export function parseMove(
   if (![x, z, ry].every(Number.isFinite)) return null;
   return {
     senderId: r.id,
-    x: clamp(x, ROOM.minX, ROOM.maxX),
-    z: clamp(z, ROOM.minZ, ROOM.maxZ),
+    x: clamp(x, -MAX_COORD, MAX_COORD),
+    z: clamp(z, -MAX_COORD, MAX_COORD),
     ry: clamp(ry, -Math.PI * 4, Math.PI * 4),
     moving: r.moving === true,
+    y: Number.isFinite(Number(r.y)) ? clamp(Number(r.y), 0, MAX_HEIGHT) : 0,
+    riding: r.riding === true,
+    place: isPlace(r.place) ? r.place : "library",
   };
 }
 
-/** 로비 presence 상태에서 앉지 않은 접속자 — 나와 이미 앉은 사람은 뺀다 */
+/** 로비 presence 상태에서 앉지 않은 접속자 — 나·이미 앉은 사람·다른 곳에 있는 사람은 뺀다 */
 export function parseWalkers(
   state: Record<string, unknown[]>,
   selfId: string | null,
   seatedIds: ReadonlySet<string>,
+  place: PresencePlace,
 ): Walker[] {
   const out: Walker[] = [];
   for (const [key, metas] of Object.entries(state)) {
     if (key === selfId || seatedIds.has(key)) continue;
     if (!Array.isArray(metas) || metas.length === 0) continue;
     const member = parseMember(metas[metas.length - 1]);
-    if (member) out.push({ id: key, ...member });
+    if (member && member.place === place) {
+      out.push({ id: key, name: member.name, house: member.house });
+    }
   }
   return out;
 }
@@ -172,6 +187,8 @@ export interface UseRemotePresenceOptions {
   nickname: string;
   /** 내 기숙사 — 걸어 다니는 모습의 로브 색. 배정 전이면 null */
   house?: HouseId | null;
+  /** 지금 있는 곳 — 같은 곳에 있는 사람만 걸어 다니는 모습이 보인다 */
+  place?: PresencePlace;
 }
 
 export function useRemotePresence({
@@ -179,6 +196,7 @@ export function useRemotePresence({
   api,
   nickname,
   house = null,
+  place = "library",
 }: UseRemotePresenceOptions): LibraryPresence {
   const userId = api?.userId ?? null;
   const [others, setOthers] = useState<PresenceStudent[]>([]);
@@ -278,8 +296,8 @@ export function useRemotePresence({
   useEffect(() => {
     const lobby = lobbyRef.current;
     if (!lobbyReady || !lobby) return;
-    void lobby.track({ name: nickname, house });
-  }, [lobbyReady, nickname, house]);
+    void lobby.track({ name: nickname, house, place });
+  }, [lobbyReady, nickname, house, place]);
 
   // 내 상태가 바뀔 때마다 알린다 (앉으면 track, 일어서면 untrack)
   useEffect(() => {
@@ -365,12 +383,20 @@ export function useRemotePresence({
     [lobbyState, userId],
   );
   const walkers = useMemo(
-    () => parseWalkers(lobbyState, userId, new Set(others.map((o) => o.id))),
-    [lobbyState, userId, others],
+    () =>
+      parseWalkers(lobbyState, userId, new Set(others.map((o) => o.id)), place),
+    [lobbyState, userId, others, place],
   );
 
   const sendMove = useCallback(
-    (x: number, z: number, ry: number, moving: boolean) => {
+    (
+      x: number,
+      z: number,
+      ry: number,
+      moving: boolean,
+      y = 0,
+      riding = false,
+    ) => {
       const lobby = lobbyRef.current;
       if (!lobby || !lobbyReady || !userId) return;
       const round = (v: number) => Math.round(v * 100) / 100;
@@ -383,10 +409,13 @@ export function useRemotePresence({
           z: round(z),
           ry: round(ry),
           moving,
+          y: round(y),
+          riding,
+          place,
         },
       });
     },
-    [lobbyReady, userId],
+    [lobbyReady, userId, place],
   );
 
   return useMemo(

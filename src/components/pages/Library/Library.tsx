@@ -359,14 +359,16 @@ export function Library({
   const mockPresence = useLibraryPresence(
     remoteMode ? { ...presenceOptions, simulate: false } : presenceOptions,
   );
+  const [step, setStep] = useState<Step>("entrance");
   const remotePresence = useRemotePresence({
     client: remoteMode ? (academy ?? null) : null,
     api: server?.api ?? null,
     nickname: server?.student?.nickname ?? "수련생",
     house: server?.student?.house ?? null,
+    place:
+      step === "garden" ? "garden" : step === "world" ? "library" : "entrance",
   });
   const presence = remoteMode ? remotePresence : mockPresence;
-  const [step, setStep] = useState<Step>("entrance");
   // 기숙사는 한 번 배정 후 유지 — 서버 모드에서는 서버가 정한 값, 데모에서는 localStorage
   const [house, setHouse] = useState<HouseId | null>(() =>
     academy ? null : loadHouse(),
@@ -539,7 +541,11 @@ export function Library({
               </p>
             }
           >
-            <GardenWorld house={house} onBack={() => setStep("world")} />
+            <GardenWorld
+              house={house}
+              presence={remotePresence}
+              onBack={() => setStep("world")}
+            />
           </Suspense>
         ) : (
           <Unsupported onBack={() => setStep("world")} />

@@ -596,6 +596,7 @@ export function LibraryWorld({
                 <RemoteWalker
                   key={w.id}
                   walker={w}
+                  place="library"
                   colors={colors}
                   moves={presence.moves}
                   bubble={bubbles.get(w.id)?.text}

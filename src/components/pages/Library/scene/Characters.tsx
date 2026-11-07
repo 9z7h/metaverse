@@ -23,15 +23,20 @@ import {
   PLAYER_SPAWN,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
-import type { PresenceStudent, RemoteMove, Walker } from "../libraryPresence";
+import type {
+  PresencePlace,
+  PresenceStudent,
+  RemoteMove,
+  Walker,
+} from "../libraryPresence";
 import { houseToken } from "../houses";
 import type { HouseId } from "../houses";
 
 const WALK_SPEED = 2.6; // m/s
 const BOT_SPEED = 1.4;
 /** 내 위치를 알리는 간격 — 걷는 중 / 가만히 있을 때(새로 들어온 사람이 내 위치를 알 수 있게) */
-const MOVE_SEND_MS = 300;
-const IDLE_SEND_MS = 2000;
+export const MOVE_SEND_MS = 300;
+export const IDLE_SEND_MS = 2000;
 
 /* ── 내 아바타 ─────────────────────────────────────────── */
 
@@ -421,10 +426,12 @@ export function Bot({
 /* ── 걸어 다니는 다른 접속자 ────────────────────────────── */
 
 /** 이 속도로 받은 위치를 따라간다 (클수록 빨리 붙는다) — 300ms 간격 위치가 끊겨 보이지 않게 보간 */
-const FOLLOW_RATE = 7;
+export const FOLLOW_RATE = 7;
 
 export interface RemoteWalkerProps {
   walker: Walker;
+  /** 지금 내가 있는 곳 — 다른 곳에서 보낸 위치는 좌표계가 달라 그리지 않는다 */
+  place: PresencePlace;
   colors: SceneColors;
   /** 걷는 사람들의 최근 위치 — 매 프레임 읽는다 */
   moves: MutableRefObject<Map<string, RemoteMove>>;
@@ -434,6 +441,7 @@ export interface RemoteWalkerProps {
 
 export function RemoteWalker({
   walker,
+  place,
   colors,
   moves,
   bubble,
@@ -448,7 +456,7 @@ export function RemoteWalker({
     if (!g) return;
     const move = moves.current.get(walker.id);
     // 첫 위치를 받기 전에는 엉뚱한 곳에 서 있지 않도록 숨긴다
-    if (!move) {
+    if (!move || move.place !== place) {
       g.visible = false;
       pos.current = null;
       return;

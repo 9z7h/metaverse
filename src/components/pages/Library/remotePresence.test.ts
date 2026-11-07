@@ -89,13 +89,32 @@ describe("parseMove — 방송된 위치는 믿지 않는다", () => {
       z: 4,
       ry: 0.5,
       moving: true,
+      y: 0,
+      riding: false,
+      place: "library",
     });
   });
 
-  it("서고 밖 좌표는 서고 안으로 붙인다", () => {
+  it("정원 밖 좌표는 정원 안으로 붙인다", () => {
     const m = parseMove({ ...ok, x: 9999, z: -9999 });
-    expect(m?.x).toBe(8);
-    expect(m?.z).toBe(-30);
+    expect(m?.x).toBe(34);
+    expect(m?.z).toBe(-34);
+  });
+
+  it("싸리비 높이와 타는 중 여부, 있는 곳을 읽는다", () => {
+    const m = parseMove({
+      ...ok,
+      y: 3.2,
+      riding: true,
+      place: "garden",
+    });
+    expect(m).toMatchObject({ y: 3.2, riding: true, place: "garden" });
+  });
+
+  it("높이는 0 이상 한계 안으로, 이상한 place는 서고로", () => {
+    expect(parseMove({ ...ok, y: -5 })?.y).toBe(0);
+    expect(parseMove({ ...ok, y: 9999 })?.y).toBe(40);
+    expect(parseMove({ ...ok, place: "moon" })?.place).toBe("library");
   });
 
   it.each([
@@ -119,21 +138,26 @@ describe("parseMember / parseWalkers — 앉지 않은 접속자", () => {
     expect(parseMember({ name: "  하린  ", house: "jujak" })).toEqual({
       name: "하린",
       house: "jujak",
+      place: "library",
     });
     expect(parseMember({ name: "하린", house: null })).toBeNull();
     expect(parseMember({ name: "하린", house: "nope" })).toBeNull();
   });
 
-  it("나와 이미 앉은 사람은 걷는 사람이 아니다", () => {
+  it("나·이미 앉은 사람·다른 곳에 있는 사람은 걷는 사람이 아니다", () => {
     const state = {
       me: [{ name: "나", house: "jujak" }],
       seated: [{ name: "앉음", house: "baekho" }],
       walker: [{ name: "걷는이", house: "hyeonmu" }],
       noHouse: [{ name: "배정전", house: null }],
       left: [],
+      inGarden: [{ name: "정원", house: "cheongryong", place: "garden" }],
     };
-    expect(parseWalkers(state, "me", new Set(["seated"]))).toEqual([
+    expect(parseWalkers(state, "me", new Set(["seated"]), "library")).toEqual([
       { id: "walker", name: "걷는이", house: "hyeonmu" },
+    ]);
+    expect(parseWalkers(state, "me", new Set(["seated"]), "garden")).toEqual([
+      { id: "inGarden", name: "정원", house: "cheongryong" },
     ]);
   });
 });
