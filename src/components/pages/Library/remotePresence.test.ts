@@ -5,7 +5,10 @@ import type { AcademyApi } from "./academyApi";
 import { describe, expect, it, vi } from "vitest";
 import {
   countConnected,
+  parseMember,
+  parseMove,
   parseOthers,
+  parseWalkers,
   parsePayload,
   useRemotePresence,
 } from "./remotePresence";
@@ -73,6 +76,65 @@ describe("countConnected — 앉지 않아도 접속자로 센다", () => {
 
   it("빈 메타는 떠난 사람이므로 세지 않는다", () => {
     expect(countConnected({ a: [] }, "me")).toBe(1);
+  });
+});
+
+describe("parseMove — 방송된 위치는 믿지 않는다", () => {
+  const ok = { id: "u1", x: 1.5, z: 4, ry: 0.5, moving: true };
+
+  it("정상 위치", () => {
+    expect(parseMove(ok)).toEqual({
+      senderId: "u1",
+      x: 1.5,
+      z: 4,
+      ry: 0.5,
+      moving: true,
+    });
+  });
+
+  it("서고 밖 좌표는 서고 안으로 붙인다", () => {
+    const m = parseMove({ ...ok, x: 9999, z: -9999 });
+    expect(m?.x).toBe(8);
+    expect(m?.z).toBe(-30);
+  });
+
+  it.each([
+    ["숫자가 아닌 좌표", { ...ok, x: "abc" }],
+    ["NaN", { ...ok, z: NaN }],
+    ["id 없음", { ...ok, id: undefined }],
+    ["빈 id", { ...ok, id: "" }],
+    ["객체가 아님", "move"],
+    ["null", null],
+  ])("%s는 버린다", (_label, raw) => {
+    expect(parseMove(raw)).toBeNull();
+  });
+
+  it("moving은 true일 때만 걷는 것으로", () => {
+    expect(parseMove({ ...ok, moving: "yes" })?.moving).toBe(false);
+  });
+});
+
+describe("parseMember / parseWalkers — 앉지 않은 접속자", () => {
+  it("이름은 다듬고, 기숙사가 없으면 버린다", () => {
+    expect(parseMember({ name: "  하린  ", house: "jujak" })).toEqual({
+      name: "하린",
+      house: "jujak",
+    });
+    expect(parseMember({ name: "하린", house: null })).toBeNull();
+    expect(parseMember({ name: "하린", house: "nope" })).toBeNull();
+  });
+
+  it("나와 이미 앉은 사람은 걷는 사람이 아니다", () => {
+    const state = {
+      me: [{ name: "나", house: "jujak" }],
+      seated: [{ name: "앉음", house: "baekho" }],
+      walker: [{ name: "걷는이", house: "hyeonmu" }],
+      noHouse: [{ name: "배정전", house: null }],
+      left: [],
+    };
+    expect(parseWalkers(state, "me", new Set(["seated"]))).toEqual([
+      { id: "walker", name: "걷는이", house: "hyeonmu" },
+    ]);
   });
 });
 

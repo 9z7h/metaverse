@@ -363,6 +363,7 @@ export function Library({
     client: remoteMode ? (academy ?? null) : null,
     api: server?.api ?? null,
     nickname: server?.student?.nickname ?? "수련생",
+    house: server?.student?.house ?? null,
   });
   const presence = remoteMode ? remotePresence : mockPresence;
   const [step, setStep] = useState<Step>("entrance");

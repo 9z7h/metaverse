@@ -8,6 +8,7 @@
  * 지금은 타이머로 다른 학생들의 집중/휴식 전환과 입·퇴장을 시뮬레이션한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import type { HouseId } from "./houses";
 import {
   appendChat,
@@ -52,6 +53,24 @@ export interface LibraryChat {
   send: (text: string, house: HouseId) => boolean;
 }
 
+/** 접속했지만 자리에 앉지 않고 서고를 걸어 다니는 다른 사람 */
+export interface Walker {
+  id: string;
+  name: string;
+  house: HouseId;
+}
+
+/** 걷는 사람이 마지막으로 알려 온 위치 (매 프레임 읽으므로 state가 아니라 ref로 둔다) */
+export interface RemoteMove {
+  x: number;
+  z: number;
+  /** y축 회전 */
+  ry: number;
+  moving: boolean;
+  /** 받은 시각(ms) */
+  at: number;
+}
+
 export interface LibraryPresence {
   seats: LibrarySeat[];
   /** 나를 제외한 접속자 */
@@ -66,6 +85,12 @@ export interface LibraryPresence {
   onlineCount: number;
   /** 자리에 앉지 않았어도 지금 사이트를 열어 둔 사람의 수 (나 포함) */
   connectedCount: number;
+  /** 앉지 않고 걸어 다니는 다른 접속자 (앉으면 `others`로 옮겨 간다) */
+  walkers: Walker[];
+  /** 걷는 사람들의 최근 위치 — 키는 Walker.id */
+  moves: MutableRefObject<Map<string, RemoteMove>>;
+  /** 내 위치를 알린다 (호출 빈도는 부르는 쪽이 조절) */
+  sendMove: (x: number, z: number, ry: number, moving: boolean) => void;
   me: PresenceStudent | null;
   join: (presence: MyPresence) => void;
   update: (patch: Partial<MyPresence>) => void;
@@ -323,6 +348,11 @@ export function useLibraryPresence({
     return true;
   }, []);
 
+  // 데모에는 걸어 다니는 가짜 학생이 없다 — 가짜 학생은 처음부터 앉아 있다
+  const walkers = useMemo<Walker[]>(() => [], []);
+  const moves = useRef(new Map<string, RemoteMove>());
+  const sendMove = useCallback(() => {}, []);
+
   const houseTotals = useMemo(() => {
     const totals = { ...banked };
     for (const s of others) totals[s.house] += s.focusSeconds;
@@ -337,12 +367,26 @@ export function useLibraryPresence({
       onlineCount: others.length + (me ? 1 : 0),
       // 데모에서는 가짜 학생이 모두 앉아 있으므로 같은 값
       connectedCount: others.length + 1,
+      walkers,
+      moves,
+      sendMove,
       me,
       join,
       update,
       leave,
       chat: { messages: chatLog, send: sendChat },
     }),
-    [others, houseTotals, me, join, update, leave, chatLog, sendChat],
+    [
+      others,
+      houseTotals,
+      walkers,
+      sendMove,
+      me,
+      join,
+      update,
+      leave,
+      chatLog,
+      sendChat,
+    ],
   );
 }

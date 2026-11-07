@@ -16,7 +16,11 @@ import {
   formatClock,
   hourProgress,
 } from "../../../ui/FocusTimer";
-import type { LibraryPresence, StudyMode } from "../libraryPresence";
+import type {
+  LibraryPresence,
+  RemoteMove,
+  StudyMode,
+} from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
 import { ChatPanel } from "../ChatPanel";
 import { ME_BUBBLE_KEY, activeBubbles, isTypingTarget } from "../chat";
@@ -27,6 +31,7 @@ import {
   FrameDriver,
   LeavingBot,
   Player,
+  RemoteWalker,
   TapMarker,
 } from "./Characters";
 import type { BotSnapshot } from "./Characters";
@@ -126,6 +131,11 @@ function FollowLights({
 }
 
 /** "동작 줄이기" 설정이면 퇴장 연출 없이 바로 사라진다 */
+/** 걷다가 앉은 사람이 그 자리에서 이어 걸어가도록 마지막 위치를 출발점으로 넘긴다 */
+function startFrom(move: RemoteMove | undefined): Vec2 | undefined {
+  return move ? { x: move.x, z: move.z } : undefined;
+}
+
 function prefersReducedMotion() {
   try {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -577,8 +587,18 @@ export function LibraryWorld({
                   student={s}
                   colors={colors}
                   entering={!initialIds.current.has(s.id)}
+                  from={startFrom(presence.moves.current.get(s.id))}
                   registry={botRegistry}
                   bubble={bubbles.get(s.id)?.text}
+                />
+              ))}
+              {presence.walkers.map((w) => (
+                <RemoteWalker
+                  key={w.id}
+                  walker={w}
+                  colors={colors}
+                  moves={presence.moves}
+                  bubble={bubbles.get(w.id)?.text}
                 />
               ))}
               {leavers.map((l) => (
@@ -609,6 +629,7 @@ export function LibraryWorld({
                 onNearExitChange={setAtExit}
                 orbit={orbit}
                 dragging={draggingRef}
+                onMove={presence.sendMove}
               />
               <FloorPicker pickRef={pickFloor} />
               <RankingBoard colors={colors} ranking={ranking} myHouse={house} />
@@ -682,7 +703,8 @@ export function LibraryWorld({
                     background: "var(--color-interactive-primary)",
                   }}
                 />
-                {presence.onlineCount}명 공부 중
+                {presence.connectedCount}명 접속 · {presence.onlineCount}명 공부
+                중
               </span>
             </div>
           </div>

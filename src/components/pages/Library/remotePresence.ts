@@ -29,13 +29,21 @@ import type {
   LibraryPresence,
   MyPresence,
   PresenceStudent,
+  RemoteMove,
   StudyMode,
+  Walker,
 } from "./libraryPresence";
+import { ROOM } from "./scene/sceneLayout";
 import type { AcademyApi } from "./academyApi";
 
 const CHANNEL = "academy:library";
 /** 앉지 않은 사람까지 세는 접속자 전용 채널 */
 const LOBBY_CHANNEL = "academy:lobby";
+/** 같은 사람이 보낸 위치를 이보다 자주 받으면 버린다 (보내는 쪽은 약 300ms 간격) */
+const MIN_MOVE_GAP_MS = 120;
+/** 서고 밖으로 나간 값은 모양이 이상한 것으로 보고 서고 안으로 붙인다 */
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
 const TOTALS_POLL_MS = 15_000;
 const DAY_SECONDS = 86_400;
 
@@ -89,6 +97,58 @@ export function parseOthers(
   return out;
 }
 
+/** 로비에 올린 이름·기숙사. 기숙사가 아직 없거나 이상하면 null (접속자 수에는 센다) */
+export function parseMember(raw: unknown): Omit<Walker, "id"> | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (!isHouseId(r.house)) return null;
+  return {
+    name:
+      typeof r.name === "string" && r.name.trim()
+        ? r.name.trim().slice(0, 12)
+        : "수련생",
+    house: r.house,
+  };
+}
+
+/** 상대가 방송한 위치를 검증해서 서고 안의 좌표로. 이상하면 null */
+export function parseMove(
+  raw: unknown,
+): (Omit<RemoteMove, "at"> & { senderId: string }) | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== "string" || r.id.length === 0 || r.id.length > 64) {
+    return null;
+  }
+  const x = Number(r.x);
+  const z = Number(r.z);
+  const ry = Number(r.ry);
+  if (![x, z, ry].every(Number.isFinite)) return null;
+  return {
+    senderId: r.id,
+    x: clamp(x, ROOM.minX, ROOM.maxX),
+    z: clamp(z, ROOM.minZ, ROOM.maxZ),
+    ry: clamp(ry, -Math.PI * 4, Math.PI * 4),
+    moving: r.moving === true,
+  };
+}
+
+/** 로비 presence 상태에서 앉지 않은 접속자 — 나와 이미 앉은 사람은 뺀다 */
+export function parseWalkers(
+  state: Record<string, unknown[]>,
+  selfId: string | null,
+  seatedIds: ReadonlySet<string>,
+): Walker[] {
+  const out: Walker[] = [];
+  for (const [key, metas] of Object.entries(state)) {
+    if (key === selfId || seatedIds.has(key)) continue;
+    if (!Array.isArray(metas) || metas.length === 0) continue;
+    const member = parseMember(metas[metas.length - 1]);
+    if (member) out.push({ id: key, ...member });
+  }
+  return out;
+}
+
 /** 로비 presence 상태에서 접속자 수. 나는 항상 포함하고, 같은 사용자의 여러 탭은 한 명으로 */
 export function countConnected(
   state: Record<string, unknown[]>,
@@ -110,19 +170,26 @@ export interface UseRemotePresenceOptions {
   api: AcademyApi | null;
   /** 서버가 정해 준 닉네임 */
   nickname: string;
+  /** 내 기숙사 — 걸어 다니는 모습의 로브 색. 배정 전이면 null */
+  house?: HouseId | null;
 }
 
 export function useRemotePresence({
   client,
   api,
   nickname,
+  house = null,
 }: UseRemotePresenceOptions): LibraryPresence {
   const userId = api?.userId ?? null;
   const [others, setOthers] = useState<PresenceStudent[]>([]);
   const [totals, setTotals] = useState<HouseSeconds>(zeroHouseSeconds);
   const [me, setMe] = useState<PresenceStudent | null>(null);
   const [ready, setReady] = useState(false);
-  const [connectedCount, setConnectedCount] = useState(0);
+  const [lobbyState, setLobbyState] = useState<Record<string, unknown[]>>({});
+  const [lobbyReady, setLobbyReady] = useState(false);
+  const moves = useRef(new Map<string, RemoteMove>());
+  const lastMoveAt = useRef(new Map<string, number>());
+  const lobbyRef = useRef<ReturnType<SupabaseClient["channel"]> | null>(null);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const receiveLimiter = useRef(createReceiveLimiter());
   const lastSentAt = useRef<number | null>(null);
@@ -165,22 +232,54 @@ export function useRemotePresence({
     };
   }, [client, userId]);
 
-  // 접속 중인 사람 — 자리에 앉지 않아도 사이트를 여는 순간부터 센다
+  // 접속 중인 사람 — 자리에 앉지 않아도 사이트를 여는 순간부터 센다.
+  // 이름·기숙사는 presence로, 걸어 다니는 위치는 broadcast로 나눈다
+  // (위치를 presence로 보내면 바뀔 때마다 모두에게 전체 상태가 다시 간다).
   useEffect(() => {
     if (!client || !userId) return;
     const lobby = client.channel(LOBBY_CHANNEL, {
       config: { presence: { key: userId } },
     });
+    lobbyRef.current = lobby;
     lobby.on("presence", { event: "sync" }, () => {
-      setConnectedCount(countConnected(lobby.presenceState(), userId));
+      const state = lobby.presenceState() as Record<string, unknown[]>;
+      setLobbyState(state);
+      // 나간 사람의 위치는 버린다
+      for (const id of [...moves.current.keys()]) {
+        if (!(id in state)) {
+          moves.current.delete(id);
+          lastMoveAt.current.delete(id);
+        }
+      }
+    });
+    lobby.on("broadcast", { event: "move" }, ({ payload }) => {
+      const move = parseMove(payload);
+      if (!move || move.senderId === userId) return;
+      const now = Date.now();
+      const last = lastMoveAt.current.get(move.senderId) ?? 0;
+      if (now - last < MIN_MOVE_GAP_MS) return;
+      lastMoveAt.current.set(move.senderId, now);
+      const { senderId, ...rest } = move;
+      moves.current.set(senderId, { ...rest, at: now });
     });
     lobby.subscribe((status) => {
-      if (status === "SUBSCRIBED") void lobby.track({});
+      if (status === "SUBSCRIBED") setLobbyReady(true);
     });
     return () => {
+      setLobbyReady(false);
+      lobbyRef.current = null;
+      moves.current.clear();
+      lastMoveAt.current.clear();
       void client.removeChannel(lobby);
     };
   }, [client, userId]);
+
+  // 이름·기숙사가 정해지거나 바뀌면 로비에 다시 알린다
+  useEffect(() => {
+    const lobby = lobbyRef.current;
+    if (!lobbyReady || !lobby) return;
+    void lobby.track({ name: nickname, house });
+  }, [lobbyReady, nickname, house]);
 
   // 내 상태가 바뀔 때마다 알린다 (앉으면 track, 일어서면 untrack)
   useEffect(() => {
@@ -261,14 +360,45 @@ export function useRemotePresence({
     [ready, userId, nickname],
   );
 
+  const connectedCount = useMemo(
+    () => countConnected(lobbyState, userId),
+    [lobbyState, userId],
+  );
+  const walkers = useMemo(
+    () => parseWalkers(lobbyState, userId, new Set(others.map((o) => o.id))),
+    [lobbyState, userId, others],
+  );
+
+  const sendMove = useCallback(
+    (x: number, z: number, ry: number, moving: boolean) => {
+      const lobby = lobbyRef.current;
+      if (!lobby || !lobbyReady || !userId) return;
+      const round = (v: number) => Math.round(v * 100) / 100;
+      void lobby.send({
+        type: "broadcast",
+        event: "move",
+        payload: {
+          id: userId,
+          x: round(x),
+          z: round(z),
+          ry: round(ry),
+          moving,
+        },
+      });
+    },
+    [lobbyReady, userId],
+  );
+
   return useMemo(
     () => ({
       seats: SEATS,
       others,
       houseTotals: totals,
       onlineCount: others.length + (me ? 1 : 0),
-      // 로비 구독 전에도 나는 접속 중이므로 최소 1
-      connectedCount: Math.max(connectedCount, userId ? 1 : 0),
+      connectedCount,
+      walkers,
+      moves,
+      sendMove,
       me,
       join,
       update,
@@ -280,7 +410,8 @@ export function useRemotePresence({
       totals,
       me,
       connectedCount,
-      userId,
+      walkers,
+      sendMove,
       join,
       update,
       leave,

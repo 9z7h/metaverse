@@ -23,12 +23,15 @@ import {
   PLAYER_SPAWN,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
-import type { PresenceStudent } from "../libraryPresence";
+import type { PresenceStudent, RemoteMove, Walker } from "../libraryPresence";
 import { houseToken } from "../houses";
 import type { HouseId } from "../houses";
 
 const WALK_SPEED = 2.6; // m/s
 const BOT_SPEED = 1.4;
+/** 내 위치를 알리는 간격 — 걷는 중 / 가만히 있을 때(새로 들어온 사람이 내 위치를 알 수 있게) */
+const MOVE_SEND_MS = 300;
+const IDLE_SEND_MS = 2000;
 
 /* ── 내 아바타 ─────────────────────────────────────────── */
 
@@ -73,6 +76,8 @@ export interface PlayerProps {
   boardView?: MutableRefObject<boolean>;
   /** 내 머리 위 말풍선 글 */
   bubble?: string;
+  /** 걷는 동안 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
+  onMove?: (x: number, z: number, ry: number, moving: boolean) => void;
 }
 
 /** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
@@ -117,8 +122,10 @@ export function Player({
   positionRef,
   boardView,
   bubble,
+  onMove,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
+  const lastSent = useRef({ at: 0, moving: false });
   const pos = useRef<Vec2>({ ...PLAYER_SPAWN });
   const facing = useRef(Math.PI); // 처음엔 방 안쪽(-z)을 바라봄
   const nearRef = useRef<string | null>(null);
@@ -222,6 +229,18 @@ export function Player({
       g.position.set(pos.current.x, 0, pos.current.z);
       g.rotation.y = facing.current;
 
+      if (onMove) {
+        const now = performance.now();
+        const sent = lastSent.current;
+        // 멈추는 순간은 바로 알려서 상대 화면에서 계속 걷지 않게 한다
+        const stopped = sent.moving && !moving;
+        const due = now - sent.at >= (moving ? MOVE_SEND_MS : IDLE_SEND_MS);
+        if (stopped || due) {
+          lastSent.current = { at: now, moving };
+          onMove(pos.current.x, pos.current.z, facing.current, moving);
+        }
+      }
+
       const near =
         nearestFreeSeat(pos.current, desks, occupied)?.seatId ?? null;
       if (near !== nearRef.current) {
@@ -309,14 +328,27 @@ export interface BotProps {
   registry?: BotRegistry;
   /** 머리 위 말풍선 글 */
   bubble?: string;
+  /** 걸어 들어올 때 출발 위치 — 서고를 걷다 앉은 사람은 그 자리에서 이어서 걸어간다. 없으면 입구 */
+  from?: Vec2;
 }
 
-export function Bot({ student, colors, entering, registry, bubble }: BotProps) {
+export function Bot({
+  student,
+  colors,
+  entering,
+  registry,
+  bubble,
+  from,
+}: BotProps) {
   const ref = useRef<Group>(null);
   const layout = deskLayout(student.seatId);
   // 입구 → 자기 의자. 긴 테이블을 돌아가야 하는 벽 쪽 의자도 길찾기가 알아서 찾는다.
-  const path = useRef<Vec2[]>(entering ? planPath(DOOR, layout.chair) : []);
-  const pos = useRef<Vec2>(entering ? { ...DOOR } : { ...layout.chair });
+  const path = useRef<Vec2[]>(
+    entering ? planPath(from ?? DOOR, layout.chair) : [],
+  );
+  const pos = useRef<Vec2>(
+    entering ? { ...(from ?? DOOR) } : { ...layout.chair },
+  );
   const [pose, setPose] = useState<AvatarPose>(entering ? "walk" : "sit");
 
   useFrame((_, rawDt) => {
@@ -383,6 +415,82 @@ export function Bot({ student, colors, entering, registry, bubble }: BotProps) {
         <MagicEffect colors={colors} house={student.house} at={layout.desk} />
       ) : null}
     </>
+  );
+}
+
+/* ── 걸어 다니는 다른 접속자 ────────────────────────────── */
+
+/** 이 속도로 받은 위치를 따라간다 (클수록 빨리 붙는다) — 300ms 간격 위치가 끊겨 보이지 않게 보간 */
+const FOLLOW_RATE = 7;
+
+export interface RemoteWalkerProps {
+  walker: Walker;
+  colors: SceneColors;
+  /** 걷는 사람들의 최근 위치 — 매 프레임 읽는다 */
+  moves: MutableRefObject<Map<string, RemoteMove>>;
+  /** 머리 위 말풍선 글 */
+  bubble?: string;
+}
+
+export function RemoteWalker({
+  walker,
+  colors,
+  moves,
+  bubble,
+}: RemoteWalkerProps) {
+  const ref = useRef<Group>(null);
+  const pos = useRef<Vec2 | null>(null);
+  const ry = useRef(0);
+  const [pose, setPose] = useState<AvatarPose>("stand");
+
+  useFrame((_, rawDt) => {
+    const g = ref.current;
+    if (!g) return;
+    const move = moves.current.get(walker.id);
+    // 첫 위치를 받기 전에는 엉뚱한 곳에 서 있지 않도록 숨긴다
+    if (!move) {
+      g.visible = false;
+      pos.current = null;
+      return;
+    }
+    g.visible = true;
+    if (!pos.current) {
+      pos.current = { x: move.x, z: move.z };
+      ry.current = move.ry;
+    }
+    const dt = Math.min(rawDt, 0.1);
+    const k = 1 - Math.exp(-dt * FOLLOW_RATE);
+    const dx = move.x - pos.current.x;
+    const dz = move.z - pos.current.z;
+    pos.current = { x: pos.current.x + dx * k, z: pos.current.z + dz * k };
+    ry.current += (shortestYawTarget(ry.current, move.ry) - ry.current) * k;
+    g.position.set(pos.current.x, 0, pos.current.z);
+    g.rotation.y = ry.current;
+    const walking = move.moving || Math.hypot(dx, dz) > 0.1;
+    const next: AvatarPose = walking ? "walk" : "stand";
+    if (next !== pose) setPose(next);
+  });
+
+  return (
+    <Avatar
+      ref={ref}
+      robe={colors[houseToken(walker.house, "primary")]}
+      band={colors[houseToken(walker.house, "accent")]}
+      collar={colors["--color-scene-collar"]}
+      houseDot={colors[houseToken(walker.house, "accent")]}
+      skin={colors["--color-scene-skin"]}
+      hat={colors["--color-scene-hat"]}
+      pose={pose}
+      focusing={false}
+      practicing={false}
+      wand={{
+        wood: colors["--color-scene-wood-dark"],
+        glow: colors["--color-scene-flame"],
+      }}
+      name={walker.name}
+      bubble={bubble}
+      showLabel
+    />
   );
 }
 
