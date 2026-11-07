@@ -10,15 +10,15 @@ export interface SortingRevealProps {
   /** 이미 정해진 결과 — 사신갓은 이 기숙사를 외친다 */
   house: HouseId;
   onEnter: () => void;
-  /** 갓이 내려와 외치기까지의 길이(ms). 기본 9000. 0이거나 모션 줄이기 설정이면 바로 결과 */
+  /** 갓이 내려와 외치기까지의 길이(ms). 기본 13000. 0이거나 모션 줄이기 설정이면 바로 결과 */
   durationMs?: number;
 }
 
 /** 갓이 내려와 외치기까지의 기본 길이 — 두 줄을 여유 있게 읽을 수 있게 */
-const DEFAULT_DURATION_MS = 9000;
-/** 첫째 줄(갓이 다 내려온 뒤 1초)·둘째 줄(첫째 줄을 3.5초 읽은 뒤)이 나타나는 시점 (전체 길이에 대한 비율) */
+const DEFAULT_DURATION_MS = 13000;
+/** 첫째 줄(갓이 다 내려온 뒤 1초)·둘째 줄(첫째 줄을 5초 읽은 뒤)이 나타나는 시점 (전체 길이에 대한 비율) */
 const FIRST_LINE_AT = 1000 / DEFAULT_DURATION_MS;
-const SECOND_LINE_AT = 4500 / DEFAULT_DURATION_MS;
+const SECOND_LINE_AT = 6000 / DEFAULT_DURATION_MS;
 
 function prefersReducedMotion() {
   try {
@@ -95,11 +95,15 @@ export function SortingReveal({
       aria-label="기숙사 배정"
       style={rootStyle}
     >
+      {/* 축하는 기숙사가 정해졌을 때 — 자리는 미리 잡아 두어 화면이 밀리지 않게 한다 */}
       <p
+        aria-hidden={!done}
         style={{
           margin: 0,
           font: "var(--text-body-sm-bold)",
           color: "var(--color-text-tertiary)",
+          opacity: done ? 1 : 0,
+          transition: "opacity 500ms ease-out",
         }}
       >
         사신학당 입학을 축하합니다

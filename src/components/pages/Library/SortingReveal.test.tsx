@@ -38,11 +38,16 @@ describe("SortingReveal — 사신갓 의식", () => {
     expect(screen.getByRole("button", { name: "건너뛰기" })).toBeEnabled();
     expect(screen.getByText(first)).toHaveStyle({ opacity: "0" });
 
+    // 축하 문구는 결과가 나올 때까지 보이지 않는다
+    const congrats = screen.getByText("사신학당 입학을 축하합니다");
+    expect(congrats).toHaveStyle({ opacity: "0" });
+
     act(() => {
       vi.advanceTimersByTime(250);
     });
     expect(screen.getByText(first)).toHaveStyle({ opacity: "1" });
     expect(screen.getByText(second)).toHaveStyle({ opacity: "0" });
+    expect(congrats).toHaveStyle({ opacity: "0" });
 
     act(() => {
       vi.advanceTimersByTime(300);
@@ -52,6 +57,7 @@ describe("SortingReveal — 사신갓 의식", () => {
     act(() => {
       vi.advanceTimersByTime(600);
     });
+    expect(congrats).toHaveStyle({ opacity: "1" });
     expect(screen.getByRole("heading", { name: "주작관" })).toBeInTheDocument();
     expect(screen.getByText("(생명 · 공감 · 회복)")).toBeInTheDocument();
     expect(
