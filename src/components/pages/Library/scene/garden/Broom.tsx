@@ -30,7 +30,7 @@ import {
 } from "./gardenLayout";
 import type { FlightState } from "./gardenLayout";
 
-const WALK_SPEED = 2.6;
+const WALK_SPEED = 4.0;
 /** 아바타를 빗자루 위에 앉히는 높이 — sit 자세가 몸을 0.22 낮추므로 치맛자락 밑으로 손잡이가 지난다 */
 const SIT_Y = 0.45;
 const TRAIL = 16;

@@ -32,7 +32,7 @@ import type {
 import { houseToken } from "../houses";
 import type { HouseId } from "../houses";
 
-const WALK_SPEED = 2.6; // m/s
+const WALK_SPEED = 4.0; // m/s
 const BOT_SPEED = 1.4;
 /** 내 위치를 알리는 간격 — 걷는 중 / 가만히 있을 때(새로 들어온 사람이 내 위치를 알 수 있게) */
 export const MOVE_SEND_MS = 300;
