@@ -39,7 +39,7 @@ describe("SortingReveal — 사신갓 의식", () => {
     expect(screen.getByText(first)).toHaveStyle({ opacity: "0" });
 
     // 축하 문구는 결과가 나올 때까지 보이지 않는다
-    const congrats = screen.getByText("사신학당 입학을 축하합니다");
+    const congrats = screen.getByText("입학을 축하합니다!");
     expect(congrats).toHaveStyle({ opacity: "0" });
 
     act(() => {
