@@ -125,3 +125,25 @@ describe("다시 배정 — 하루 1번", () => {
     );
   });
 });
+
+describe("입장 화면 — 세계관 소개", () => {
+  it("첫 입장이면 소개가 펼쳐져 있고, 기숙사별 랭킹은 보이지 않는다", () => {
+    renderLibrary();
+    expect(
+      screen.getByRole("region", { name: "학당 소개" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("오늘의 사신제")).toBeNull();
+  });
+
+  it("이미 배정된 재방문이면 접혀 있고 버튼으로 다시 볼 수 있다", async () => {
+    saveHouse("hyeonmu");
+    renderLibrary();
+    expect(screen.queryByRole("region", { name: "학당 소개" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "학당 소개 보기" }),
+    );
+    expect(
+      screen.getByRole("region", { name: "학당 소개" }),
+    ).toBeInTheDocument();
+  });
+});
