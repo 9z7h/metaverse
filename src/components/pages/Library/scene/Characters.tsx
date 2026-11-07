@@ -15,10 +15,12 @@ import {
   cameraRig,
   deskLayout,
   nearestFreeSeat,
+  nearExit,
   planPath,
   resolveCollision,
   shortestYawTarget,
   boardCameraRig,
+  PLAYER_SPAWN,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import type { PresenceStudent } from "../libraryPresence";
@@ -59,6 +61,8 @@ export interface PlayerProps {
   house: HouseId;
   /** 근처 빈 좌석이 바뀔 때만 호출 */
   onNearSeatChange: (seatId: string | null) => void;
+  /** 정원으로 나가는 문 앞인지가 바뀔 때만 호출 */
+  onNearExitChange?: (near: boolean) => void;
   /** 드래그·줌으로 바뀌는 카메라 궤도 — 매 프레임 읽음 */
   orbit: MutableRefObject<Orbit>;
   /** 드래그 중인지 (카메라 반응 속도 상향) */
@@ -107,6 +111,7 @@ export function Player({
   subject,
   house,
   onNearSeatChange,
+  onNearExitChange,
   orbit,
   dragging,
   positionRef,
@@ -114,9 +119,10 @@ export function Player({
   bubble,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
-  const pos = useRef<Vec2>({ ...DOOR, z: DOOR.z - 1 });
+  const pos = useRef<Vec2>({ ...PLAYER_SPAWN });
   const facing = useRef(Math.PI); // 처음엔 방 안쪽(-z)을 바라봄
   const nearRef = useRef<string | null>(null);
+  const nearExitRef = useRef(false);
   const [pose, setPose] = useState<AvatarPose>("stand");
   // 문 위 순위판을 보는 중이면 내 이름표를 숨긴다 (깃발을 가리므로). 경계를 넘을 때만 갱신.
   const [facingBoard, setFacingBoard] = useState(false);
@@ -221,6 +227,11 @@ export function Player({
       if (near !== nearRef.current) {
         nearRef.current = near;
         onNearSeatChange(near);
+      }
+      const atExit = nearExit(pos.current);
+      if (atExit !== nearExitRef.current) {
+        nearExitRef.current = atExit;
+        onNearExitChange?.(atExit);
       }
       // 시선을 앞쪽(3m)에 둬 뒷줄이 화면 위 HUD에 가리지 않게 한다
       const rig = cameraRig(

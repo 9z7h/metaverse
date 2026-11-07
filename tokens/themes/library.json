@@ -150,6 +150,22 @@
         "$value": "{color.brass.500}",
         "comment": "3D — 놋쇠 (혼천의·등걸이)"
       },
+      "water": {
+        "$value": "{color.pond.600}",
+        "comment": "3D — 숨돌림 뜰 연못"
+      },
+      "stone": {
+        "$value": "{color.stone.500}",
+        "comment": "3D — 돌담·석등·징검돌"
+      },
+      "roof-tile": {
+        "$value": "{color.roof.700}",
+        "comment": "3D — 기와"
+      },
+      "leaf": {
+        "$value": "{color.moss.600}",
+        "comment": "3D — 소나무·대나무 잎 (기존 moss 재사용)"
+      },
       "dancheong": {
         "$value": "{color.dancheong.500}",
         "comment": "3D — 단청 들보 바탕(뇌록)"

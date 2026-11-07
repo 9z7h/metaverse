@@ -265,4 +265,6 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 
 추가 장면 토큰: `--color-scene-moonlight`(moon-300, 창호 달빛), `--color-scene-dancheong`(dancheong-500, 단청 띠 바탕), `--color-scene-brass`(brass-500, 혼천의·등 다발 고리의 놋쇠), `--color-scene-collar`(ivory-100, 도포 깃의 흰 동정 — 모든 기숙사 공통).
 
+숨돌림 뜰 토큰: `--color-scene-water`(pond-600, 연못), `--color-scene-stone`(stone-500, 돌담·석등·징검돌), `--color-scene-roof-tile`(roof-700, 기와), `--color-scene-leaf`(moss-600, 소나무·대나무 잎). 원본 primitive는 `pond-600`·`stone-500`·`roof-700`이며 brass-500은 서고와 공용이다.
+
 아바타 의상: 도포 = 기숙사 primary, 고름·세조대 = 기숙사 accent, 갓 = `--color-scene-hat`.

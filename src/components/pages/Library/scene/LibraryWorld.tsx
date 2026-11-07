@@ -51,8 +51,8 @@ import {
   readSceneColors,
   tapTarget,
   ROOM,
-  DOOR,
   CAMERA_FOV,
+  PLAYER_SPAWN,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 
@@ -73,6 +73,8 @@ export interface LibraryWorldProps {
   onPause: () => void;
   /** 입장 화면으로 */
   onExit: () => void;
+  /** 서고 문 밖 숨돌림 뜰로 나가기 */
+  onGoGarden: () => void;
 }
 
 /** 걷거나 시점을 돌리는 중 60fps, 가만히 앉아 있을 땐 12fps — 장시간 공부 시 발열·배터리 절약 */
@@ -230,6 +232,7 @@ export function LibraryWorld({
   onStart,
   onPause,
   onExit,
+  onGoGarden,
 }: LibraryWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
@@ -304,6 +307,7 @@ export function LibraryWorld({
 
   const mySeatId = presence.me?.seatId ?? null;
   const [nearSeat, setNearSeat] = useState<string | null>(null);
+  const [atExit, setAtExit] = useState(false);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -316,6 +320,8 @@ export function LibraryWorld({
         e.preventDefault();
       } else if (e.code === "KeyE" && nearSeat && !mySeatId) {
         onSit(nearSeat);
+      } else if (e.code === "KeyE" && atExit && !nearSeat && !mySeatId) {
+        onGoGarden();
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -327,13 +333,13 @@ export function LibraryWorld({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [sync, nearSeat, mySeatId, onSit, setBoardView]);
+  }, [sync, nearSeat, atExit, mySeatId, onSit, onGoGarden, setBoardView]);
 
   // 처음 화면에 있던 학생은 앉은 채로, 이후 들어온 학생만 걸어 들어온다
   const initialIds = useRef(new Set(presence.others.map((s) => s.id)));
 
   // 나간 학생은 바로 지우지 않고, 마법처럼 스르륵 사라지는 동안만 한 번 더 그린다
-  const playerPos = useRef<Vec2>({ ...DOOR });
+  const playerPos = useRef<Vec2>({ ...PLAYER_SPAWN });
   const botRegistry = useRef(new Map<string, BotSnapshot>());
   const prevOthers = useRef(presence.others);
   const [leavers, setLeavers] = useState<Leaver[]>([]);
@@ -600,6 +606,7 @@ export function LibraryWorld({
                 subject={subject}
                 house={house}
                 onNearSeatChange={setNearSeat}
+                onNearExitChange={setAtExit}
                 orbit={orbit}
                 dragging={draggingRef}
               />
@@ -874,6 +881,12 @@ export function LibraryWorld({
                   {labelOf(nearSeat)} 자리에 앉기
                 </ButtonLarge>
               </div>
+            ) : atExit ? (
+              <div style={{ ...auto, display: "grid" }}>
+                <ButtonLarge style="monolight" onClick={onGoGarden}>
+                  정원으로 나가기 · 머리 식히기
+                </ButtonLarge>
+              </div>
             ) : (
               <p
                 style={{
@@ -894,7 +907,8 @@ export function LibraryWorld({
             )}
             {/* 키보드 사용자 안내 (화면에는 숨김, 스크린리더로 읽힘) */}
             <p style={visuallyHidden}>
-              키보드: 방향키 또는 WASD로 이동, 빈 책상 근처에서 E 키로 앉기
+              키보드: 방향키 또는 WASD로 이동, 빈 책상 근처에서 E 키로 앉기, 문
+              앞에서 E 키로 정원 나가기
             </p>
           </div>
         )}

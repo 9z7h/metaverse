@@ -21,9 +21,17 @@ export interface DeskLayout {
 }
 
 /** 방 안쪽 이동 가능 범위 (벽 두께·책장 깊이 제외) */
-export const ROOM = { minX: -8, maxX: 8, minZ: -30, maxZ: 11 } as const;
+export const ROOM = { minX: -8, maxX: 8, minZ: -30, maxZ: 15.8 } as const;
 /** 입구 — 새로 들어오는 학생/내가 처음 서는 위치 */
 export const DOOR: Vec2 = { x: 0, z: ROOM.maxZ - 0.6 };
+/** 내가 서고에 처음 들어와 서는 곳 (문에서 안쪽으로 6m) — 긴 서고가 앞에 펼쳐 보인다 */
+export const PLAYER_SPAWN: Vec2 = { x: 0, z: 9.4 };
+
+/** 이 안(문 앞 가운데)에 서면 "정원으로 나가기"가 나타난다 */
+export const EXIT_ZONE = { halfWidth: 1.9, minZ: ROOM.maxZ - 1.5 } as const;
+export function nearExit(pos: Vec2): boolean {
+  return Math.abs(pos.x) <= EXIT_ZONE.halfWidth && pos.z >= EXIT_ZONE.minZ;
+}
 
 /** 높은 한옥 서고의 수직 구성 (벽·회랑·천장) */
 export const HALL = {
@@ -369,10 +377,9 @@ export const ORBIT_DEFAULT: Orbit = { yaw: 0, pitch: 0.65, zoom: 1 };
 
 /**
  * 앞벽(입구) 안쪽 면 z. 시점을 돌릴 수 있게 되면서 앞쪽도 막아야 한다.
- * 열람실(ROOM) 앞에 6m 입구 홀을 둬서, 입구 근처에 서 있어도
- * 기본 카메라(뒤로 약 6m)가 벽에 밀려 아바타 바로 뒤로 붙지 않게 한다.
+ * 문은 이 벽에 있고, 문 앞(ROOM.maxZ)까지는 걸어갈 수 있다.
  */
-export const FRONT_WALL_Z = ROOM.maxZ + 6.3;
+export const FRONT_WALL_Z = ROOM.maxZ + 1.5;
 
 /**
  * 카메라가 머물 수 있는 공간. 좌우·뒤 책장 앞면(벽에서 0.45m)보다 안쪽,
@@ -385,6 +392,15 @@ export const CAMERA_BOUNDS = {
   maxZ: FRONT_WALL_Z - 0.3,
   maxY: 7.6,
 } as const;
+
+/** 카메라가 머물 수 있는 공간 (서고 / 정원 각자의 한계) */
+export interface CameraBounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  maxY: number;
+}
 
 export const ORBIT_LIMITS = {
   pitchMin: 0.2,
@@ -418,6 +434,7 @@ export function cameraRig(
   baseDist: number,
   lookAhead: number,
   lookLift = 0,
+  bounds: CameraBounds = CAMERA_BOUNDS,
 ): { cam: [number, number, number]; look: [number, number, number] } {
   const d = baseDist * o.zoom;
   const sy = Math.sin(o.yaw);
@@ -432,9 +449,9 @@ export function cameraRig(
     if (from + delta * t < min && delta < 0)
       t = Math.min(t, (min - from) / delta);
   };
-  fit(target.x, off.x, CAMERA_BOUNDS.minX, CAMERA_BOUNDS.maxX);
-  fit(target.z, off.z, CAMERA_BOUNDS.minZ, CAMERA_BOUNDS.maxZ);
-  fit(0, off.y, 0, CAMERA_BOUNDS.maxY);
+  fit(target.x, off.x, bounds.minX, bounds.maxX);
+  fit(target.z, off.z, bounds.minZ, bounds.maxZ);
+  fit(0, off.y, 0, bounds.maxY);
   t = Math.max(0, t);
   return {
     cam: [target.x + off.x * t, off.y * t, target.z + off.z * t],
@@ -546,6 +563,10 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-collar",
   "--color-scene-moonlight",
   "--color-scene-brass",
+  "--color-scene-water",
+  "--color-scene-stone",
+  "--color-scene-roof-tile",
+  "--color-scene-leaf",
   "--color-scene-dancheong",
   ...(["baekho", "jujak", "hyeonmu", "cheongryong"] as const).flatMap(
     (h) =>

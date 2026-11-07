@@ -35,12 +35,17 @@ import { useAcademyConnection, useFocusReport } from "./useAcademy";
 import { useRemotePresence } from "./remotePresence";
 
 // three.js 번들(수백 KB)은 먹빛각에 들어갈 때만 내려받는다
+const GardenWorld = lazy(() =>
+  import("./scene/garden/GardenWorld").then((m) => ({
+    default: m.GardenWorld,
+  })),
+);
 const LibraryWorld = lazy(() =>
   import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
 );
 
 /** entrance → (첫 입장이면 sorting) → world(3D 먹빛각) */
-type Step = "entrance" | "sorting" | "world";
+type Step = "entrance" | "sorting" | "world" | "garden";
 
 export interface LibraryProps {
   /** 접속자 시뮬레이션 옵션 (테스트에서 `{ simulate: false }`) */
@@ -367,7 +372,7 @@ export function Library({
   const timer = useFocusTimer();
   // 먹빛각에 들어갈 때 한 번만 확인
   const webgl = useMemo(
-    () => (step === "world" ? supportsWebGL() : true),
+    () => (step === "world" || step === "garden" ? supportsWebGL() : true),
     [step],
   );
 
@@ -478,6 +483,12 @@ export function Library({
     presence.leave();
   };
 
+  /** 정원은 쉬는 곳 — 타이머를 멈추고 자리를 비운 뒤 나간다 (오늘 누적은 그대로) */
+  const handleGoGarden = () => {
+    if (presence.me) handleLeave();
+    setStep("garden");
+  };
+
   const handleStart = () => {
     timer.start();
     presence.update({ focusing: true, focusSeconds: timer.elapsedSeconds });
@@ -503,6 +514,26 @@ export function Library({
           durationMs={sortingDurationMs}
           onEnter={() => setStep("world")}
         />
+      </div>
+    );
+  }
+
+  if (step === "garden" && house) {
+    return (
+      <div data-theme="library" style={pageStyle}>
+        {webgl ? (
+          <Suspense
+            fallback={
+              <p style={{ ...captionStyle, padding: "var(--spacing-24)" }}>
+                숨돌림 뜰로 나가는 중…
+              </p>
+            }
+          >
+            <GardenWorld house={house} onBack={() => setStep("world")} />
+          </Suspense>
+        ) : (
+          <Unsupported onBack={() => setStep("world")} />
+        )}
       </div>
     );
   }
@@ -537,6 +568,7 @@ export function Library({
                 if (presence.me) handleLeave();
                 setStep("entrance");
               }}
+              onGoGarden={handleGoGarden}
             />
           </Suspense>
         ) : (

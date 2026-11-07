@@ -35,6 +35,9 @@ import {
   BOARD_EXTENT,
   BOARD_VIEW_DIST,
   CAMERA_FOV,
+  nearExit,
+  EXIT_ZONE,
+  PLAYER_SPAWN,
 } from "./sceneLayout";
 import { SEATS } from "../libraryPresence";
 
@@ -677,5 +680,22 @@ describe("boardCameraRig — 순위판 보기 카메라", () => {
       expect(d).toBeLessThanOrEqual(BOARD_VIEW_DIST.max);
       expect(cam[1]).toBeLessThan(HALL.wallH);
     }
+  });
+});
+
+describe("정원으로 나가는 문 — nearExit", () => {
+  it("문 앞 구역 안이면 true, 멀면 false", () => {
+    expect(nearExit({ x: 0, z: ROOM.maxZ })).toBe(true);
+    expect(nearExit({ x: EXIT_ZONE.halfWidth, z: ROOM.maxZ })).toBe(true);
+    expect(nearExit({ x: EXIT_ZONE.halfWidth + 0.1, z: ROOM.maxZ })).toBe(
+      false,
+    );
+    expect(nearExit({ x: 0, z: EXIT_ZONE.minZ - 0.1 })).toBe(false);
+  });
+
+  it("시작 위치는 문 구역 밖이지만 문까지는 걸어갈 수 있다", () => {
+    expect(nearExit(PLAYER_SPAWN)).toBe(false);
+    expect(nearExit({ x: DOOR.x, z: DOOR.z })).toBe(true);
+    expect(DOOR.z).toBeLessThanOrEqual(ROOM.maxZ);
   });
 });
