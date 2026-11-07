@@ -10,13 +10,15 @@ export interface SortingRevealProps {
   /** 이미 정해진 결과 — 사신갓은 이 기숙사를 외친다 */
   house: HouseId;
   onEnter: () => void;
-  /** 갓이 내려와 외치기까지의 길이(ms). 기본 4400. 0이거나 모션 줄이기 설정이면 바로 결과 */
+  /** 갓이 내려와 외치기까지의 길이(ms). 기본 9000. 0이거나 모션 줄이기 설정이면 바로 결과 */
   durationMs?: number;
 }
 
-/** 첫째 줄·둘째 줄이 나타나는 시점 (전체 길이에 대한 비율) */
-const FIRST_LINE_AT = 0.2;
-const SECOND_LINE_AT = 0.5;
+/** 갓이 내려와 외치기까지의 기본 길이 — 두 줄을 여유 있게 읽을 수 있게 */
+const DEFAULT_DURATION_MS = 9000;
+/** 첫째 줄(갓이 다 내려온 뒤 1초)·둘째 줄(첫째 줄을 3.5초 읽은 뒤)이 나타나는 시점 (전체 길이에 대한 비율) */
+const FIRST_LINE_AT = 1000 / DEFAULT_DURATION_MS;
+const SECOND_LINE_AT = 4500 / DEFAULT_DURATION_MS;
 
 function prefersReducedMotion() {
   try {
@@ -34,7 +36,7 @@ function prefersReducedMotion() {
 export function SortingReveal({
   house,
   onEnter,
-  durationMs = 4400,
+  durationMs = DEFAULT_DURATION_MS,
 }: SortingRevealProps) {
   const instant = durationMs <= 0 || prefersReducedMotion();
   /** 말한 줄 수 (0~2). 외침(done)은 따로 */
