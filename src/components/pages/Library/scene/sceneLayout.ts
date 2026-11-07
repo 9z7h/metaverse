@@ -91,29 +91,41 @@ export const SEAT_Z0 = ROOM.minZ + 3.55;
 const TABLE_Z0 = SEAT_Z0 - SEAT_PITCH / 2;
 const TABLE_Z1 = SEAT_Z0 + (SEATS_PER_SIDE - 1) * SEAT_PITCH + SEAT_PITCH / 2;
 
-export const TABLES: ReadonlyArray<Table> = [
-  {
-    x: -3.8,
-    z: (TABLE_Z0 + TABLE_Z1) / 2,
+/** 테이블 가운데 통로 폭 — 8번·9번 좌석 사이를 끊어 건너다닐 수 있게 한다 */
+export const TABLE_GAP = 1.4;
+const TABLE_MID = SEAT_Z0 + (SEATS_PER_SIDE / 2 - 0.5) * SEAT_PITCH;
+const TABLE_X = 3.8;
+
+/** 한 줄(왼쪽/오른쪽) 테이블을 가운데에서 끊은 두 토막 [안쪽(뒷벽), 입구 쪽] */
+function splitTable(x: number): Table[] {
+  const ends: Array<[number, number]> = [
+    [TABLE_Z0, TABLE_MID - TABLE_GAP / 2],
+    [TABLE_MID + TABLE_GAP / 2, TABLE_Z1],
+  ];
+  return ends.map(([z0, z1]) => ({
+    x,
+    z: (z0 + z1) / 2,
     hx: 0.8,
-    hz: (TABLE_Z1 - TABLE_Z0) / 2,
-  },
-  {
-    x: 3.8,
-    z: (TABLE_Z0 + TABLE_Z1) / 2,
-    hx: 0.8,
-    hz: (TABLE_Z1 - TABLE_Z0) / 2,
-  },
-];
+    hz: (z1 - z0) / 2,
+  }));
+}
+
+/** 순서: 왼쪽 안쪽, 오른쪽 안쪽, 왼쪽 입구 쪽, 오른쪽 입구 쪽 — [0]은 왼쪽, [1]은 오른쪽 줄 */
+export const TABLES: ReadonlyArray<Table> = (() => {
+  const l = splitTable(-TABLE_X);
+  const r = splitTable(TABLE_X);
+  return [l[0], r[0], l[1], r[1]];
+})();
 /** 테이블 가장자리에서 의자 중심까지 */
 const CHAIR_GAP = 0.55;
 
 /** 테이블 위 등잔 자리 — 같은 면 좌석 사이마다 하나 (양쪽 면이 함께 쓴다) */
-export const TABLE_CANDLES: ReadonlyArray<Vec2> = TABLES.flatMap((t) =>
-  Array.from({ length: SEATS_PER_SIDE - 1 }, (_, k) => ({
-    x: t.x,
-    z: SEAT_Z0 + k * SEAT_PITCH + SEAT_PITCH / 2,
-  })),
+export const TABLE_CANDLES: ReadonlyArray<Vec2> = [-TABLE_X, TABLE_X].flatMap(
+  (x) =>
+    Array.from({ length: SEATS_PER_SIDE - 1 }, (_, k) => k)
+      // 가운데 통로 자리(8·9번 사이)에는 테이블이 없다
+      .filter((k) => k !== SEATS_PER_SIDE / 2 - 1)
+      .map((k) => ({ x, z: SEAT_Z0 + k * SEAT_PITCH + SEAT_PITCH / 2 })),
 );
 
 /**
