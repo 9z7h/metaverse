@@ -26,7 +26,9 @@
 ## 2. 로컬 확인
 
 ```bash
-cp .env.example .env     # 두 값을 채운다 (.env는 git에 올라가지 않는다)
+# 프로젝트 루트에 .env를 만들고 아래 두 값을 채운다 (.env는 git에 올라가지 않는다)
+#   VITE_SUPABASE_URL=...
+#   VITE_SUPABASE_ANON_KEY=...   (anon public 키만. service_role 키는 넣지 않는다)
 npm run dev              # http://localhost:5173/library
 ```
 
