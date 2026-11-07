@@ -6,6 +6,7 @@
  * 몽당 싸리비를 타고 잠깐 하늘을 날며 머리를 식힌다.
  */
 import type { Vec2 } from "../sceneLayout";
+import type { HouseId } from "../../houses";
 
 /** 뜰 안쪽 경계 — x·z 모두 ±GARDEN_HALF (바깥은 꽃담) */
 export const GARDEN_HALF = 34;
@@ -73,6 +74,124 @@ export const BAMBOO_GROVE = {
   maxZ: -2,
 } as const;
 
+/* ── 학교 건물 (입장 불가) ───────────────────────────────────
+ * 설정집의 공간 중 마당에 보이는 건물들. 모두 남쪽을 향하고, 아직 들어갈 수 없어
+ * 가까이 가면 "준비 중이에요"가 나타난다. 사방재는 네 기숙사 건물로 나눠 세운다. */
+
+export interface SchoolBuilding {
+  id: string;
+  /** 화면에 보이는 이름 (docs/world.md 용어) */
+  name: string;
+  x: number;
+  z: number;
+  halfW: number;
+  halfD: number;
+  /** 몸체 층수 — 2면 누각 */
+  floors: 1 | 2;
+  /** 기숙사 건물이면 그 기숙사 — 지붕 아래 띠와 깃발 색 */
+  house?: HouseId;
+}
+
+export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
+  {
+    id: "maru",
+    name: "가운데마루",
+    x: 4,
+    z: 25,
+    halfW: 6.5,
+    halfD: 3.5,
+    floors: 1,
+  },
+  {
+    id: "baekho",
+    name: "백호관",
+    x: -27,
+    z: -10,
+    halfW: 4,
+    halfD: 3,
+    floors: 1,
+    house: "baekho",
+  },
+  {
+    id: "jujak",
+    name: "주작관",
+    x: -22,
+    z: 24,
+    halfW: 4,
+    halfD: 3,
+    floors: 1,
+    house: "jujak",
+  },
+  {
+    id: "hyeonmu",
+    name: "현무관",
+    x: 22,
+    z: -28,
+    halfW: 4,
+    halfD: 3,
+    floors: 1,
+    house: "hyeonmu",
+  },
+  {
+    id: "cheongryong",
+    name: "청룡관",
+    x: 27,
+    z: 12,
+    halfW: 4,
+    halfD: 3,
+    floors: 1,
+    house: "cheongryong",
+  },
+  {
+    id: "workshop",
+    name: "물소리공방",
+    x: 14,
+    z: 15.5,
+    halfW: 3.5,
+    halfD: 2.5,
+    floors: 1,
+  },
+  {
+    id: "tower",
+    name: "별읽는 누각",
+    x: -29,
+    z: 5,
+    halfW: 2.5,
+    halfD: 2.5,
+    floors: 2,
+  },
+];
+/** 건물 가장자리에서 이 거리 안에 서면 안내가 나타난다 */
+export const BUILDING_REACH = 3;
+
+/** 가까이 갔을 때 보여 줄 안내 — 이름 끝 받침에 맞춰 은/는을 고른다 */
+export function preparingText(name: string): string {
+  const code = name.charCodeAt(name.length - 1) - 0xac00;
+  const hasFinal = code >= 0 && code <= 11171 && code % 28 !== 0;
+  return `${name}${hasFinal ? "은" : "는"} 아직 준비 중이에요`;
+}
+
+/** 점에서 사각형 가장자리까지의 거리 (안쪽이면 0) */
+function distToRect(p: Vec2, b: SchoolBuilding): number {
+  const dx = Math.max(Math.abs(p.x - b.x) - b.halfW, 0);
+  const dz = Math.max(Math.abs(p.z - b.z) - b.halfD, 0);
+  return Math.hypot(dx, dz);
+}
+
+/** 가까이 있는 학교 건물 (가장 가까운 하나), 없으면 null */
+export function nearSchoolBuilding(pos: Vec2): SchoolBuilding | null {
+  let best: SchoolBuilding | null = null;
+  let bestD = BUILDING_REACH;
+  for (const b of SCHOOL_BUILDINGS) {
+    const d = distToRect(pos, b);
+    if (d <= bestD) {
+      best = b;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
 /* ── 결정적 의사난수 (렌더·테스트마다 같은 배치) ─────────────── */
 function seeded(seed: number) {
   let s = seed;
@@ -122,6 +241,7 @@ export const PINES: ReadonlyArray<Tree> = (() => {
     if (Math.hypot(p.x - POND.x, p.z - POND.z) < POND.r + 3) continue;
     if (Math.hypot(p.x - PAVILION.x, p.z - PAVILION.z) < 7) continue;
     if (Math.abs(p.x) < 15 && p.z < -19) continue; // 서고 앞마당
+    if (SCHOOL_BUILDINGS.some((b) => distToRect(p, b) < 4)) continue;
     if (Math.hypot(p.x - GARDEN_SPAWN.x, p.z - GARDEN_SPAWN.z) < 6) continue;
     if (distToPolyline(p, STONE_PATH) < 3.2) continue;
     if (distToPolyline(p, POND_PATH) < 3.2) continue;
@@ -209,6 +329,18 @@ export function resolveWalk(pos: Vec2): Vec2 {
       if (m === toFront) z = bz1;
       else if (m === toLeft) x = bx0;
       else x = bx1;
+    }
+    // 학교 건물: 덜 파고든 축으로 밀어낸다
+    for (const b of SCHOOL_BUILDINGS) {
+      const hx = b.halfW + WALK_RADIUS;
+      const hz = b.halfD + WALK_RADIUS;
+      const dx = x - b.x;
+      const dz = z - b.z;
+      if (Math.abs(dx) < hx && Math.abs(dz) < hz) {
+        if (hx - Math.abs(dx) < hz - Math.abs(dz))
+          x = b.x + Math.sign(dx || 1) * hx;
+        else z = b.z + Math.sign(dz || 1) * hz;
+      }
     }
     for (const o of GARDEN_OBSTACLES) {
       const min = o.r + WALK_RADIUS;

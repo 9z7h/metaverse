@@ -23,6 +23,7 @@ import {
   GARDEN_SPAWN,
   isGrounded,
   nearLibraryDoor,
+  nearSchoolBuilding,
   resolveWalk,
   stepFlight,
   tapIntent,
@@ -90,6 +91,8 @@ export interface BroomRiderProps {
   dragging: MutableRefObject<boolean>;
   /** 서고 문 가까이에 있는지가 바뀔 때만 호출 */
   onNearDoorChange: (near: boolean) => void;
+  /** 가까이 있는 학교 건물(이름)이 바뀔 때만 호출 — 없으면 null */
+  onNearBuildingChange: (name: string | null) => void;
   /** 움직이는 중(걷기·비행·이륙·착륙)인지가 바뀔 때만 호출 — 부드럽게 그리려고 프레임을 올린다 */
   onMovingChange: (moving: boolean) => void;
   /** "동작 줄이기" — 흔들림·기울어짐·자취를 없애고 천천히 */
@@ -116,6 +119,7 @@ export function BroomRider({
   orbit,
   dragging,
   onNearDoorChange,
+  onNearBuildingChange,
   onMovingChange,
   reducedMotion,
   onMove,
@@ -136,6 +140,7 @@ export function BroomRider({
   const prevHeading = useRef(0);
   const stuck = useRef(0);
   const nearRef = useRef<boolean | null>(null);
+  const nearBuildingRef = useRef<string | null>(null);
   const movingRef = useRef<boolean | null>(null);
   const history = useRef<number[]>([]);
   const lastTrail = useRef(0);
@@ -304,6 +309,11 @@ export function BroomRider({
     if (nearRef.current !== near) {
       nearRef.current = near;
       onNearDoorChange(near);
+    }
+    const building = nearSchoolBuilding(cur)?.name ?? null;
+    if (nearBuildingRef.current !== building) {
+      nearBuildingRef.current = building;
+      onNearBuildingChange(building);
     }
 
     // ── 카메라: 걸을 때는 가깝게, 날 때는 멀고 높게 (비행 높이만큼 함께 오른다)

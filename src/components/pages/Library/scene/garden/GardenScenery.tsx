@@ -20,11 +20,12 @@ import {
   PINES,
   PLUM_TREES,
   POND,
+  SCHOOL_BUILDINGS,
   POND_PATH,
   STONE_LANTERNS,
   STONE_PATH,
 } from "./gardenLayout";
-import type { Tree } from "./gardenLayout";
+import type { SchoolBuilding, Tree } from "./gardenLayout";
 
 function seeded(seed: number) {
   let s = seed;
@@ -374,6 +375,131 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
         color={colors["--color-scene-flame"]}
       />
     </group>
+  );
+}
+
+/* ── 학교 건물 (입장 불가) ────────────────────────────────────
+ * 먹빛각과 같은 한옥 어휘로 지은 작은 건물들. 문은 닫혀 있고 창에는 불이 켜져 있다. */
+
+function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
+  const pyramid = usePyramid();
+  const wood = colors["--color-scene-wood"];
+  const dark = colors["--color-scene-wood-dark"];
+  const roofTile = colors["--color-scene-roof-tile"];
+  const baseTop = 0.5;
+  const wallH = 3.2;
+  const bodyW = b.halfW * 2 - 0.6;
+  const bodyD = b.halfD * 2 - 0.6;
+  const frontZ = b.z + b.halfD - 0.3;
+  const bandColor = b.house
+    ? colors[`--color-house-${b.house}-primary`]
+    : colors["--color-scene-dancheong"];
+  const flagColor = b.house ? colors[`--color-house-${b.house}-accent`] : null;
+
+  // 누각은 아래층 위에 처마를 한 번 두르고 좁은 윗층을 올린다
+  const upper = b.floors === 2;
+  const roofY = baseTop + wallH + (upper ? wallH * 0.8 + 0.8 : 0);
+  const roofH = upper ? 2.8 : 2.4 + b.halfW * 0.12;
+  const roofW = (upper ? b.halfW * 0.8 : b.halfW) + 1.6;
+  const roofD = (upper ? b.halfD * 0.8 : b.halfD) + 1.6;
+  const windowXs = b.halfW > 3 ? [-b.halfW * 0.6, b.halfW * 0.6] : [];
+
+  return (
+    <group>
+      {/* 기단 */}
+      <mesh position={[b.x, baseTop / 2, b.z + 0.4]}>
+        <boxGeometry args={[b.halfW * 2 + 1.6, baseTop, b.halfD * 2 + 1.6]} />
+        <meshStandardMaterial
+          color={colors["--color-scene-stone"]}
+          roughness={0.9}
+        />
+      </mesh>
+      {/* 몸체 */}
+      <mesh position={[b.x, baseTop + wallH / 2, b.z]}>
+        <boxGeometry args={[bodyW, wallH, bodyD]} />
+        <meshStandardMaterial color={colors["--color-scene-wall"]} />
+      </mesh>
+      {/* 닫힌 문 */}
+      {[-1, 1].map((sx) => (
+        <mesh
+          key={sx}
+          position={[b.x + sx * 0.5, baseTop + 1.3, frontZ + 0.05]}
+        >
+          <boxGeometry args={[0.96, 2.6, 0.1]} />
+          <meshStandardMaterial color={wood} />
+        </mesh>
+      ))}
+      {/* 불 켜진 창 */}
+      {windowXs.map((wx) => (
+        <mesh key={wx} position={[b.x + wx, baseTop + 1.9, frontZ + 0.03]}>
+          <boxGeometry args={[1.3, 1.3, 0.06]} />
+          <meshBasicMaterial color={colors["--color-scene-flame"]} />
+        </mesh>
+      ))}
+      {/* 처마 밑 띠 — 기숙사는 기숙사 색 */}
+      <mesh position={[b.x, baseTop + wallH - 0.15, frontZ + 0.2]}>
+        <boxGeometry args={[bodyW, 0.32, 0.2]} />
+        <meshStandardMaterial color={bandColor} />
+      </mesh>
+      {upper ? (
+        <>
+          {/* 아래층 처마 */}
+          <mesh
+            geometry={pyramid}
+            position={[b.x, baseTop + wallH + 0.4, b.z]}
+            scale={[(b.halfW + 1.4) / 0.7071, 0.8, (b.halfD + 1.4) / 0.7071]}
+          >
+            <meshStandardMaterial color={roofTile} roughness={0.7} />
+          </mesh>
+          {/* 윗층 */}
+          <mesh position={[b.x, baseTop + wallH + 0.8 + wallH * 0.4, b.z]}>
+            <boxGeometry args={[bodyW * 0.8, wallH * 0.8, bodyD * 0.8]} />
+            <meshStandardMaterial color={colors["--color-scene-wall"]} />
+          </mesh>
+          <mesh
+            position={[
+              b.x,
+              baseTop + wallH + 0.8 + wallH * 0.4,
+              b.z + bodyD * 0.4 + 0.03,
+            ]}
+          >
+            <boxGeometry args={[1.2, 1.2, 0.06]} />
+            <meshBasicMaterial color={colors["--color-scene-flame"]} />
+          </mesh>
+        </>
+      ) : null}
+      {/* 기와지붕 */}
+      <mesh
+        geometry={pyramid}
+        position={[b.x, roofY + roofH / 2, b.z + 0.2]}
+        scale={[roofW / 0.7071, roofH, roofD / 0.7071]}
+      >
+        <meshStandardMaterial color={roofTile} roughness={0.7} />
+      </mesh>
+      {/* 기숙사 깃발 */}
+      {flagColor ? (
+        <group position={[b.x + b.halfW - 0.2, 0, b.z + b.halfD + 1.2]}>
+          <mesh position={[0, 2.2, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 4.4, 8]} />
+            <meshStandardMaterial color={dark} />
+          </mesh>
+          <mesh position={[0.45, 3.7, 0]}>
+            <boxGeometry args={[0.9, 1.2, 0.04]} />
+            <meshStandardMaterial color={flagColor} />
+          </mesh>
+        </group>
+      ) : null}
+    </group>
+  );
+}
+
+function SchoolHalls({ colors }: { colors: SceneColors }) {
+  return (
+    <>
+      {SCHOOL_BUILDINGS.map((b) => (
+        <SchoolHall key={b.id} b={b} colors={colors} />
+      ))}
+    </>
   );
 }
 
@@ -814,6 +940,7 @@ export function GardenScenery({ colors }: { colors: SceneColors }) {
       <Pond colors={colors} />
       <FlowerWall colors={colors} />
       <LibraryHall colors={colors} />
+      <SchoolHalls colors={colors} />
       <Pavilion colors={colors} />
       <Pines colors={colors} />
       <Bamboo colors={colors} />

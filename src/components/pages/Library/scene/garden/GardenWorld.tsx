@@ -24,7 +24,7 @@ import {
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { BroomRider, RemoteRider } from "./Broom";
 import { GardenScenery } from "./GardenScenery";
-import { GARDEN_HALF, resolveWalk } from "./gardenLayout";
+import { GARDEN_HALF, preparingText, resolveWalk } from "./gardenLayout";
 
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
@@ -110,6 +110,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const [nearDoor, setNearDoor] = useState(false);
   const [moving, setMoving] = useState(false);
   const nearDoorRef = useRef(false);
+  const [nearBuilding, setNearBuilding] = useState<string | null>(null);
 
   /* 입력 */
   const input = useRef({ x: 0, y: 0 });
@@ -352,6 +353,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 orbit={orbit}
                 dragging={draggingRef}
                 onNearDoorChange={handleNearDoor}
+                onNearBuildingChange={setNearBuilding}
                 onMovingChange={setMoving}
                 reducedMotion={reduced}
                 onMove={presence.sendMove}
@@ -399,6 +401,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             gap: "var(--spacing-8)",
           }}
         >
+          {nearBuilding ? (
+            <p role="status" style={{ ...pillStyle, margin: "0 auto" }}>
+              {preparingText(nearBuilding)}
+            </p>
+          ) : null}
           <p
             style={{
               margin: 0,

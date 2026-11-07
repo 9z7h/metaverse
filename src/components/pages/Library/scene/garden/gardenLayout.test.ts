@@ -14,12 +14,16 @@ import {
   PLUM_TREES,
   POND,
   POND_PATH,
+  SCHOOL_BUILDINGS,
+  BUILDING_REACH,
   STONE_LANTERNS,
   STONE_PATH,
   WALK_RADIUS,
   distToPolyline,
   isGrounded,
   nearLibraryDoor,
+  nearSchoolBuilding,
+  preparingText,
   resolveWalk,
   stepFlight,
   tapIntent,
@@ -299,5 +303,103 @@ describe("wrapAngle", () => {
       expect(Math.cos(w)).toBeCloseTo(Math.cos(a));
       expect(Math.sin(w)).toBeCloseTo(Math.sin(a));
     }
+  });
+});
+
+describe("학교 건물 (입장 불가)", () => {
+  const rectGap = (
+    a: { x: number; z: number; halfW: number; halfD: number },
+    b: { x: number; z: number; halfW: number; halfD: number },
+  ) =>
+    Math.hypot(
+      Math.max(Math.abs(a.x - b.x) - a.halfW - b.halfW, 0),
+      Math.max(Math.abs(a.z - b.z) - a.halfD - b.halfD, 0),
+    );
+
+  it("설정집 공간 7곳이 이름과 함께 있다 (사방재는 기숙사 네 채)", () => {
+    expect(SCHOOL_BUILDINGS.map((b) => b.name).sort()).toEqual(
+      [
+        "가운데마루",
+        "물소리공방",
+        "백호관",
+        "별읽는 누각",
+        "주작관",
+        "청룡관",
+        "현무관",
+      ].sort(),
+    );
+    expect(new Set(SCHOOL_BUILDINGS.map((b) => b.id)).size).toBe(
+      SCHOOL_BUILDINGS.length,
+    );
+    expect(SCHOOL_BUILDINGS.filter((b) => b.house)).toHaveLength(4);
+  });
+
+  it("꽃담 안에 있고 서로·서고·정자·연못·대나무 숲·시작 위치와 겹치지 않는다", () => {
+    for (const b of SCHOOL_BUILDINGS) {
+      expect(Math.abs(b.x) + b.halfW + 2).toBeLessThan(GARDEN_HALF);
+      expect(Math.abs(b.z) + b.halfD + 2).toBeLessThan(GARDEN_HALF);
+      for (const o of SCHOOL_BUILDINGS)
+        if (o !== b) expect(rectGap(b, o)).toBeGreaterThan(3);
+      expect(
+        rectGap(b, {
+          x: LIBRARY_BUILDING.x,
+          z: LIBRARY_BUILDING.z,
+          halfW: LIBRARY_BUILDING.halfW + 2.4,
+          halfD: LIBRARY_BUILDING.halfD + 2.6,
+        }),
+      ).toBeGreaterThan(2);
+      expect(
+        rectGap(b, { ...PAVILION, halfW: 3.2, halfD: 3.2 }),
+      ).toBeGreaterThan(3);
+      // 연못은 원 → 가장 가까운 점까지의 거리
+      const dx = Math.max(Math.abs(POND.x - b.x) - b.halfW, 0);
+      const dz = Math.max(Math.abs(POND.z - b.z) - b.halfD, 0);
+      expect(Math.hypot(dx, dz)).toBeGreaterThan(POND.r + 1);
+      expect(
+        rectGap(b, {
+          x: (BAMBOO_GROVE.minX + BAMBOO_GROVE.maxX) / 2,
+          z: (BAMBOO_GROVE.minZ + BAMBOO_GROVE.maxZ) / 2,
+          halfW: (BAMBOO_GROVE.maxX - BAMBOO_GROVE.minX) / 2,
+          halfD: (BAMBOO_GROVE.maxZ - BAMBOO_GROVE.minZ) / 2,
+        }),
+      ).toBeGreaterThan(2);
+      expect(
+        rectGap(b, { ...GARDEN_SPAWN, halfW: 0, halfD: 0 }),
+      ).toBeGreaterThan(6);
+      expect(distToPolyline({ x: b.x, z: b.z }, STONE_PATH)).toBeGreaterThan(
+        Math.max(b.halfW, b.halfD) + 1,
+      );
+    }
+  });
+
+  it("소나무·매화·석등이 건물 위에 서지 않는다", () => {
+    for (const b of SCHOOL_BUILDINGS)
+      for (const p of [...PINES, ...PLUM_TREES, ...STONE_LANTERNS])
+        expect(rectGap(b, { ...p, halfW: 0, halfD: 0 })).toBeGreaterThan(1);
+  });
+
+  it("걸어서는 건물 안으로 들어갈 수 없다 (밀려난다)", () => {
+    for (const b of SCHOOL_BUILDINGS) {
+      const out = resolveWalk({ x: b.x, z: b.z });
+      expect(
+        Math.abs(out.x - b.x) >= b.halfW || Math.abs(out.z - b.z) >= b.halfD,
+      ).toBe(true);
+    }
+  });
+
+  it("가까이 가면 그 건물이, 멀면 null이 나온다", () => {
+    for (const b of SCHOOL_BUILDINGS) {
+      const front = { x: b.x, z: b.z + b.halfD + BUILDING_REACH - 0.5 };
+      expect(nearSchoolBuilding(front)?.id).toBe(b.id);
+    }
+    expect(nearSchoolBuilding(GARDEN_SPAWN)).toBeNull();
+  });
+
+  it("안내 문구는 이름 끝 받침에 맞춰 은/는을 고른다", () => {
+    expect(preparingText("가운데마루")).toBe("가운데마루는 아직 준비 중이에요");
+    expect(preparingText("백호관")).toBe("백호관은 아직 준비 중이에요");
+    expect(preparingText("별읽는 누각")).toBe(
+      "별읽는 누각은 아직 준비 중이에요",
+    );
   });
 });
