@@ -11,6 +11,7 @@ import {
   activeBubbles,
   appendChat,
   canSendChat,
+  hasUnreadChat,
   createReceiveLimiter,
   isTypingTarget,
   makeChatMessage,
@@ -261,5 +262,36 @@ describe("isTypingTarget — 글자 입력 중에는 이동 키를 가로채지 
     expect(isTypingTarget(document)).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
     host.remove();
+  });
+});
+
+describe("hasUnreadChat — 닫힌 대화창의 안 읽은 글 표시", () => {
+  const msg = (mine: boolean) =>
+    makeChatMessage({
+      senderId: "u",
+      name: "n",
+      house: null,
+      text: "안녕",
+      at: 1,
+      mine,
+    });
+  const on = { open: false, enabled: true };
+
+  it("남이 보낸 새 글이 있으면 true", () => {
+    expect(hasUnreadChat([msg(false)], null, on)).toBe(true);
+  });
+  it("이미 본 글이거나 내 글이면 false", () => {
+    const m = msg(false);
+    expect(hasUnreadChat([m], m.id, on)).toBe(false);
+    expect(hasUnreadChat([msg(true)], null, on)).toBe(false);
+  });
+  it("대화창이 열려 있거나 대화를 끈 상태, 글이 없으면 false", () => {
+    expect(hasUnreadChat([msg(false)], null, { ...on, open: true })).toBe(
+      false,
+    );
+    expect(hasUnreadChat([msg(false)], null, { ...on, enabled: false })).toBe(
+      false,
+    );
+    expect(hasUnreadChat([], null, on)).toBe(false);
   });
 });

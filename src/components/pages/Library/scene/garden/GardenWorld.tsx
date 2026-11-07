@@ -2,13 +2,20 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ButtonLarge, ButtonMedium } from "../../../../ui/Button";
-import { isTypingTarget } from "../../chat";
+import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../../ui/Button";
+import { ChatPanel } from "../../ChatPanel";
+import {
+  ME_BUBBLE_KEY,
+  activeBubbles,
+  hasUnreadChat,
+  isTypingTarget,
+} from "../../chat";
 import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
 import type { LibraryPresence } from "../../libraryPresence";
@@ -29,7 +36,7 @@ import { GARDEN_HALF, preparingText, resolveWalk } from "./gardenLayout";
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
   LibraryPresence,
-  "walkers" | "moves" | "sendMove"
+  "walkers" | "moves" | "sendMove" | "chat"
 >;
 
 export interface GardenWorldProps {
@@ -111,6 +118,39 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const [moving, setMoving] = useState(false);
   const nearDoorRef = useRef(false);
   const [nearBuilding, setNearBuilding] = useState<string | null>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+
+  /* 서고와 이어진 속삭임: 대화창·말풍선·안 읽은 글 표시 */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const chatMessages = presence.chat.messages;
+  const [bubbleNow, setBubbleNow] = useState(() => Date.now());
+  useEffect(() => {
+    setBubbleNow(Date.now());
+  }, [chatMessages]);
+  // 대화창이 열려 있는 동안은 같은 내용이 목록에 보이므로 말풍선은 숨긴다
+  const bubbles = useMemo(
+    () =>
+      chatEnabled && !chatOpen
+        ? activeBubbles(chatMessages, bubbleNow)
+        : new Map(),
+    [chatEnabled, chatOpen, chatMessages, bubbleNow],
+  );
+  const hasBubble = bubbles.size > 0;
+  useEffect(() => {
+    if (!hasBubble) return;
+    const id = window.setInterval(() => setBubbleNow(Date.now()), 500);
+    return () => window.clearInterval(id);
+  }, [hasBubble]);
+  const lastMessage = chatMessages[chatMessages.length - 1];
+  const [seenId, setSeenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (chatOpen && lastMessage) setSeenId(lastMessage.id);
+  }, [chatOpen, lastMessage]);
+  const unread = hasUnreadChat(chatMessages, seenId, {
+    open: chatOpen,
+    enabled: chatEnabled,
+  });
 
   /* 입력 */
   const input = useRef({ x: 0, y: 0 });
@@ -310,8 +350,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             }}
             aria-label="숨돌림 뜰"
           >
-            {/* 아바타 이름표는 쓰지 않지만 Avatar가 컨텍스트를 기대하므로 빈 ref를 준다 */}
-            <LabelPortalContext.Provider value={noLabel}>
+            <LabelPortalContext.Provider value={labelRef}>
               <color
                 attach="background"
                 args={[colors["--color-background-default"]]}
@@ -342,6 +381,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                   colors={colors}
                   moves={presence.moves}
                   reducedMotion={reduced}
+                  bubble={bubbles.get(w.id)?.text}
                 />
               ))}
               <BroomRider
@@ -356,6 +396,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 onNearBuildingChange={setNearBuilding}
                 onMovingChange={setMoving}
                 reducedMotion={reduced}
+                bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                 onMove={presence.sendMove}
               />
               <FloorPicker pickRef={pickFloor} />
@@ -374,24 +415,94 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         ) : null}
       </div>
 
+      {/* 아바타 이름표·말풍선이 붙는 레이어 — 캔버스와 같은 크기, 터치는 통과 */}
+      <div
+        ref={labelRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
+
       <div style={hudStyle}>
         <div
           style={{
-            ...auto,
-            alignSelf: "flex-start",
             display: "flex",
-            alignItems: "center",
+            flexDirection: "column",
             gap: "var(--spacing-8)",
           }}
         >
-          <ButtonMedium
-            type="icon"
-            icon="arrow_left"
-            style="monolight"
-            aria-label="서고로 돌아가기"
-            onClick={onBack}
-          />
-          <span style={pillStyle}>숨돌림 뜰 · 잠시 쉬어 가는 중</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "var(--spacing-8)",
+            }}
+          >
+            <div
+              style={{
+                ...auto,
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--spacing-8)",
+              }}
+            >
+              <ButtonMedium
+                type="icon"
+                icon="arrow_left"
+                style="monolight"
+                aria-label="서고로 돌아가기"
+                onClick={onBack}
+              />
+              <span style={pillStyle}>숨돌림 뜰 · 쉬어 가는 중</span>
+            </div>
+            <div style={auto}>
+              <ButtonSmall
+                style="monolight"
+                aria-expanded={chatOpen}
+                aria-label={unread ? "대화 (새 글 있음)" : "대화"}
+                onClick={() => setChatOpen((v) => !v)}
+              >
+                대화
+                {unread ? (
+                  <span
+                    aria-hidden
+                    data-testid="chat-unread"
+                    style={{
+                      display: "inline-block",
+                      marginLeft: "var(--spacing-4)",
+                      width: "var(--spacing-8)",
+                      height: "var(--spacing-8)",
+                      borderRadius: "var(--radius-circle)",
+                      background: "var(--color-interactive-primary)",
+                    }}
+                  />
+                ) : null}
+              </ButtonSmall>
+            </div>
+          </div>
+          {chatOpen ? (
+            <div style={{ ...auto, alignSelf: "stretch" }}>
+              <ChatPanel
+                messages={chatEnabled ? chatMessages : []}
+                onSend={(text) => presence.chat.send(text, house)}
+                enabled={chatEnabled}
+                onToggleEnabled={() => setChatEnabled((v) => !v)}
+                onClose={() => setChatOpen(false)}
+                onFocusChange={(focused) => {
+                  // 입력을 시작할 때 눌려 있던 이동 키가 남아 계속 걷지 않게 정리
+                  if (focused) {
+                    keys.current.clear();
+                    sync();
+                  }
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -431,5 +542,3 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
     </div>
   );
 }
-
-const noLabel = { current: null };

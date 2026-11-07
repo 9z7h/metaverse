@@ -97,6 +97,8 @@ export interface BroomRiderProps {
   onMovingChange: (moving: boolean) => void;
   /** "동작 줄이기" — 흔들림·기울어짐·자취를 없애고 천천히 */
   reducedMotion: boolean;
+  /** 내 머리 위에 잠깐 뜨는 말풍선 글 */
+  bubble?: string;
   /** 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
   onMove?: (
     x: number,
@@ -122,6 +124,7 @@ export function BroomRider({
   onNearBuildingChange,
   onMovingChange,
   reducedMotion,
+  bubble,
   onMove,
 }: BroomRiderProps) {
   const lastSent = useRef({ at: 0, moving: false });
@@ -349,6 +352,7 @@ export function BroomRider({
             pose={pose}
             name="나"
             showLabel={false}
+            bubble={bubble}
           />
         </group>
       </group>
@@ -385,6 +389,8 @@ export interface RemoteRiderProps {
   moves: MutableRefObject<Map<string, RemoteMove>>;
   /** "동작 줄이기" — 기울어짐·흔들림을 없앤다 */
   reducedMotion: boolean;
+  /** 머리 위 말풍선 글 */
+  bubble?: string;
 }
 
 /**
@@ -396,6 +402,7 @@ export function RemoteRider({
   colors,
   moves,
   reducedMotion,
+  bubble,
 }: RemoteRiderProps) {
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
@@ -476,6 +483,7 @@ export function RemoteRider({
           pose={pose}
           name={walker.name}
           showLabel
+          bubble={bubble}
         />
       </group>
     </group>

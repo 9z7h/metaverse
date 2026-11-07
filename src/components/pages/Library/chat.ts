@@ -155,6 +155,20 @@ export function activeBubbles(
 }
 
 /**
+ * 대화창이 닫혀 있는 동안 '안 읽은 새 글'이 있는지 — 내 글이 아닌 마지막 글을 아직 못 봤을 때.
+ * `seenId`는 대화창을 마지막으로 열었을 때 본 마지막 글의 id.
+ */
+export function hasUnreadChat(
+  log: ChatMessage[],
+  seenId: string | null,
+  opts: { open: boolean; enabled: boolean },
+): boolean {
+  if (opts.open || !opts.enabled) return false;
+  const last = log[log.length - 1];
+  return last !== undefined && !last.mine && last.id !== seenId;
+}
+
+/**
  * 글자를 입력하는 칸(입력창·글상자·선택 상자·편집 가능 요소)에서 일어난 키 이벤트인지.
  * 3D 장면의 이동·앉기 키(W·A·S·D·E)가 대화창에서 글자를 치는 것과 섞이지 않게 거를 때 쓴다.
  */
