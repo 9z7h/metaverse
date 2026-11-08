@@ -40,13 +40,7 @@ function Boxes({
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, boxes.length]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial
-        color={color}
-        map={grain}
-        bumpMap={grain}
-        bumpScale={0.02}
-        roughness={roughness}
-      />
+      <meshStandardMaterial color={color} map={grain} roughness={roughness} />
     </instancedMesh>
   );
 }

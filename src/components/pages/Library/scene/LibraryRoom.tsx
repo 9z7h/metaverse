@@ -161,13 +161,7 @@ function ShelfFrames({
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, boxes.length]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial
-        color={wood}
-        map={grain}
-        bumpMap={grain}
-        bumpScale={0.018}
-        roughness={0.82}
-      />
+      <meshStandardMaterial color={wood} map={grain} roughness={0.82} />
     </instancedMesh>
   );
 }
@@ -258,7 +252,7 @@ function DeskSet({
   layouts: DeskLayout[];
   colors: SceneColors;
 }) {
-  const grain = useSurfaceTexture("wood", 1, 12);
+  const grain = useSurfaceTexture("wood", 1, 12, true);
   const paper = useSurfaceTexture("paper");
   const tops = useRef<InstancedMesh>(null);
   const darks = useRef<InstancedMesh>(null);
@@ -373,7 +367,10 @@ function DeskSet({
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={woodLight} roughness={1} />
       </instancedMesh>
-      <instancedMesh ref={pages} args={[undefined, undefined, parts.page.length]}>
+      <instancedMesh
+        ref={pages}
+        args={[undefined, undefined, parts.page.length]}
+      >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={woodLight} map={paper} roughness={0.95} />
       </instancedMesh>
@@ -456,7 +453,7 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
 /* ── 방 ─────────────────────────────────────────────── */
 
 export function LibraryRoom({ colors, desks }: RoomProps) {
-  const floorGrain = useSurfaceTexture("wood", 5, 12);
+  const floorGrain = useSurfaceTexture("wood", 5, 12, true);
   const plaster = useSurfaceTexture("plaster", 6, 3);
   const shelves = useShelves();
   const chunks = useMemo(() => chunkShelves(shelves), [shelves]);
@@ -505,35 +502,17 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       {/* 벽 (뒤·좌·우·앞) — 시점을 돌려도 바깥 허공이 보이지 않게 사방을 막는다 */}
       <mesh position={[0, H / 2, ROOM.minZ - 0.8]}>
         <boxGeometry args={[w, H, 0.2]} />
-        <meshStandardMaterial
-          color={wall}
-          map={plaster}
-          bumpMap={plaster}
-          bumpScale={0.035}
-          roughness={0.94}
-        />
+        <meshStandardMaterial color={wall} map={plaster} roughness={0.94} />
       </mesh>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (ROOM.maxX + 0.8), H / 2, cz]}>
           <boxGeometry args={[0.2, H, d]} />
-          <meshStandardMaterial
-          color={wall}
-          map={plaster}
-          bumpMap={plaster}
-          bumpScale={0.035}
-          roughness={0.94}
-        />
+          <meshStandardMaterial color={wall} map={plaster} roughness={0.94} />
         </mesh>
       ))}
       <mesh position={[0, H / 2, frontZ]}>
         <boxGeometry args={[w, H, 0.2]} />
-        <meshStandardMaterial
-          color={wall}
-          map={plaster}
-          bumpMap={plaster}
-          bumpScale={0.035}
-          roughness={0.94}
-        />
+        <meshStandardMaterial color={wall} map={plaster} roughness={0.94} />
       </mesh>
       {/* 입구 대문: 문틀(기둥 2 + 인방) + 두 짝 문 */}
       <group position={[0, 0, FRONT_WALL_Z - 0.02]}>

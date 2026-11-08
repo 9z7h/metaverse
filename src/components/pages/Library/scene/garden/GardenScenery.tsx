@@ -188,7 +188,12 @@ function Paths({ colors }: { colors: SceneColors }) {
     [],
   );
   return (
-    <Inst boxes={boxes} color={colors["--color-scene-stone"]} roughness={0.9} map={stone}>
+    <Inst
+      boxes={boxes}
+      color={colors["--color-scene-stone"]}
+      roughness={0.9}
+      map={stone}
+    >
       {box()}
     </Inst>
   );
