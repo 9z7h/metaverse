@@ -28,8 +28,8 @@
   --color-content-default: var(--color-parchment-300);
   --color-content-muted: var(--color-parchment-500);
   --color-scene-floor: var(--color-wood-900); /** 3D — 바닥 */
-  --color-scene-wall: var(--color-mahogany-800);
-  --color-scene-fog: var(--color-mahogany-900); /** 3D — 원경 안개 (배경과 동일) */
+  --color-scene-wall: var(--color-plaster-500); /** 3D — 달빛과 등잔빛을 받는 따뜻한 회벽 */
+  --color-scene-fog: var(--color-night-900); /** 3D — 원경의 서늘한 먹빛 안개 */
   --color-scene-wood: var(--color-wood-500);
   --color-scene-wood-dark: var(--color-wood-700);
   --color-scene-wood-light: var(--color-wood-300);

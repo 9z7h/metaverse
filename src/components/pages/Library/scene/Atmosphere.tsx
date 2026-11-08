@@ -20,6 +20,7 @@ import type { HouseId } from "../houses";
 import { FRONT_WALL_Z, HALL, ROOM, SIDE_SHELF_Z } from "./sceneLayout";
 import { fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
+import { useSurfaceTexture } from "./surfaceTexture";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 
@@ -39,6 +40,7 @@ const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
 const LANTERN_COUNT = 70;
 
 function Lanterns({ colors }: { colors: SceneColors }) {
+  const silk = useSurfaceTexture("plaster");
   const bodies = useRef<InstancedMesh>(null);
   const caps = useRef<InstancedMesh>(null);
   const items = useMemo(() => {
@@ -102,8 +104,13 @@ function Lanterns({ colors }: { colors: SceneColors }) {
       {/* 몸통 — 청사초롱의 짙은 홍·청 비단 */}
       <instancedMesh ref={bodies} args={[undefined, undefined, LANTERN_COUNT]}>
         <cylinderGeometry args={[0.17, 0.2, 0.44, 12]} />
-        {/* 조명과 무관하게 비단 본연의 색으로 은은히 빛남 (빨강·파랑이 노란 빛과 섞여 탁해지지 않도록) */}
-        <meshBasicMaterial toneMapped={false} />
+        {/* 비단의 질감과 등잔의 따뜻한 속빛 */}
+        <meshStandardMaterial
+          map={silk}
+          roughness={0.88}
+          emissive={colors["--color-scene-flame"]}
+          emissiveIntensity={0.045}
+        />
       </instancedMesh>
       <instancedMesh
         ref={caps}
@@ -740,7 +747,7 @@ export function Atmosphere({ colors }: { colors: SceneColors }) {
       {/* 창으로 들어오는 푸른 달빛 — 촛불의 따뜻한 색과 대비 */}
       <directionalLight
         position={[6, 9, -4]}
-        intensity={0.45}
+        intensity={0.85}
         color={colors["--color-scene-moonlight"]}
       />
       <Lanterns colors={colors} />

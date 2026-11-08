@@ -267,6 +267,12 @@
     "palegold": {
       "300": { "$value": "#e9d58f", "comment": "청룡관 — 옅은 금색" }
     },
+    "plaster": {
+      "500": { "$value": "#a89b83" }
+    },
+    "night": {
+      "900": { "$value": "#141c24" }
+    },
     "moon": {
       "300": {
         "$value": "#9db8e8"

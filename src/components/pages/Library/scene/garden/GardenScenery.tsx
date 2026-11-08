@@ -7,7 +7,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BufferAttribute, Color, ConeGeometry, Object3D } from "three";
-import type { InstancedMesh, Points } from "three";
+import type { InstancedMesh, Points, Texture } from "three";
+import { useSurfaceTexture } from "../surfaceTexture";
 import { fillBoxes } from "../LibraryRoom";
 import type { Box } from "../LibraryRoom";
 import { roundGlowKey, roundGlowShader } from "../MagicEffect";
@@ -46,6 +47,7 @@ function Inst({
   children,
   emissive,
   basic = false,
+  map,
 }: {
   boxes: Box[];
   color: string | Color;
@@ -56,6 +58,7 @@ function Inst({
   emissive?: string;
   /** 조명 영향을 받지 않는 발광 재질 */
   basic?: boolean;
+  map?: Texture;
 }) {
   const ref = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -80,6 +83,9 @@ function Inst({
         <meshStandardMaterial
           color={tint ? undefined : color}
           roughness={roughness}
+          map={map}
+          bumpMap={map}
+          bumpScale={0.025}
           emissive={emissive}
           emissiveIntensity={emissive ? 0.6 : 0}
         />
@@ -176,12 +182,13 @@ function slabsAlong(
 }
 
 function Paths({ colors }: { colors: SceneColors }) {
+  const stone = useSurfaceTexture("stone", 2, 2);
   const boxes = useMemo(
     () => [...slabsAlong(STONE_PATH, 11), ...slabsAlong(POND_PATH, 23)],
     [],
   );
   return (
-    <Inst boxes={boxes} color={colors["--color-scene-stone"]} roughness={0.9}>
+    <Inst boxes={boxes} color={colors["--color-scene-stone"]} roughness={0.9} map={stone}>
       {box()}
     </Inst>
   );
@@ -398,13 +405,20 @@ function Roof({
   h: number;
   color: string;
 }) {
+  const tile = useSurfaceTexture("tile", 3, 2);
   return (
     <mesh
       geometry={pyramid}
       position={[at[0], at[1] + h / 2, at[2]]}
       scale={[w / 0.7071, h, d / 0.7071]}
     >
-      <meshStandardMaterial color={color} roughness={0.7} />
+      <meshStandardMaterial
+        color={color}
+        map={tile}
+        bumpMap={tile}
+        bumpScale={0.045}
+        roughness={0.65}
+      />
     </mesh>
   );
 }

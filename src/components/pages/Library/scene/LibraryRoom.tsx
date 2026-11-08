@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BufferAttribute, BufferGeometry, Color, Object3D } from "three";
+import { Color, Object3D } from "three";
 import type { Group, InstancedMesh, MeshStandardMaterial } from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
 import {
@@ -12,6 +12,7 @@ import {
   TABLE_CANDLES,
 } from "./sceneLayout";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
+import { useSurfaceTexture } from "./surfaceTexture";
 
 interface RoomProps {
   colors: SceneColors;
@@ -131,6 +132,7 @@ function ShelfFrames({
   shelves: ShelfSpec[];
   wood: string;
 }) {
+  const grain = useSurfaceTexture("wood", 1, 2);
   const ref = useRef<InstancedMesh>(null);
   const boxes = useMemo(() => {
     const rowH = SHELF_HEIGHT / SHELF_ROWS;
@@ -159,31 +161,18 @@ function ShelfFrames({
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, boxes.length]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color={wood} roughness={0.9} />
+      <meshStandardMaterial
+        color={wood}
+        map={grain}
+        bumpMap={grain}
+        bumpScale={0.018}
+        roughness={0.82}
+      />
     </instancedMesh>
   );
 }
 
-/**
- * 책 한 권의 모양 — 서가 안에서 실제로 보이는 앞면(+z, 책등)과 윗면(+y)만.
- * 상자 전체(12삼각형) 대신 4삼각형이라, 책 수천 권을 그려도 삼각형 부담이 3분의 1이다.
- */
-function createBookGeometry(): BufferGeometry {
-  const g = new BufferGeometry();
-  // 앞면 4점 + 윗면 4점
-  const positions = new Float32Array([
-    -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5,
-    0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
-  ]);
-  const normals = new Float32Array([
-    0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
-  ]);
-  g.setAttribute("position", new BufferAttribute(positions, 3));
-  g.setAttribute("normal", new BufferAttribute(normals, 3));
-  g.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
-  return g;
-}
-
+/** 책은 어느 방향에서 보아도 옆면이 닫힌 상자로 그린다. */
 function Books({
   shelves,
   palette,
@@ -194,8 +183,6 @@ function Books({
   seed: number;
 }) {
   const ref = useRef<InstancedMesh>(null);
-  const geometry = useMemo(createBookGeometry, []);
-  useEffect(() => () => geometry.dispose(), [geometry]);
   const books = useMemo(() => {
     const rand = seeded(seed);
     const list: {
@@ -240,13 +227,14 @@ function Books({
     if (!mesh) return;
     const o = new Object3D();
     const color = new Color();
+    const agedPaper = new Color(palette[4]);
     books.forEach((b, i) => {
       o.position.set(b.x, b.y, b.z);
       o.rotation.set(0, b.ry, 0);
       o.scale.set(b.w, b.h, 0.3);
       o.updateMatrix();
       mesh.setMatrixAt(i, o.matrix);
-      mesh.setColorAt(i, color.set(palette[b.c]));
+      mesh.setColorAt(i, color.set(palette[b.c]).lerp(agedPaper, 0.32));
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -254,7 +242,7 @@ function Books({
 
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, books.length]}>
-      <primitive object={geometry} attach="geometry" />
+      <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial roughness={0.85} />
     </instancedMesh>
   );
@@ -270,16 +258,20 @@ function DeskSet({
   layouts: DeskLayout[];
   colors: SceneColors;
 }) {
+  const grain = useSurfaceTexture("wood", 1, 12);
+  const paper = useSurfaceTexture("paper");
   const tops = useRef<InstancedMesh>(null);
   const darks = useRef<InstancedMesh>(null);
   const lights = useRef<InstancedMesh>(null);
   const flames = useRef<InstancedMesh>(null);
+  const pages = useRef<InstancedMesh>(null);
   const flameMat = useRef<MeshStandardMaterial>(null);
 
   const parts = useMemo(() => {
     const top: Box[] = [];
     const dark: Box[] = [];
     const light: Box[] = [];
+    const page: Box[] = [];
     const flame: Box[] = [];
     const glowAt: number[] = [];
 
@@ -313,16 +305,26 @@ function DeskSet({
         s: [0.05, 0.36, 0.55],
       });
       // 좌석 앞에 펼친 책
-      light.push({ p: [desk.x, 0.795, desk.z], s: [0.4, 0.01, 0.6] });
+      page.push({
+        p: [desk.x, 0.805, desk.z],
+        s: [0.42, 0.025, 0.6],
+        ry: facing - Math.PI / 2,
+      });
+      dark.push({
+        p: [desk.x, 0.785, desk.z],
+        s: [0.45, 0.015, 0.63],
+        ry: facing - Math.PI / 2,
+      });
     }
 
     // 등잔: 좌석 사이마다 테이블 한가운데에 하나 (양쪽 면이 함께 쓴다)
     for (const c of TABLE_CANDLES) {
+      dark.push({ p: [c.x, 0.81, c.z], s: [0.24, 0.035, 0.24] });
       light.push({ p: [c.x, 0.9, c.z], s: [0.1, 0.22, 0.1] });
       flame.push({ p: [c.x, 1.07, c.z], s: [0.12, 0.12, 0.12] });
       glowAt.push(c.x, 1.1, c.z);
     }
-    return { top, dark, light, flame, glowAt: new Float32Array(glowAt) };
+    return { top, dark, light, page, flame, glowAt: new Float32Array(glowAt) };
   }, [layouts]);
 
   useLayoutEffect(() => {
@@ -330,6 +332,7 @@ function DeskSet({
     fillBoxes(darks.current, parts.dark);
     fillBoxes(lights.current, parts.light);
     fillBoxes(flames.current, parts.flame);
+    fillBoxes(pages.current, parts.page);
   }, [parts]);
 
   // 모든 등잔이 함께 일렁인다 (재질 하나 공유 — draw call 절약)
@@ -348,7 +351,13 @@ function DeskSet({
     <group>
       <instancedMesh ref={tops} args={[undefined, undefined, parts.top.length]}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={wood} roughness={0.7} />
+        <meshStandardMaterial
+          color={wood}
+          map={grain}
+          bumpMap={grain}
+          bumpScale={0.012}
+          roughness={0.48}
+        />
       </instancedMesh>
       <instancedMesh
         ref={darks}
@@ -363,6 +372,10 @@ function DeskSet({
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={woodLight} roughness={1} />
+      </instancedMesh>
+      <instancedMesh ref={pages} args={[undefined, undefined, parts.page.length]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={woodLight} map={paper} roughness={0.95} />
       </instancedMesh>
       <instancedMesh
         ref={flames}
@@ -443,6 +456,8 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
 /* ── 방 ─────────────────────────────────────────────── */
 
 export function LibraryRoom({ colors, desks }: RoomProps) {
+  const floorGrain = useSurfaceTexture("wood", 5, 12);
+  const plaster = useSurfaceTexture("plaster", 6, 3);
   const shelves = useShelves();
   const chunks = useMemo(() => chunkShelves(shelves), [shelves]);
   const bookPalette = useMemo(
@@ -452,7 +467,7 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       colors["--color-scene-robe-3"],
       colors["--color-scene-robe-4"],
       colors["--color-scene-wood-light"],
-      colors["--color-scene-flame"],
+      colors["--color-scene-wall"],
     ],
     [colors],
   );
@@ -473,7 +488,10 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial
           color={colors["--color-scene-floor"]}
-          roughness={0.95}
+          map={floorGrain}
+          bumpMap={floorGrain}
+          bumpScale={0.025}
+          roughness={0.6}
         />
       </mesh>
       {/* 중앙 통로 러그 — 긴 서고를 가로지르는 붉은 길 */}
@@ -487,17 +505,35 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       {/* 벽 (뒤·좌·우·앞) — 시점을 돌려도 바깥 허공이 보이지 않게 사방을 막는다 */}
       <mesh position={[0, H / 2, ROOM.minZ - 0.8]}>
         <boxGeometry args={[w, H, 0.2]} />
-        <meshStandardMaterial color={wall} />
+        <meshStandardMaterial
+          color={wall}
+          map={plaster}
+          bumpMap={plaster}
+          bumpScale={0.035}
+          roughness={0.94}
+        />
       </mesh>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (ROOM.maxX + 0.8), H / 2, cz]}>
           <boxGeometry args={[0.2, H, d]} />
-          <meshStandardMaterial color={wall} />
+          <meshStandardMaterial
+          color={wall}
+          map={plaster}
+          bumpMap={plaster}
+          bumpScale={0.035}
+          roughness={0.94}
+        />
         </mesh>
       ))}
       <mesh position={[0, H / 2, frontZ]}>
         <boxGeometry args={[w, H, 0.2]} />
-        <meshStandardMaterial color={wall} />
+        <meshStandardMaterial
+          color={wall}
+          map={plaster}
+          bumpMap={plaster}
+          bumpScale={0.035}
+          roughness={0.94}
+        />
       </mesh>
       {/* 입구 대문: 문틀(기둥 2 + 인방) + 두 짝 문 */}
       <group position={[0, 0, FRONT_WALL_Z - 0.02]}>

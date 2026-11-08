@@ -6,6 +6,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color } from "three";
 import type { InstancedMesh } from "three";
+import { useSurfaceTexture } from "./surfaceTexture";
 import { fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
 import { BEAM_Z, FRONT_WALL_Z, HALL, ROOM } from "./sceneLayout";
@@ -33,12 +34,19 @@ function Boxes({
   color: string;
   roughness?: number;
 }) {
+  const grain = useSurfaceTexture("wood", 1, 3);
   const ref = useRef<InstancedMesh>(null);
   useLayoutEffect(() => fillBoxes(ref.current, boxes), [boxes]);
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, boxes.length]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color={color} roughness={roughness} />
+      <meshStandardMaterial
+        color={color}
+        map={grain}
+        bumpMap={grain}
+        bumpScale={0.02}
+        roughness={roughness}
+      />
     </instancedMesh>
   );
 }

@@ -116,7 +116,7 @@ function FollowLights({
             refs.current[i] = l;
           }}
           position={[0, 3.2, 0]}
-          intensity={9}
+          intensity={8}
           distance={11}
           decay={1.6}
           color={color}
@@ -556,16 +556,16 @@ export function LibraryWorld({
                 args={[colors["--color-background-default"]]}
               />
               {/* 긴 서고의 안쪽이 안개 속으로 깊어지게 — 넓어진 홀(약 31m)에 맞춤 */}
-              <fog attach="fog" args={[colors["--color-scene-fog"], 14, 44]} />
+              <fog attach="fog" args={[colors["--color-scene-fog"], 22, 72]} />
               <ambientLight
-                intensity={0.55}
-                color={colors["--color-scene-light"]}
+                intensity={1.05}
+                color={colors["--color-scene-collar"]}
               />
               <hemisphereLight
                 args={[
-                  colors["--color-scene-light"],
+                  colors["--color-scene-moonlight"],
                   colors["--color-scene-floor"],
-                  0.5,
+                  0.85,
                 ]}
               />
               <FollowLights
