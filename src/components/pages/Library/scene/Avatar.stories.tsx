@@ -82,7 +82,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   argTypes: {
     house: { control: "select", options: HOUSE_IDS },
-    pose: { control: "select", options: ["stand", "walk", "sit"] },
+    pose: { control: "select", options: ["stand", "walk", "run", "sit"] },
   },
   args: { house: "baekho", pose: "stand", practicing: false },
 } satisfies Meta<typeof AvatarPreview>;
@@ -101,6 +101,7 @@ export const Jujak: Story = { args: { house: "jujak" } };
 export const Hyeonmu: Story = { args: { house: "hyeonmu" } };
 export const Cheongryong: Story = { args: { house: "cheongryong" } };
 export const Walking: Story = { args: { pose: "walk" } };
+export const Running: Story = { args: { pose: "run" } };
 export const Studying: Story = { args: { pose: "sit" } };
 export const Practicing: Story = { args: { pose: "sit", practicing: true } };
 

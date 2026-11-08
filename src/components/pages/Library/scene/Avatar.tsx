@@ -30,7 +30,7 @@ const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(0.028, 0.002, 0),
 );
 
-export type AvatarPose = "stand" | "walk" | "sit";
+export type AvatarPose = "stand" | "walk" | "run" | "sit";
 
 /**
  * 이름표(Html)를 붙일 DOM 컨테이너. 기본값(R3F 내부 노드)에 붙이면 Canvas 언마운트 시
@@ -223,58 +223,80 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   const trim = band ?? robe;
   const portal = useContext(LabelPortalContext);
 
-  useFrame(({ clock }) => {
+  // 걸음·앉음 상태 — 위상(phase)을 누적해 박자가 바뀌어도 발이 튀지 않게 하고,
+  // 걷기/달리기/앉기 가중치는 부드럽게 따라가게 해서 출발·정지·착석 때 동작이 뚝 끊기지 않게 한다
+  const gait = useRef({ phase: 0, move: 0, run: 0, sit: 0 });
+
+  useFrame(({ clock }, rawDt) => {
     const t = clock.elapsedTime;
     if (!body.current || !head.current) return;
-    const step = Math.sin(t * 7);
-    body.current.rotation.y = pose === "walk" ? step * 0.035 : 0;
-    head.current.rotation.z = pose === "walk" ? -step * 0.015 : 0;
+    const dt = Math.min(rawDt, 0.1);
+    const g = gait.current;
+    const moving = pose === "walk" || pose === "run";
+    g.move += ((moving ? 1 : 0) - g.move) * (1 - Math.exp(-10 * dt));
+    g.run += ((pose === "run" ? 1 : 0) - g.run) * (1 - Math.exp(-8 * dt));
+    g.sit += ((pose === "sit" ? 1 : 0) - g.sit) * (1 - Math.exp(-7 * dt));
+    // 걷기 ↔ 달리기 사이 값을 섞는다: mix(걷기, 달리기)
+    const mix = (walk: number, run: number) => walk + (run - walk) * g.run;
+    // 서 있는 값 ↔ 앉은 값을 섞는다: seat(선 값, 앉은 값)
+    const seat = (stand: number, sat: number) => stand + (sat - stand) * g.sit;
+    if (moving) g.phase += mix(10, 14) * dt;
+    const sw = Math.sin(g.phase);
+    const co = Math.cos(g.phase);
+    const gm = g.move * (1 - g.sit);
+
     for (const [foot, side] of [
       [leftFoot.current, -1],
       [rightFoot.current, 1],
     ] as const) {
       if (!foot) continue;
-      const stride = pose === "walk" ? step * side : 0;
-      foot.position.z = 0.045 + stride * 0.11;
-      foot.position.y = 0.065 + Math.max(0, stride) * 0.035;
-      foot.rotation.x = stride * -0.16;
+      // 발은 앞으로 나아갈 때(위상 미분이 +) 들린다 — 앞에서 뒤로 끌릴 땐 바닥에 붙는다
+      const stride = sw * side;
+      const swing = Math.max(0, co * side);
+      // 앉으면 무릎을 굽혀 발이 도포 자락 앞으로 나온다
+      foot.position.z = 0.045 + stride * mix(0.17, 0.3) * gm + 0.3 * g.sit;
+      foot.position.y = 0.065 + swing * mix(0.05, 0.12) * gm + 0.015 * g.sit;
+      foot.rotation.x = stride * -0.2 * gm;
     }
-    if (pose === "walk") {
-      body.current.position.y = (1 - Math.cos(t * 14)) * 0.009;
-      body.current.rotation.z = step * 0.025;
-      body.current.rotation.x = 0.025;
-      head.current.rotation.x = -0.025;
-    } else if (pose === "sit") {
-      body.current.position.y = -0.22;
-      body.current.rotation.z = 0;
-      head.current.rotation.x = focusing
-        ? 0.35 + Math.sin(t * 1.4) * 0.05 // 책을 내려다보며 살짝 끄덕
-        : -0.15 + Math.sin(t * 0.6) * 0.04; // 기지개 펴듯 젖힘
-      body.current.rotation.x = focusing ? 0.12 : -0.08;
-      if (practicing) {
-        // 실습 중엔 책 대신 회오리를 올려다봄
-        head.current.rotation.x = -0.2 + Math.sin(t * 1.2) * 0.04;
-        body.current.rotation.x = 0;
-      }
-    } else {
-      body.current.position.y = Math.sin(t * 2) * 0.01;
-      body.current.rotation.set(0, 0, 0);
-      head.current.rotation.x = 0;
-    }
+
+    // 걷기·서기 몸짓 (앉았을 땐 아래에서 앉은 값으로 섞인다)
+    // 발이 가장 벌어질 때(sw=±1) 몸이 가장 낮고, 발이 교차할 때(sw=0) 가장 높다
+    const bounce = (1 + Math.cos(2 * g.phase)) / 2;
+    const idle = Math.sin(t * 2) * 0.01;
+    const standY = idle + (bounce * mix(0.022, 0.09) - idle) * g.move;
+    const standRx = mix(0.04, 0.2) * g.move;
+    const headStandRx = -mix(0.04, 0.12) * g.move;
+
+    // 앉은 몸짓: 엉덩이를 의자 면에 얹고(약간만 가라앉음), 숨 쉬듯 미세하게 움직인다
+    const breath = Math.sin(t * 1.8) * 0.004;
+    const sitHeadRx = practicing
+      ? -0.2 + Math.sin(t * 1.2) * 0.04 // 책 대신 회오리를 올려다봄
+      : focusing
+        ? 0.3 + Math.sin(t * 1.4) * 0.05 // 책을 내려다보며 살짝 끄덕
+        : -0.12 + Math.sin(t * 0.6) * 0.04; // 기지개 펴듯 젖힘
+    const sitBodyRx = practicing ? 0 : focusing ? 0.14 : -0.06;
+
+    body.current.position.y = seat(standY, -0.1 + breath);
+    body.current.rotation.x = seat(standRx, sitBodyRx);
+    body.current.rotation.y = sw * mix(0.07, 0.12) * gm;
+    body.current.rotation.z = sw * mix(0.03, 0.06) * gm;
+    head.current.rotation.x = seat(headStandRx, sitHeadRx);
+    // 머리는 몸이 틀어도 정면을 유지하려고 반대로 조금 돌린다
+    head.current.rotation.y = -sw * mix(0.04, 0.07) * gm;
+    head.current.rotation.z = -sw * 0.015 * gm;
+
+    // 팔은 같은 쪽 발과 반대로 흔든다. 앉으면 무릎 위에 얹고 공부할 땐 살짝 움직인다.
     // 지팡이 휘두르기: 앞으로 든 팔이 작은 원을 그림
+    const armSwing = sw * mix(0.45, 1) * g.move;
+    const sitArm = focusing ? -1.05 : -0.85;
     if (arm.current) {
       arm.current.rotation.x = practicing
         ? -1.15 + Math.sin(t * 4) * 0.12
-        : pose === "walk"
-          ? step * 0.22
-          : pose === "sit"
-            ? -0.35
-            : 0;
+        : seat(armSwing, sitArm + (focusing ? Math.sin(t * 2.6) * 0.03 : 0));
       arm.current.rotation.z = practicing ? -0.25 + Math.cos(t * 4) * 0.15 : 0;
     }
     if (leftArm.current) {
-      leftArm.current.rotation.x =
-        pose === "walk" ? -step * 0.22 : pose === "sit" ? -0.35 : 0;
+      leftArm.current.rotation.x = seat(-armSwing, sitArm + 0.05);
     }
   });
 

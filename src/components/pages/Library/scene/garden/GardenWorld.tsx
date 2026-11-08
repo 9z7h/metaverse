@@ -156,6 +156,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   /* 입력 */
   const input = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
+  const boost = useRef(false);
   const target = useRef<Vec2 | null>(null);
   const pickFloor = useRef<FloorPick | null>(null);
   const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
@@ -185,7 +186,9 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
-      if (e.code in KEY_DIR) {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        boost.current = true;
+      } else if (e.code in KEY_DIR) {
         keys.current.add(e.code);
         sync();
         e.preventDefault();
@@ -200,13 +203,22 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
       }
     };
     const up = (e: KeyboardEvent) => {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        boost.current = false;
+      }
       if (keys.current.delete(e.code)) sync();
     };
+    // 창이 포커스를 잃으면 keyup이 오지 않아 부스트가 켜진 채 남는다
+    const blur = () => {
+      boost.current = false;
+    };
+    window.addEventListener("blur", blur);
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
     };
   }, [sync, onBack, toggleRide]);
 
@@ -373,6 +385,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 house={house}
                 riding={riding}
                 input={input}
+                boost={boost}
                 target={target}
                 orbit={orbit}
                 dragging={draggingRef}
@@ -529,7 +542,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             }}
           >
             {riding
-              ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD"
+              ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD · Shift 가속"
               : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 빗자루를 타 볼까요?"}
           </p>
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>

@@ -21,6 +21,7 @@ import {
   shortestYawTarget,
   boardCameraRig,
   PLAYER_SPAWN,
+  RUN_MULTIPLIER,
 } from "./sceneLayout";
 import type { DeskLayout, Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import type {
@@ -53,6 +54,8 @@ export interface PlayerProps {
   desks: DeskLayout[];
   /** 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음. 움직이면 탭 이동은 취소 */
   input: MutableRefObject<{ x: number; y: number }>;
+  /** 쉬프트를 누르고 있는지 — 달리기 (매 프레임 읽음) */
+  running: MutableRefObject<boolean>;
   /** 탭 이동 명령 — 매 프레임 읽고, 도착하면 null로 비운다 */
   moveOrder: MutableRefObject<MoveOrder | null>;
   /** 탭한 빈 책상에 도착 */
@@ -114,6 +117,7 @@ export function Player({
   colors,
   desks,
   input,
+  running,
   moveOrder,
   onArriveSeat,
   practicing,
@@ -190,14 +194,15 @@ export function Player({
     } else {
       const { x, y } = input.current;
       const keyMoving = Math.hypot(x, y) > 0.05;
+      const walkSpeed = WALK_SPEED * (running.current ? RUN_MULTIPLIER : 1);
       let moving = false;
       if (keyMoving) {
         // 키보드 위 = 카메라가 보는 방향. 키보드로 움직이면 탭 이동은 취소
         moveOrder.current = null;
         const move = cameraRelativeMove(x, y, orbit.current.yaw);
         pos.current = resolveCollision({
-          x: pos.current.x + move.x * WALK_SPEED * dt,
-          z: pos.current.z + move.z * WALK_SPEED * dt,
+          x: pos.current.x + move.x * walkSpeed * dt,
+          z: pos.current.z + move.z * walkSpeed * dt,
         });
         facing.current = Math.atan2(move.x, move.z);
         moving = true;
@@ -210,7 +215,7 @@ export function Player({
           const dx = next.x - pos.current.x;
           const dz = next.z - pos.current.z;
           const dist = Math.hypot(dx, dz);
-          const step = WALK_SPEED * dt;
+          const step = walkSpeed * dt;
           if (dist <= step) {
             pos.current = { ...next };
             order.path.shift();
@@ -231,7 +236,11 @@ export function Player({
           }
         }
       }
-      const nextPose: AvatarPose = moving ? "walk" : "stand";
+      const nextPose: AvatarPose = moving
+        ? running.current
+          ? "run"
+          : "walk"
+        : "stand";
       if (pose !== nextPose) setPose(nextPose);
 
       g.position.set(pos.current.x, 0, pos.current.z);

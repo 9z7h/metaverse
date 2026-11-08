@@ -28,6 +28,9 @@ export const DOOR: Vec2 = { x: 0, z: ROOM.maxZ - 0.6 };
 export const PLAYER_SPAWN: Vec2 = { x: 0, z: 9.4 };
 
 /** 이 안(문 앞 가운데)에 서면 "정원으로 나가기"가 나타난다 */
+/** 쉬프트로 달릴 때 걷기 속도에 곱하는 배율 — 서고·뜰 공통 */
+export const RUN_MULTIPLIER = 1.5;
+
 export const EXIT_ZONE = { halfWidth: 1.9, minZ: ROOM.maxZ - 1.5 } as const;
 export function nearExit(pos: Vec2): boolean {
   return Math.abs(pos.x) <= EXIT_ZONE.halfWidth && pos.z >= EXIT_ZONE.minZ;

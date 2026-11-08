@@ -258,6 +258,7 @@ export function LibraryWorld({
   /* 입력: 키보드(WASD·방향키)는 마우스·터치를 못 쓰는 사용자를 위한 대체 수단 — 매 프레임 읽힘 */
   const input = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
+  const running = useRef(false);
   const sync = useCallback(() => {
     let x = 0;
     let y = 0;
@@ -320,7 +321,9 @@ export function LibraryWorld({
     const down = (e: KeyboardEvent) => {
       // 대화창 같은 입력칸에서 글자를 치는 중이면 이동·앉기 키(W·A·S·D·E)를 가로채지 않는다
       if (isTypingTarget(e.target)) return;
-      if (e.code in KEY_DIR) {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        running.current = true;
+      } else if (e.code in KEY_DIR) {
         setBoardView(false);
         keys.current.add(e.code);
         sync();
@@ -332,13 +335,22 @@ export function LibraryWorld({
       }
     };
     const up = (e: KeyboardEvent) => {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        running.current = false;
+      }
       if (keys.current.delete(e.code)) sync();
     };
+    // 창이 포커스를 잃으면 keyup이 오지 않아 달리기가 켜진 채 남는다
+    const blur = () => {
+      running.current = false;
+    };
+    window.addEventListener("blur", blur);
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
     };
   }, [sync, nearSeat, atExit, mySeatId, onSit, onGoGarden, setBoardView]);
 
@@ -615,6 +627,7 @@ export function LibraryWorld({
                 colors={colors}
                 desks={desks}
                 input={input}
+                running={running}
                 moveOrder={moveOrder}
                 onArriveSeat={onSit}
                 practicing={Boolean(seat && focusing && mode === "practice")}

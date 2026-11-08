@@ -23,7 +23,7 @@ import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
 import { FOLLOW_RATE, IDLE_SEND_MS, MOVE_SEND_MS } from "../Characters";
 import { roundGlowKey, roundGlowShader } from "../MagicEffect";
-import { cameraRelativeMove, cameraRig } from "../sceneLayout";
+import { RUN_MULTIPLIER, cameraRelativeMove, cameraRig } from "../sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
@@ -164,6 +164,8 @@ export interface BroomRiderProps {
   riding: boolean;
   /** 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음. 움직이면 탭 목표는 취소 */
   input: MutableRefObject<{ x: number; y: number }>;
+  /** 쉬프트를 누르고 있는지 — 달리기(걷기 가속)·비행 부스트 (매 프레임 읽음) */
+  boost: MutableRefObject<boolean>;
   /** 탭한 목표 — 매 프레임 읽고, 도착하면 null로 비운다 */
   target: MutableRefObject<Vec2 | null>;
   orbit: MutableRefObject<Orbit>;
@@ -196,6 +198,7 @@ export function BroomRider({
   house,
   riding,
   input,
+  boost,
   target,
   orbit,
   dragging,
@@ -272,7 +275,7 @@ export function BroomRider({
       const next = stepFlight(
         s,
         dt,
-        { dir, speedFrac: speedFrac * slow },
+        { dir, speedFrac: speedFrac * slow, boost: boost.current },
         !riding,
       );
       state.current = next;
@@ -281,7 +284,8 @@ export function BroomRider({
       // 걷기
       moving = false;
       if (dir) {
-        const step = WALK_SPEED * slow * dt;
+        const step =
+          WALK_SPEED * (boost.current ? RUN_MULTIPLIER : 1) * slow * dt;
         const nx = s.x + dir.x * step;
         const nz = s.z + dir.z * step;
         const out = resolveWalk({ x: nx, z: nz });
@@ -295,7 +299,10 @@ export function BroomRider({
         s.x = out.x;
         s.z = out.z;
         s.heading = Math.atan2(dir.x, dir.z);
-        s.speed = moved / Math.max(dt, 1e-6);
+        // 걷는 동안엔 비행 속도(speed)를 0으로 둔다. 0.05 이상이면 isGrounded가 거짓이 되어
+        // 다음 프레임이 비행(착륙) 계산으로 넘어가 속도가 서서히 줄다 다시 걷기로 튀는
+        // 톱니 모양 끊김이 생긴다.
+        s.speed = 0;
         moving = moved > 0.001;
       } else {
         s.speed = 0;
@@ -311,7 +318,13 @@ export function BroomRider({
     // ── 자세·빗자루 표시
     const flying = cur.y > 0.04 || riding;
     if (flying !== showBroom) setShowBroom(flying);
-    const nextPose: AvatarPose = flying ? "sit" : moving ? "walk" : "stand";
+    const nextPose: AvatarPose = flying
+      ? "sit"
+      : moving
+        ? boost.current
+          ? "run"
+          : "walk"
+        : "stand";
     if (nextPose !== pose) setPose(nextPose);
 
     // ── 배치: 몸통은 진행 방향으로, 비행 중에는 살짝 기울고 흔들린다

@@ -382,6 +382,8 @@ export function nearLibraryDoor(pos: Vec2): boolean {
 export const FLIGHT = {
   /** 순항 속도 m/s */
   cruiseSpeed: 6.5,
+  /** 쉬프트로 부스트할 때 순항 속도·가속에 곱하는 배율 */
+  boostMultiplier: 2.2,
   accel: 5,
   decel: 6,
   /** 방향을 트는 속도 rad/s — 천천히 휘어 돈다 */
@@ -413,6 +415,8 @@ export interface FlightIntent {
   dir: Vec2 | null;
   /** 0~1: 순항 속도의 몇 배로 갈지 */
   speedFrac: number;
+  /** 쉬프트 부스트 — 순항 속도와 가속이 boostMultiplier배 */
+  boost?: boolean;
 }
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -467,10 +471,15 @@ export function stepFlight(
     heading = wrapAngle(heading + clamp(diff, -step, step));
   }
 
+  const boost = intent.boost ? FLIGHT.boostMultiplier : 1;
   const wantSpeed = wantsMove
-    ? FLIGHT.cruiseSpeed * clamp(intent.speedFrac, 0, 1)
+    ? FLIGHT.cruiseSpeed * boost * clamp(intent.speedFrac, 0, 1)
     : 0;
-  speed += clamp(wantSpeed - speed, -FLIGHT.decel * dt, FLIGHT.accel * dt);
+  speed += clamp(
+    wantSpeed - speed,
+    -FLIGHT.decel * dt,
+    FLIGHT.accel * boost * dt,
+  );
   speed = Math.max(0, speed);
 
   x += Math.sin(heading) * speed * dt;
