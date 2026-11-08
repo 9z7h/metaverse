@@ -137,8 +137,9 @@ function ShelfFrames({
   const boxes = useMemo(() => {
     const rowH = SHELF_HEIGHT / SHELF_ROWS;
     return shelves.flatMap((s) => [
-      // 뒤판
-      shelfBox(s, 0, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2, [
+      // 뒤판 — 벽 안쪽 면과 같은 평면에 놓이면 두 면이 겹쳐 깜빡이므로(z-fighting)
+      // 앞으로 3cm 당겨, 한쪽 면은 벽 안에 묻히고 다른 면은 벽보다 앞에 오게 한다
+      shelfBox(s, 0, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 + 0.03, [
         s.width,
         SHELF_HEIGHT,
         0.05,
