@@ -379,112 +379,428 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
 }
 
 /* ── 학교 건물 (입장 불가) ────────────────────────────────────
- * 먹빛각과 같은 한옥 어휘로 지은 작은 건물들. 문은 닫혀 있고 창에는 불이 켜져 있다. */
+ * 먹빛각과 같은 한옥 어휘로 지은 건물들. 문은 닫혀 있고 창에는 불이 켜져 있다.
+ * 모양은 kind별 — 문루(성곽 기단 + 겹층 누각), 탑(층마다 줄어드는 5층), 기숙사(기단·계단·기둥·겹처마), 공방. */
+
+/** 기와 지붕 하나 — 피라미드를 크기에 맞춰 늘린다 */
+function Roof({
+  pyramid,
+  at,
+  w,
+  d,
+  h,
+  color,
+}: {
+  pyramid: ConeGeometry;
+  at: [number, number, number];
+  w: number;
+  d: number;
+  h: number;
+  color: string;
+}) {
+  return (
+    <mesh
+      geometry={pyramid}
+      position={[at[0], at[1] + h / 2, at[2]]}
+      scale={[w / 0.7071, h, d / 0.7071]}
+    >
+      <meshStandardMaterial color={color} roughness={0.7} />
+    </mesh>
+  );
+}
+
+/** 칸 하나 — 상자 */
+function Block({
+  at,
+  size,
+  color,
+  roughness = 0.85,
+}: {
+  at: [number, number, number];
+  size: [number, number, number];
+  color: string;
+  roughness?: number;
+}) {
+  return (
+    <mesh position={at}>
+      <boxGeometry args={size} />
+      <meshStandardMaterial color={color} roughness={roughness} />
+    </mesh>
+  );
+}
+
+/** 층층이 올라가는 누각 몸체 + 처마. 층마다 `shrink`배로 줄어든다. */
+function Tiers({
+  pyramid,
+  colors,
+  x,
+  z,
+  y0,
+  halfW,
+  halfD,
+  count,
+  shrink,
+  wallH,
+  roofH,
+  windows = true,
+}: {
+  pyramid: ConeGeometry;
+  colors: SceneColors;
+  x: number;
+  z: number;
+  y0: number;
+  halfW: number;
+  halfD: number;
+  count: number;
+  shrink: number;
+  wallH: number;
+  roofH: number;
+  windows?: boolean;
+}) {
+  const layers: ReactNode[] = [];
+  let y = y0;
+  let w = halfW;
+  let d = halfD;
+  for (let i = 0; i < count; i++) {
+    layers.push(
+      <group key={i}>
+        <Block
+          at={[x, y + wallH / 2, z]}
+          size={[w * 2 - 0.6, wallH, d * 2 - 0.6]}
+          color={colors["--color-scene-wall"]}
+        />
+        {/* 층마다 불 켜진 창 */}
+        {windows ? (
+          <mesh position={[x, y + wallH * 0.55, z + d - 0.3 + 0.03]}>
+            <boxGeometry args={[Math.min(1.4, w), wallH * 0.45, 0.06]} />
+            <meshBasicMaterial color={colors["--color-scene-flame"]} />
+          </mesh>
+        ) : null}
+        {/* 처마 밑 단청 띠 */}
+        <Block
+          at={[x, y + wallH - 0.12, z + d - 0.3 + 0.12]}
+          size={[w * 2 - 0.6, 0.26, 0.2]}
+          color={colors["--color-scene-dancheong"]}
+        />
+        <Roof
+          pyramid={pyramid}
+          at={[x, y + wallH, z]}
+          w={w + 1.3}
+          d={d + 1.3}
+          h={roofH}
+          color={colors["--color-scene-roof-tile"]}
+        />
+      </group>,
+    );
+    y += wallH + roofH * 0.55;
+    w *= shrink;
+    d *= shrink;
+  }
+  return <>{layers}</>;
+}
+
+/** 지붕 꼭대기 장식(놋쇠 첨탑) */
+function Finial({
+  colors,
+  at,
+  h = 1.4,
+}: {
+  colors: SceneColors;
+  at: [number, number, number];
+  h?: number;
+}) {
+  return (
+    <mesh position={[at[0], at[1] + h / 2, at[2]]}>
+      <cylinderGeometry args={[0.05, 0.14, h, 8]} />
+      <meshStandardMaterial
+        color={colors["--color-scene-brass"]}
+        roughness={0.4}
+      />
+    </mesh>
+  );
+}
 
 function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
   const pyramid = usePyramid();
   const wood = colors["--color-scene-wood"];
   const dark = colors["--color-scene-wood-dark"];
+  const stone = colors["--color-scene-stone"];
+  const wall = colors["--color-scene-wall"];
   const roofTile = colors["--color-scene-roof-tile"];
-  const baseTop = 0.5;
-  const wallH = 3.2;
-  const bodyW = b.halfW * 2 - 0.6;
-  const bodyD = b.halfD * 2 - 0.6;
-  const frontZ = b.z + b.halfD - 0.3;
+  const flame = colors["--color-scene-flame"];
   const bandColor = b.house
     ? colors[`--color-house-${b.house}-primary`]
     : colors["--color-scene-dancheong"];
   const flagColor = b.house ? colors[`--color-house-${b.house}-accent`] : null;
+  const frontZ = b.z + b.halfD - 0.3;
+  const bodyW = b.halfW * 2 - 0.6;
+  const bodyD = b.halfD * 2 - 0.6;
 
-  // 누각은 아래층 위에 처마를 한 번 두르고 좁은 윗층을 올린다
-  const upper = b.floors === 2;
-  const roofY = baseTop + wallH + (upper ? wallH * 0.8 + 0.8 : 0);
-  const roofH = upper ? 2.8 : 2.4 + b.halfW * 0.12;
-  const roofW = (upper ? b.halfW * 0.8 : b.halfW) + 1.6;
-  const roofD = (upper ? b.halfD * 0.8 : b.halfD) + 1.6;
-  const windowXs = b.halfW > 3 ? [-b.halfW * 0.6, b.halfW * 0.6] : [];
-
-  return (
-    <group>
-      {/* 기단 */}
-      <mesh position={[b.x, baseTop / 2, b.z + 0.4]}>
-        <boxGeometry args={[b.halfW * 2 + 1.6, baseTop, b.halfD * 2 + 1.6]} />
-        <meshStandardMaterial
-          color={colors["--color-scene-stone"]}
+  if (b.kind === "gate") {
+    // 성곽 기단(돌) + 붉은 문 + 그 위로 겹층 누각
+    const wallTop = 3.6;
+    return (
+      <group>
+        <Block
+          at={[b.x, wallTop / 2, b.z]}
+          size={[b.halfW * 2, wallTop, b.halfD * 2]}
+          color={stone}
           roughness={0.9}
         />
-      </mesh>
+        {/* 성가퀴(성벽 위 톱니) */}
+        {Array.from({ length: 9 }, (_, i) => (
+          <Block
+            key={i}
+            at={[
+              b.x - b.halfW + 0.7 + (i * (b.halfW * 2 - 1.4)) / 8,
+              wallTop + 0.3,
+              b.z + b.halfD - 0.2,
+            ]}
+            size={[0.7, 0.6, 0.4]}
+            color={stone}
+            roughness={0.9}
+          />
+        ))}
+        {/* 붉은 대문과 문 위 아치 */}
+        <Block
+          at={[b.x, 1.5, b.z + b.halfD + 0.04]}
+          size={[3, 3, 0.1]}
+          color={colors["--color-scene-dancheong"]}
+        />
+        <Block
+          at={[b.x, 3.1, b.z + b.halfD + 0.06]}
+          size={[3.4, 0.4, 0.14]}
+          color={dark}
+        />
+        {[-1, 1].map((sx) => (
+          <Block
+            key={sx}
+            at={[b.x + sx * 0.75, 1.4, b.z + b.halfD + 0.12]}
+            size={[1.3, 2.6, 0.06]}
+            color={wood}
+          />
+        ))}
+        <Tiers
+          pyramid={pyramid}
+          colors={colors}
+          x={b.x}
+          z={b.z}
+          y0={wallTop + 0.3}
+          halfW={b.halfW - 1}
+          halfD={b.halfD - 0.4}
+          count={2}
+          shrink={0.62}
+          wallH={2.4}
+          roofH={2.2}
+        />
+        <Finial colors={colors} at={[b.x, 12.3, b.z]} />
+        <pointLight
+          position={[b.x, 5, b.z + b.halfD + 3]}
+          intensity={7}
+          distance={18}
+          decay={1.6}
+          color={flame}
+        />
+      </group>
+    );
+  }
+
+  if (b.kind === "tower") {
+    // 5층 탑 — 돌 기단 위로 층마다 줄어들고, 꼭대기에 첨탑
+    const base = 1.2;
+    return (
+      <group>
+        <Block
+          at={[b.x, base / 2, b.z + 0.2]}
+          size={[b.halfW * 2 + 2, base, b.halfD * 2 + 2]}
+          color={stone}
+          roughness={0.9}
+        />
+        <Tiers
+          pyramid={pyramid}
+          colors={colors}
+          x={b.x}
+          z={b.z}
+          y0={base}
+          halfW={b.halfW}
+          halfD={b.halfD}
+          count={5}
+          shrink={0.84}
+          wallH={2.4}
+          roofH={1.5}
+        />
+        <Finial colors={colors} at={[b.x, 17.4, b.z]} h={2.4} />
+        <pointLight
+          position={[b.x, 6, b.z + b.halfD + 2]}
+          intensity={6}
+          distance={16}
+          decay={1.6}
+          color={flame}
+        />
+      </group>
+    );
+  }
+
+  if (b.kind === "workshop") {
+    // 낮은 기단 + 한 채 + 연못 쪽(북) 물레방아
+    return (
+      <group>
+        <Block
+          at={[b.x, 0.25, b.z + 0.3]}
+          size={[b.halfW * 2 + 1.6, 0.5, b.halfD * 2 + 1.6]}
+          color={stone}
+          roughness={0.9}
+        />
+        <Block
+          at={[b.x, 0.5 + 1.5, b.z]}
+          size={[bodyW, 3, bodyD]}
+          color={wall}
+        />
+        <Block
+          at={[b.x - 0.5, 1.8, frontZ + 0.05]}
+          size={[0.96, 2.6, 0.1]}
+          color={wood}
+        />
+        <Block
+          at={[b.x + 0.5, 1.8, frontZ + 0.05]}
+          size={[0.96, 2.6, 0.1]}
+          color={wood}
+        />
+        <Roof
+          pyramid={pyramid}
+          at={[b.x, 3.5, b.z + 0.2]}
+          w={b.halfW + 1.6}
+          d={b.halfD + 1.6}
+          h={2.4}
+          color={roofTile}
+        />
+        <Finial colors={colors} at={[b.x, 5.9, b.z + 0.2]} h={0.8} />
+        {/* 물레방아 — 옆면(동쪽)에 세운다 */}
+        <group position={[b.x + b.halfW + 0.2, 1.6, b.z]}>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[1.4, 1.4, 0.3, 12]} />
+            <meshStandardMaterial color={dark} roughness={0.9} />
+          </mesh>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[1.0, 1.0, 0.36, 12]} />
+            <meshStandardMaterial color={wood} roughness={0.9} />
+          </mesh>
+        </group>
+        <pointLight
+          position={[b.x, 3, frontZ + 1.5]}
+          intensity={3}
+          distance={9}
+          decay={1.6}
+          color={flame}
+        />
+      </group>
+    );
+  }
+
+  // 기숙사 — 2단 기단, 앞 계단, 기둥 열, 겹처마
+  const wallH = 3.2;
+  const step1 = 0.4;
+  const step2 = 0.8;
+  const cols = 6;
+  return (
+    <group>
+      <Block
+        at={[b.x, step1 / 2, b.z + 0.4]}
+        size={[b.halfW * 2 + 2.4, step1, b.halfD * 2 + 2.4]}
+        color={stone}
+        roughness={0.9}
+      />
+      <Block
+        at={[b.x, (step2 + step1) / 2 - 0.2 + 0.2, b.z + 0.2]}
+        size={[b.halfW * 2 + 1.2, step2 - step1 + step1, b.halfD * 2 + 1.2]}
+        color={stone}
+        roughness={0.9}
+      />
+      {/* 앞 계단 */}
+      {[0, 1].map((i) => (
+        <Block
+          key={i}
+          at={[b.x, 0.25 + i * 0.3, b.z + b.halfD + 1.2 + (1 - i) * 0.5]}
+          size={[2.4, 0.5 + i * 0.3, 0.8]}
+          color={stone}
+          roughness={0.9}
+        />
+      ))}
       {/* 몸체 */}
-      <mesh position={[b.x, baseTop + wallH / 2, b.z]}>
-        <boxGeometry args={[bodyW, wallH, bodyD]} />
-        <meshStandardMaterial color={colors["--color-scene-wall"]} />
-      </mesh>
-      {/* 닫힌 문 */}
+      <Block
+        at={[b.x, step2 + wallH / 2, b.z]}
+        size={[bodyW, wallH, bodyD]}
+        color={wall}
+      />
+      {/* 앞 기둥 열 */}
+      {Array.from({ length: cols }, (_, i) => (
+        <mesh
+          key={i}
+          position={[
+            b.x - b.halfW + 0.6 + (i * (b.halfW * 2 - 1.2)) / (cols - 1),
+            step2 + wallH / 2,
+            b.z + b.halfD - 0.1,
+          ]}
+        >
+          <cylinderGeometry args={[0.15, 0.15, wallH, 10]} />
+          <meshStandardMaterial color={dark} roughness={0.8} />
+        </mesh>
+      ))}
+      {/* 닫힌 문과 창 */}
+      {[-1, 1].map((sx) => (
+        <Block
+          key={sx}
+          at={[b.x + sx * 0.5, step2 + 1.3, frontZ + 0.05]}
+          size={[0.96, 2.6, 0.1]}
+          color={wood}
+        />
+      ))}
       {[-1, 1].map((sx) => (
         <mesh
           key={sx}
-          position={[b.x + sx * 0.5, baseTop + 1.3, frontZ + 0.05]}
+          position={[b.x + sx * b.halfW * 0.55, step2 + 1.9, frontZ + 0.03]}
         >
-          <boxGeometry args={[0.96, 2.6, 0.1]} />
-          <meshStandardMaterial color={wood} />
+          <boxGeometry args={[1.2, 1.2, 0.06]} />
+          <meshBasicMaterial color={flame} />
         </mesh>
       ))}
-      {/* 불 켜진 창 */}
-      {windowXs.map((wx) => (
-        <mesh key={wx} position={[b.x + wx, baseTop + 1.9, frontZ + 0.03]}>
-          <boxGeometry args={[1.3, 1.3, 0.06]} />
-          <meshBasicMaterial color={colors["--color-scene-flame"]} />
-        </mesh>
-      ))}
-      {/* 처마 밑 띠 — 기숙사는 기숙사 색 */}
-      <mesh position={[b.x, baseTop + wallH - 0.15, frontZ + 0.2]}>
-        <boxGeometry args={[bodyW, 0.32, 0.2]} />
-        <meshStandardMaterial color={bandColor} />
-      </mesh>
-      {upper ? (
-        <>
-          {/* 아래층 처마 */}
-          <mesh
-            geometry={pyramid}
-            position={[b.x, baseTop + wallH + 0.4, b.z]}
-            scale={[(b.halfW + 1.4) / 0.7071, 0.8, (b.halfD + 1.4) / 0.7071]}
-          >
-            <meshStandardMaterial color={roofTile} roughness={0.7} />
-          </mesh>
-          {/* 윗층 */}
-          <mesh position={[b.x, baseTop + wallH + 0.8 + wallH * 0.4, b.z]}>
-            <boxGeometry args={[bodyW * 0.8, wallH * 0.8, bodyD * 0.8]} />
-            <meshStandardMaterial color={colors["--color-scene-wall"]} />
-          </mesh>
-          <mesh
-            position={[
-              b.x,
-              baseTop + wallH + 0.8 + wallH * 0.4,
-              b.z + bodyD * 0.4 + 0.03,
-            ]}
-          >
-            <boxGeometry args={[1.2, 1.2, 0.06]} />
-            <meshBasicMaterial color={colors["--color-scene-flame"]} />
-          </mesh>
-        </>
-      ) : null}
-      {/* 기와지붕 */}
-      <mesh
-        geometry={pyramid}
-        position={[b.x, roofY + roofH / 2, b.z + 0.2]}
-        scale={[roofW / 0.7071, roofH, roofD / 0.7071]}
-      >
-        <meshStandardMaterial color={roofTile} roughness={0.7} />
-      </mesh>
+      <Block
+        at={[b.x, step2 + wallH - 0.15, frontZ + 0.2]}
+        size={[bodyW, 0.32, 0.2]}
+        color={bandColor}
+      />
+      {/* 겹처마: 아래 처마 → 낮은 윗몸 → 위 지붕 */}
+      <Roof
+        pyramid={pyramid}
+        at={[b.x, step2 + wallH, b.z + 0.2]}
+        w={b.halfW + 1.5}
+        d={b.halfD + 1.5}
+        h={0.9}
+        color={roofTile}
+      />
+      <Block
+        at={[b.x, step2 + wallH + 0.6, b.z]}
+        size={[bodyW * 0.7, 1.2, bodyD * 0.7]}
+        color={wall}
+      />
+      <Roof
+        pyramid={pyramid}
+        at={[b.x, step2 + wallH + 0.9, b.z + 0.1]}
+        w={b.halfW * 0.7 + 1.5}
+        d={b.halfD * 0.7 + 1.5}
+        h={2.2}
+        color={roofTile}
+      />
+      <Finial colors={colors} at={[b.x, step2 + wallH + 3, b.z]} h={0.9} />
       {/* 기숙사 깃발 */}
       {flagColor ? (
-        <group position={[b.x + b.halfW - 0.2, 0, b.z + b.halfD + 1.2]}>
-          <mesh position={[0, 2.2, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 4.4, 8]} />
+        <group position={[b.x + b.halfW + 0.4, 0, b.z + b.halfD + 1.6]}>
+          <mesh position={[0, 2.4, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 4.8, 8]} />
             <meshStandardMaterial color={dark} />
           </mesh>
-          <mesh position={[0.45, 3.7, 0]}>
-            <boxGeometry args={[0.9, 1.2, 0.04]} />
+          <mesh position={[0.45, 4, 0]}>
+            <boxGeometry args={[0.9, 1.3, 0.04]} />
             <meshStandardMaterial color={flagColor} />
           </mesh>
         </group>
@@ -500,6 +816,73 @@ function SchoolHalls({ colors }: { colors: SceneColors }) {
         <SchoolHall key={b.id} b={b} colors={colors} />
       ))}
     </>
+  );
+}
+
+/* ── 먼 산 ─────────────────────────────────────────────────────
+ * 꽃담 너머로 겹겹이 이어진 능선. 멀수록 크고 안개에 묻히며, 꼭대기는 달빛 받은 눈. */
+
+const MOUNTAIN_LAYERS = [
+  { count: 14, radius: 80, width: 32, height: 24, seed: 11 },
+  { count: 16, radius: 104, width: 40, height: 34, seed: 29 },
+] as const;
+
+function Mountains({ colors }: { colors: SceneColors }) {
+  const cone = useMemo(() => new ConeGeometry(1, 1, 5), []);
+  const peaks = useMemo(
+    () =>
+      MOUNTAIN_LAYERS.flatMap((layer) => {
+        const rand = seeded(layer.seed);
+        return Array.from({ length: layer.count }, (_, i) => {
+          const a = (i / layer.count) * Math.PI * 2 + rand() * 0.2;
+          return {
+            x: Math.sin(a) * layer.radius,
+            z: Math.cos(a) * layer.radius,
+            w: layer.width * (0.7 + rand() * 0.6),
+            h: layer.height * (0.7 + rand() * 0.6),
+          };
+        });
+      }),
+    [],
+  );
+  const body = useMemo<Box[]>(
+    () =>
+      peaks.map((m) => ({ p: [m.x, m.h / 2 - 1, m.z], s: [m.w, m.h, m.w] })),
+    [peaks],
+  );
+  const bodyTint = useMemo(
+    () => peaks.map((_, i) => 0.28 + (i % 3) * 0.05),
+    [peaks],
+  );
+  // 눈 덮인 꼭대기: 같은 모양의 위쪽 28%
+  const snow = useMemo<Box[]>(
+    () =>
+      peaks.map((m) => ({
+        p: [m.x, m.h * 0.86 - 1, m.z],
+        s: [m.w * 0.28, m.h * 0.28, m.w * 0.28],
+      })),
+    [peaks],
+  );
+  return (
+    <group>
+      {/* 달밤이라 산 몸체는 어둡게 눌러 윤곽으로만 보이게 한다 */}
+      <Inst
+        boxes={body}
+        color={colors["--color-scene-stone"]}
+        roughness={1}
+        tint={bodyTint}
+      >
+        <primitive object={cone} attach="geometry" />
+      </Inst>
+      <Inst
+        boxes={snow}
+        color={colors["--color-scene-moonlight"]}
+        roughness={1}
+        emissive={colors["--color-scene-moonlight"]}
+      >
+        <primitive object={cone} attach="geometry" />
+      </Inst>
+    </group>
   );
 }
 
@@ -941,6 +1324,7 @@ export function GardenScenery({ colors }: { colors: SceneColors }) {
       <FlowerWall colors={colors} />
       <LibraryHall colors={colors} />
       <SchoolHalls colors={colors} />
+      <Mountains colors={colors} />
       <Pavilion colors={colors} />
       <Pines colors={colors} />
       <Bamboo colors={colors} />

@@ -86,8 +86,8 @@ export interface SchoolBuilding {
   z: number;
   halfW: number;
   halfD: number;
-  /** 몸체 층수 — 2면 누각 */
-  floors: 1 | 2;
+  /** 건물 모양 — 문루(gate)·탑(tower)·기숙사(dorm)·공방(workshop) */
+  kind: "gate" | "tower" | "dorm" | "workshop";
   /** 기숙사 건물이면 그 기숙사 — 지붕 아래 띠와 깃발 색 */
   house?: HouseId;
 }
@@ -100,7 +100,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: 25,
     halfW: 6.5,
     halfD: 3.5,
-    floors: 1,
+    kind: "gate",
   },
   {
     id: "baekho",
@@ -109,7 +109,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: -10,
     halfW: 4,
     halfD: 3,
-    floors: 1,
+    kind: "dorm",
     house: "baekho",
   },
   {
@@ -119,7 +119,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: 24,
     halfW: 4,
     halfD: 3,
-    floors: 1,
+    kind: "dorm",
     house: "jujak",
   },
   {
@@ -129,7 +129,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: -28,
     halfW: 4,
     halfD: 3,
-    floors: 1,
+    kind: "dorm",
     house: "hyeonmu",
   },
   {
@@ -139,7 +139,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: 12,
     halfW: 4,
     halfD: 3,
-    floors: 1,
+    kind: "dorm",
     house: "cheongryong",
   },
   {
@@ -149,7 +149,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: 15.5,
     halfW: 3.5,
     halfD: 2.5,
-    floors: 1,
+    kind: "workshop",
   },
   {
     id: "tower",
@@ -158,7 +158,7 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     z: 5,
     halfW: 2.5,
     halfD: 2.5,
-    floors: 2,
+    kind: "tower",
   },
 ];
 /** 건물 가장자리에서 이 거리 안에 서면 안내가 나타난다 */

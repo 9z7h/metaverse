@@ -334,6 +334,18 @@ describe("학교 건물 (입장 불가)", () => {
     expect(SCHOOL_BUILDINGS.filter((b) => b.house)).toHaveLength(4);
   });
 
+  it("건물 모양(kind): 문루·탑은 하나씩, 기숙사 네 채, 공방 하나", () => {
+    const count = (k: string) =>
+      SCHOOL_BUILDINGS.filter((b) => b.kind === k).length;
+    expect(count("gate")).toBe(1);
+    expect(count("tower")).toBe(1);
+    expect(count("dorm")).toBe(4);
+    expect(count("workshop")).toBe(1);
+    // 기숙사 모양이면 기숙사 색이 있다
+    for (const b of SCHOOL_BUILDINGS)
+      expect(Boolean(b.house)).toBe(b.kind === "dorm");
+  });
+
   it("꽃담 안에 있고 서로·서고·정자·연못·대나무 숲·시작 위치와 겹치지 않는다", () => {
     for (const b of SCHOOL_BUILDINGS) {
       expect(Math.abs(b.x) + b.halfW + 2).toBeLessThan(GARDEN_HALF);
