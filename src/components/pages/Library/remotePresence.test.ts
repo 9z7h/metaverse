@@ -5,6 +5,7 @@ import type { AcademyApi } from "./academyApi";
 import { describe, expect, it, vi } from "vitest";
 import {
   countConnected,
+  countResting,
   parseMember,
   parseMove,
   parseOthers,
@@ -348,5 +349,21 @@ describe("서버 모드 채팅 — 보내기", () => {
     });
     expect(ok).toBe(false);
     expect(channel.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("countResting", () => {
+  it("counts garden visitors once per user, including self", () => {
+    const state = {
+      me: [{ place: "library" }],
+      visitor: [{ place: "garden" }, { place: "garden" }],
+      student: [{ place: "library" }],
+      empty: [],
+    };
+    expect(countResting(state, "me", "garden")).toBe(2);
+    expect(countResting(state, "me", "library")).toBe(1);
+  });
+  it("counts the current visitor while the connection is pending", () => {
+    expect(countResting({}, null, "garden")).toBe(1);
   });
 });

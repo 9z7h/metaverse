@@ -31,12 +31,13 @@ import {
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { BroomRider, RemoteRider } from "./Broom";
 import { GardenScenery } from "./GardenScenery";
+import { SpaceSelect } from "../SpaceSelect";
 import { GARDEN_HALF, preparingText, resolveWalk } from "./gardenLayout";
 
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
   LibraryPresence,
-  "walkers" | "moves" | "sendMove" | "chat"
+  "walkers" | "moves" | "sendMove" | "chat" | "connectedCount" | "restingCount"
 >;
 
 export interface GardenWorldProps {
@@ -432,6 +433,9 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 display: "flex",
                 alignItems: "center",
                 gap: "var(--spacing-8)",
+                minWidth: 0,
+                flex: "1 1 auto",
+                flexWrap: "wrap",
               }}
             >
               <ButtonMedium
@@ -441,7 +445,23 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 aria-label="서고로 돌아가기"
                 onClick={onBack}
               />
-              <span style={pillStyle}>숨돌림 뜰 · 쉬어 가는 중</span>
+              <SpaceSelect current="garden" onChange={() => onBack()} />
+              <span
+                style={{ ...pillStyle, whiteSpace: "nowrap" }}
+                aria-live="polite"
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: "var(--spacing-8)",
+                    height: "var(--spacing-8)",
+                    borderRadius: "var(--radius-circle)",
+                    background: "var(--color-interactive-primary)",
+                  }}
+                />
+                {presence.connectedCount}명 접속 · {presence.restingCount}명
+                휴식 중
+              </span>
             </div>
             <div style={auto}>
               <ButtonSmall

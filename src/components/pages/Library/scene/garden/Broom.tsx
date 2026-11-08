@@ -7,7 +7,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Vector3 } from "three";
+import { useTexture } from "@react-three/drei";
+import {
+  CatmullRomCurve3,
+  CylinderGeometry,
+  InstancedMesh,
+  MeshStandardMaterial,
+  Color,
+  Object3D,
+  SRGBColorSpace,
+  Vector3,
+} from "three";
 import type { BufferAttribute, Group, Points } from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
@@ -33,45 +43,114 @@ import type { FlightState } from "./gardenLayout";
 
 const WALK_SPEED = 4.0;
 /** 아바타를 빗자루 위에 앉히는 높이 — sit 자세가 몸을 0.22 낮추므로 치맛자락 밑으로 손잡이가 지난다 */
-const SIT_Y = 0.45;
+const SIT_Y = 0.12;
 const TRAIL = 16;
+const BRISTLES = 320;
 
 /* ── 몽당 싸리비 모델 ───────────────────────────────────────── */
 
 export function BroomModel({ colors }: { colors: SceneColors }) {
-  const handle = colors["--color-scene-wood-light"];
-  const twig = colors["--color-scene-wood"];
-  const twigDark = colors["--color-scene-wood-dark"];
+  const wood = useTexture(
+    `${import.meta.env.BASE_URL}textures/antique-walnut.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
+  );
+  const twigs = useMemo(() => {
+    const mesh = new InstancedMesh(
+      new CylinderGeometry(0.5, 1, 1, 5),
+      new MeshStandardMaterial({ map: wood, roughness: 1 }),
+      BRISTLES * 2,
+    );
+    const obj = new Object3D();
+    const start = new Vector3();
+    const end = new Vector3();
+    const direction = new Vector3();
+    const up = new Vector3(0, 1, 0);
+    const shade = new Color();
+    for (let i = 0; i < BRISTLES; i++) {
+      const a = i * 2.399963;
+      const fraction = Math.sqrt((i + 0.5) / BRISTLES);
+      const wobble = Math.sin(i * 13.7);
+      const tip = -1.65 - 0.12 * Math.sin(i * 5.3);
+      const points = [
+        new Vector3(
+          Math.cos(a) * fraction * 0.045,
+          Math.sin(a) * fraction * 0.045,
+          -0.72,
+        ),
+        new Vector3(
+          Math.cos(a) * fraction * (0.17 + 0.02 * wobble),
+          Math.sin(a) * fraction * (0.14 + 0.02 * wobble),
+          -1.13,
+        ),
+        new Vector3(
+          Math.cos(a) * fraction * 0.075,
+          Math.sin(a) * fraction * 0.07,
+          tip,
+        ),
+      ];
+      for (let part = 0; part < 2; part++) {
+        start.copy(points[part]);
+        end.copy(points[part + 1]);
+        direction.subVectors(end, start);
+        obj.position.copy(start).add(end).multiplyScalar(0.5);
+        obj.quaternion.setFromUnitVectors(up, direction.clone().normalize());
+        const thickness = (0.009 + (i % 4) * 0.0014) * (part ? 0.7 : 1);
+        obj.scale.set(thickness, direction.length(), thickness);
+        obj.updateMatrix();
+        mesh.setMatrixAt(i * 2 + part, obj.matrix);
+        mesh.setColorAt(i * 2 + part, shade.setScalar(0.8 + (i % 9) * 0.075));
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    return mesh;
+  }, [wood]);
+  useEffect(
+    () => () => {
+      twigs.geometry.dispose();
+      (twigs.material as MeshStandardMaterial).dispose();
+    },
+    [twigs],
+  );
+  const handleCurve = useMemo(
+    () =>
+      new CatmullRomCurve3([
+        new Vector3(0, 0, -0.85),
+        new Vector3(0, 0, -0.1),
+        new Vector3(0, 0.06, 0.5),
+        new Vector3(0, 0.14, 0.85),
+        new Vector3(0, 0.16, 1.35),
+      ]),
+    [],
+  );
   return (
     <group>
-      {/* 자루 */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.2]}>
-        <cylinderGeometry args={[0.04, 0.045, 2.2, 8]} />
-        <meshStandardMaterial color={handle} roughness={0.8} />
-      </mesh>
-      {/* 싸리 다발 — 꼬리 쪽으로 퍼지는 몽당 빗자루 (들쭉날쭉하게 세 갈래) */}
-      {[
-        { x: 0, y: 0, len: 0.85, r: 0.27, c: twig },
-        { x: 0.13, y: 0.05, len: 0.7, r: 0.18, c: twigDark },
-        { x: -0.12, y: -0.04, len: 0.62, r: 0.16, c: twigDark },
-      ].map((b, i) => (
-        <mesh
-          key={i}
-          rotation={[Math.PI / 2, 0, 0]}
-          position={[b.x, b.y, -0.95 - b.len / 2 + 0.25]}
-        >
-          <coneGeometry args={[b.r, b.len, 9]} />
-          <meshStandardMaterial color={b.c} roughness={0.95} />
-        </mesh>
-      ))}
-      {/* 묶은 끈 */}
-      <mesh position={[0, 0, -0.72]}>
-        <torusGeometry args={[0.1, 0.022, 6, 14]} />
+      {/* 닳은 나무 자루와 여러 가닥으로 나뉜 싸리 */}
+      <mesh>
+        <tubeGeometry args={[handleCurve, 40, 0.04, 12, false]} />
         <meshStandardMaterial
-          color={colors["--color-scene-dancheong"]}
-          roughness={0.6}
+          map={wood}
+          color={new Color().setScalar(1.4)}
+          roughness={0.76}
+          bumpMap={wood}
+          bumpScale={0.002}
         />
       </mesh>
+      <primitive object={twigs} />
+      {/* 싸리를 단단하게 묶은 두 줄의 끈 */}
+      {[-0.75, -0.82].map((z) => (
+        <mesh key={z} position={[0, 0, z]}>
+          <torusGeometry args={[0.07, 0.014, 6, 20]} />
+          <meshStandardMaterial
+            color={colors["--color-scene-brass"]}
+            metalness={0.45}
+            roughness={0.55}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }

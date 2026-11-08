@@ -9,12 +9,16 @@ import {
 import type { RefObject } from "react";
 import type { CSSProperties } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { Html, useTexture } from "@react-three/drei";
 import {
   Color,
+  DoubleSide,
   Float32BufferAttribute,
+  LatheGeometry,
   QuadraticBezierCurve3,
+  SRGBColorSpace,
   SphereGeometry,
+  Vector2,
   Vector3,
 } from "three";
 import type { Group } from "three";
@@ -22,7 +26,7 @@ import { formatClock } from "../../../ui/FocusTimer";
 
 const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(-0.028, 0.002, 0),
-  new Vector3(0, -0.012, 0.005),
+  new Vector3(0, 0.002, 0.005),
   new Vector3(0.028, 0.002, 0),
 );
 
@@ -132,6 +136,13 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   },
   ref,
 ) {
+  const fabric = useTexture(
+    `${import.meta.env.BASE_URL}textures/hanbok-fabric.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
+  );
   const body = useRef<Group>(null);
   const head = useRef<Group>(null);
   const arm = useRef<Group>(null);
@@ -142,6 +153,26 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     () => new Color(hat).lerp(new Color(robe), 0.16),
     [hat, robe],
   );
+  const coatGeometry = useMemo(
+    () =>
+      new LatheGeometry(
+        [
+          new Vector2(0.345, 0.12),
+          new Vector2(0.338, 0.2),
+          new Vector2(0.31, 0.36),
+          new Vector2(0.27, 0.54),
+          new Vector2(0.24, 0.69),
+          new Vector2(0.22, 0.82),
+          new Vector2(0.21, 0.91),
+          new Vector2(0.205, 0.98),
+          new Vector2(0.15, 1.04),
+          new Vector2(0.1, 1.055),
+        ],
+        32,
+      ),
+    [],
+  );
+  useEffect(() => () => coatGeometry.dispose(), [coatGeometry]);
   // 흰 동정을 많이 섞으면 창백해진다 — 살구빛이 남도록 살짝만 섞는다
   const face = useMemo(
     () => new Color(skin).lerp(new Color(collar), 0.1),
@@ -251,25 +282,30 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     <group ref={ref}>
       <group ref={body}>
         {/* 겉도포와 안쪽 저고리. 기숙사색은 안감과 작은 매듭에 쓴다. */}
-        <mesh position={[0, 0.79, 0]}>
-          <capsuleGeometry args={[0.23, 0.29, 4, 16]} />
-          <meshStandardMaterial color={coat} roughness={0.88} />
-        </mesh>
-        <mesh position={[0, 0.42, 0]}>
-          <cylinderGeometry args={[0.235, 0.35, 0.62, 24]} />
-          <meshStandardMaterial color={coat} roughness={0.9} />
+        <mesh geometry={coatGeometry}>
+          <meshStandardMaterial
+            map={fabric}
+            bumpMap={fabric}
+            bumpScale={0.0015}
+            color={coat}
+            roughness={0.9}
+            side={DoubleSide}
+          />
         </mesh>
         {/* 앞섶의 겹침과 자락 끝의 가는 선 */}
         <mesh position={[0.045, 0.46, 0.275]} rotation={[-0.16, 0, -0.06]}>
           <boxGeometry args={[0.11, 0.55, 0.018]} />
           <meshStandardMaterial
+            map={fabric}
+            bumpMap={fabric}
+            bumpScale={0.0015}
             color={coat.clone().multiplyScalar(1.12)}
             roughness={0.9}
           />
         </mesh>
         <mesh position={[0, 0.119, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.346, 0.008, 4, 32]} />
-          <meshStandardMaterial color={trim} roughness={0.85} />
+          <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
         </mesh>
         {/* 등 쪽 맞주름: 뒤에서 보는 내 캐릭터에도 옷의 구조가 보인다. */}
         {[-1, 1].map((side) => (
@@ -280,6 +316,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           >
             <boxGeometry args={[0.012, 0.54, 0.014]} />
             <meshStandardMaterial
+              map={fabric}
               color={coat.clone().multiplyScalar(0.65)}
               roughness={1}
             />
@@ -294,18 +331,26 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           >
             <mesh>
               <boxGeometry args={[0.088, 0.29, 0.025]} />
-              <meshStandardMaterial color={robe} roughness={0.85} />
+              <meshStandardMaterial
+                map={fabric}
+                color={robe}
+                roughness={0.85}
+              />
             </mesh>
             <mesh position={[side * -0.012, 0, 0.016]}>
               <boxGeometry args={[0.034, 0.29, 0.012]} />
-              <meshStandardMaterial color={collar} roughness={0.95} />
+              <meshStandardMaterial
+                map={fabric}
+                color={collar}
+                roughness={0.95}
+              />
             </mesh>
           </group>
         ))}
         {/* 고름: 납작한 매듭과 길이가 다른 두 가닥 */}
         <mesh position={[0.105, 0.76, 0.252]}>
           <sphereGeometry args={[0.026, 8, 6]} />
-          <meshStandardMaterial color={trim} roughness={0.75} />
+          <meshStandardMaterial map={fabric} color={trim} roughness={0.75} />
         </mesh>
         {[-1, 1].map((side) => (
           <mesh
@@ -314,22 +359,22 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             rotation={[0, 0, side * 0.2]}
           >
             <boxGeometry args={[0.025, side === 1 ? 0.21 : 0.16, 0.012]} />
-            <meshStandardMaterial color={trim} roughness={0.85} />
+            <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
           </mesh>
         ))}
         {/* 세조대와 허리의 작은 매듭 표식 */}
         <mesh position={[0, 0.665, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.24, 0.012, 6, 24]} />
-          <meshStandardMaterial color={trim} roughness={0.8} />
+          <meshStandardMaterial map={fabric} color={trim} roughness={0.8} />
         </mesh>
         <group position={[-0.18, 0.58, 0.215]}>
           <mesh rotation={[0, 0, Math.PI / 4]}>
             <torusGeometry args={[0.034, 0.01, 4, 4]} />
-            <meshStandardMaterial color={robe} roughness={0.8} />
+            <meshStandardMaterial map={fabric} color={robe} roughness={0.8} />
           </mesh>
           <mesh position={[0, -0.08, 0]}>
             <cylinderGeometry args={[0.012, 0.024, 0.09, 8]} />
-            <meshStandardMaterial color={trim} roughness={0.85} />
+            <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
           </mesh>
         </group>
         {/* 버선과 검은 신발 */}
@@ -341,7 +386,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           >
             <mesh position={[0, 0.035, -0.02]}>
               <cylinderGeometry args={[0.06, 0.06, 0.09, 10]} />
-              <meshStandardMaterial color={collar} roughness={1} />
+              <meshStandardMaterial map={fabric} color={collar} roughness={1} />
             </mesh>
             <mesh scale={[1, 0.5, 1.65]}>
               <sphereGeometry args={[0.085, 12, 8]} />
@@ -354,23 +399,29 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           <group
             key={`arm${side}`}
             ref={side === 1 ? arm : leftArm}
-            position={[side * 0.255, 0.91, 0]}
+            position={[side * 0.19, 0.96, 0]}
           >
-            <group rotation={[0, 0, side * 0.17]}>
-              <mesh position={[0, -0.035, 0]} scale={[1.15, 1, 1.2]}>
-                <sphereGeometry args={[0.125, 16, 12]} />
-                <meshStandardMaterial color={coat} roughness={0.9} />
+            <group rotation={[0, 0, side * 0.3]}>
+              <mesh position={[side * 0.035, -0.17, 0]} scale={[1.04, 1, 0.92]}>
+                <capsuleGeometry args={[0.125, 0.16, 8, 24]} />
+                <meshStandardMaterial
+                  map={fabric}
+                  bumpMap={fabric}
+                  bumpScale={0.0015}
+                  color={coat}
+                  roughness={0.9}
+                />
               </mesh>
-              <mesh position={[side * 0.034, -0.18, 0]}>
-                <cylinderGeometry args={[0.09, 0.132, 0.39, 12]} />
-                <meshStandardMaterial color={coat} roughness={0.9} />
-              </mesh>
-              <mesh position={[side * 0.034, -0.365, 0]}>
-                <cylinderGeometry args={[0.134, 0.134, 0.038, 12]} />
-                <meshStandardMaterial color={robe} roughness={0.85} />
+              <mesh position={[side * 0.035, -0.31, 0]}>
+                <cylinderGeometry args={[0.115, 0.115, 0.032, 16]} />
+                <meshStandardMaterial
+                  map={fabric}
+                  color={robe}
+                  roughness={0.85}
+                />
               </mesh>
               <mesh
-                position={[side * 0.034, -0.408, 0.005]}
+                position={[side * 0.035, -0.405, 0.005]}
                 scale={[0.8, 1.1, 0.8]}
               >
                 <sphereGeometry args={[0.059, 10, 8]} />

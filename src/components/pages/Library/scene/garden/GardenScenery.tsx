@@ -26,7 +26,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
 } from "three";
-import type { Group, InstancedMesh, Points, Texture } from "three";
+import type { Group, InstancedMesh, PointLight, Points, Texture } from "three";
 import { gardenDaylight } from "./gardenTime";
 import { HanokDoor } from "../HanokDoor";
 import { useSurfaceTexture } from "../surfaceTexture";
@@ -1250,6 +1250,24 @@ function WhiteCloudClusters({ colors }: { colors: SceneColors }) {
 /* ── 석등 ──────────────────────────────────────────────────── */
 
 function StoneLanterns({ colors }: { colors: SceneColors }) {
+  const lights = useRef<(PointLight | null)[]>([]);
+  const lastUpdate = useRef(-1);
+  useFrame(({ camera, clock }) => {
+    const now = clock.elapsedTime;
+    if (now - lastUpdate.current < 0.3) return;
+    lastUpdate.current = now;
+    const nearest = [...STONE_LANTERNS].sort((a, b) => {
+      const da =
+        (a.x - camera.position.x) ** 2 + (a.z - camera.position.z) ** 2;
+      const db =
+        (b.x - camera.position.x) ** 2 + (b.z - camera.position.z) ** 2;
+      return da - db;
+    });
+    lights.current.forEach((light, i) => {
+      const lantern = nearest[i];
+      if (light && lantern) light.position.set(lantern.x, 1.45, lantern.z);
+    });
+  });
   const { stone, flame, caps, glow } = useMemo(() => {
     const stone: Box[] = [];
     const flame: Box[] = [];
@@ -1274,6 +1292,24 @@ function StoneLanterns({ colors }: { colors: SceneColors }) {
         {box()}
       </Inst>
       <InstancedPyramids boxes={caps} geometry={pyramid} colors={colors} />
+      {[0, 1, 2, 3].map((i) => (
+        <pointLight
+          key={i}
+          ref={(light) => {
+            lights.current[i] = light;
+          }}
+          color={colors["--color-scene-flame"]}
+          intensity={3}
+          distance={6}
+          decay={2}
+        />
+      ))}
+      <GlowPoints
+        positions={glow}
+        color={colors["--color-scene-flame"]}
+        size={4}
+        opacity={0.22}
+      />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}

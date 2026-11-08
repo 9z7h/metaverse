@@ -178,6 +178,26 @@ export function countConnected(
   return keys.size;
 }
 
+/** 각 사용자는 한 번만 세고, 현재 사용자는 자신의 공간을 즉시 반영한다. */
+export function countResting(
+  state: Record<string, unknown[]>,
+  selfId: string | null,
+  selfPlace: PresencePlace,
+): number {
+  let count = selfPlace === "garden" ? 1 : 0;
+  for (const [id, metas] of Object.entries(state)) {
+    if (id === selfId || !Array.isArray(metas) || metas.length === 0) continue;
+    const latest = metas[metas.length - 1];
+    if (
+      typeof latest === "object" &&
+      latest !== null &&
+      (latest as Record<string, unknown>).place === "garden"
+    )
+      count++;
+  }
+  return count;
+}
+
 export interface UseRemotePresenceOptions {
   /** null이면 아무것도 하지 않는다 (연결 전·데모 모드) */
   client: SupabaseClient | null;
@@ -425,6 +445,7 @@ export function useRemotePresence({
       houseTotals: totals,
       onlineCount: others.length + (me ? 1 : 0),
       connectedCount,
+      restingCount: countResting(lobbyState, userId, place),
       walkers,
       moves,
       sendMove,
@@ -439,6 +460,9 @@ export function useRemotePresence({
       totals,
       me,
       connectedCount,
+      lobbyState,
+      userId,
+      place,
       walkers,
       sendMove,
       join,

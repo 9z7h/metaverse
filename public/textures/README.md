@@ -50,3 +50,5 @@
 - `garden-clouds.jpg`: AI 생성 구름 텍스처. 숨돌림 뜰의 높은 하늘에 적용한다.
 
 - `garden-water.jpg`: AI 생성 잔잔한 물결 텍스처. 숨돌림 뜰 연못에 적용한다.
+
+- `hanbok-fabric.jpg`: AI 생성 한복 천 질감. 캐릭터 의상에 적용한다.

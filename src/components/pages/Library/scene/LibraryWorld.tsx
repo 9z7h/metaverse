@@ -22,6 +22,7 @@ import type {
   StudyMode,
 } from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
+import { SpaceSelect } from "./SpaceSelect";
 import { ChatPanel } from "../ChatPanel";
 import { ME_BUBBLE_KEY, activeBubbles, isTypingTarget } from "../chat";
 import type { FocusTimerState } from "../useFocusTimer";
@@ -687,6 +688,7 @@ export function LibraryWorld({
                 display: "flex",
                 alignItems: "center",
                 gap: "var(--spacing-8)",
+                flexWrap: "wrap",
               }}
             >
               <ButtonMedium
@@ -696,6 +698,7 @@ export function LibraryWorld({
                 aria-label="도서관 나가기"
                 onClick={onExit}
               />
+              <SpaceSelect current="library" onChange={() => onGoGarden()} />
               <span style={pillStyle} aria-live="polite">
                 <span
                   aria-hidden

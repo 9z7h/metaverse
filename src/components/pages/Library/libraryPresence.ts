@@ -94,6 +94,8 @@ export interface LibraryPresence {
   onlineCount: number;
   /** 자리에 앉지 않았어도 지금 사이트를 열어 둔 사람의 수 (나 포함) */
   connectedCount: number;
+  /** 숨돌림 뜰에 있는 접속자 수 */
+  restingCount: number;
   /** 앉지 않고 걸어 다니는 다른 접속자 (앉으면 `others`로 옮겨 간다) */
   walkers: Walker[];
   /** 걷는 사람들의 최근 위치 — 키는 Walker.id */
@@ -383,6 +385,7 @@ export function useLibraryPresence({
       onlineCount: others.length + (me ? 1 : 0),
       // 데모에서는 가짜 학생이 모두 앉아 있으므로 같은 값
       connectedCount: others.length + 1,
+      restingCount: 1,
       walkers,
       moves,
       sendMove,
