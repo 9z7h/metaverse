@@ -36,7 +36,9 @@
 
 순위판에서는 이 재질에 기숙사별 primary 색을 곱해 전체 천을 채색합니다. 글씨는 별도 텍스처로 유지하며, 기숙사별 on 색으로 대비를 확보합니다. 천의 양옆과 위아래에 작은 말림을 주고, 나무 축에 감긴 비단 부분도 입체로 표현했습니다. 수련 시간에 따른 길이와 순위별 위치 변경은 유지합니다.
 
+- `garden-earth.jpg`: AI 생성 흙과 잔돌 바닥 텍스처. 숨돌림 뜰 바닥에 반복 적용한다.
 
+- `garden-pine.jpg`: AI 생성 소나무 잎 텍스처. 숨돌림 뜰 소나무에 적용한다.
 
 - `models/pine-sapling.glb`: Poly Haven의 Pine Sapling Small 모델을 단순화한 에셋 (CC0, https://polyhaven.com/a/pine_sapling_small).
 
