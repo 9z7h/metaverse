@@ -1,7 +1,19 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, Object3D } from "three";
-import type { Group, InstancedMesh, MeshStandardMaterial } from "three";
+import { Object3D, RepeatWrapping, SRGBColorSpace } from "three";
+import { useTexture } from "@react-three/drei";
+import {
+  BOOK_ATLAS_URL,
+  BOOK_SPINE_VARIANTS,
+  bookAtlasKey,
+  bookAtlasShader,
+} from "./bookAtlas";
+import type {
+  Group,
+  InstancedMesh,
+  MeshStandardMaterial,
+  Texture,
+} from "three";
 import type { DeskLayout, SceneColors } from "./sceneLayout";
 import {
   FRONT_WALL_Z,
@@ -12,7 +24,13 @@ import {
   TABLE_CANDLES,
 } from "./sceneLayout";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
+import { HanokDoor } from "./HanokDoor";
 import { useSurfaceTexture } from "./surfaceTexture";
+import {
+  createDeskBookGeometry,
+  deskBookKey,
+  deskBookShader,
+} from "./deskBook";
 
 interface RoomProps {
   colors: SceneColors;
@@ -170,11 +188,13 @@ function ShelfFrames({
 /** 책은 어느 방향에서 보아도 옆면이 닫힌 상자로 그린다. */
 function Books({
   shelves,
-  palette,
+  atlas,
+  cloth,
   seed,
 }: {
   shelves: ShelfSpec[];
-  palette: string[];
+  atlas: Texture;
+  cloth: Texture;
   seed: number;
 }) {
   const ref = useRef<InstancedMesh>(null);
@@ -207,7 +227,7 @@ function Books({
               ry: s.ry,
               h,
               w,
-              c: Math.floor(rand() * palette.length),
+              c: Math.floor(rand() * BOOK_SPINE_VARIANTS),
             });
           }
           u += w + 0.01;
@@ -215,30 +235,42 @@ function Books({
       }
     }
     return list;
-  }, [shelves, palette.length, seed]);
+  }, [shelves, seed]);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
     const o = new Object3D();
-    const color = new Color();
-    const agedPaper = new Color(palette[4]);
     books.forEach((b, i) => {
       o.position.set(b.x, b.y, b.z);
       o.rotation.set(0, b.ry, 0);
       o.scale.set(b.w, b.h, 0.3);
       o.updateMatrix();
       mesh.setMatrixAt(i, o.matrix);
-      mesh.setColorAt(i, color.set(palette[b.c]).lerp(agedPaper, 0.32));
     });
     mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [books, palette]);
+  }, [books]);
 
+  const variants = useMemo(
+    () => new Float32Array(books.map((book) => book.c)),
+    [books],
+  );
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, books.length]}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial roughness={0.85} />
+      <boxGeometry args={[1, 1, 1]}>
+        <instancedBufferAttribute
+          attach="attributes-bookVariant"
+          args={[variants, 1]}
+        />
+      </boxGeometry>
+      <meshStandardMaterial
+        map={atlas}
+        bumpMap={cloth}
+        bumpScale={0.001}
+        roughness={0.85}
+        onBeforeCompile={bookAtlasShader}
+        customProgramCacheKey={bookAtlasKey}
+      />
     </instancedMesh>
   );
 }
@@ -254,7 +286,16 @@ function DeskSet({
   colors: SceneColors;
 }) {
   const grain = useSurfaceTexture("wood", 1, 12, true);
-  const paper = useSurfaceTexture("paper");
+  const paper = useTexture(
+    `${import.meta.env.BASE_URL}textures/open-study-book.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
+  );
+  const paperFiber = useSurfaceTexture("plaster", 2, 3);
+  const pageGeometry = useMemo(createDeskBookGeometry, []);
+  useEffect(() => () => pageGeometry.dispose(), [pageGeometry]);
   const tops = useRef<InstancedMesh>(null);
   const darks = useRef<InstancedMesh>(null);
   const lights = useRef<InstancedMesh>(null);
@@ -302,13 +343,13 @@ function DeskSet({
       // 좌석 앞에 펼친 책
       page.push({
         p: [desk.x, 0.805, desk.z],
-        s: [0.42, 0.025, 0.6],
-        ry: facing - Math.PI / 2,
+        s: [0.6, 0.04, 0.42],
+        ry: facing + Math.PI,
       });
       dark.push({
         p: [desk.x, 0.785, desk.z],
-        s: [0.45, 0.015, 0.63],
-        ry: facing - Math.PI / 2,
+        s: [0.63, 0.015, 0.45],
+        ry: facing + Math.PI,
       });
     }
 
@@ -371,9 +412,16 @@ function DeskSet({
       <instancedMesh
         ref={pages}
         args={[undefined, undefined, parts.page.length]}
+        geometry={pageGeometry}
       >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={woodLight} map={paper} roughness={0.95} />
+        <meshStandardMaterial
+          map={paper}
+          bumpMap={paperFiber}
+          bumpScale={0.001}
+          roughness={0.96}
+          onBeforeCompile={deskBookShader}
+          customProgramCacheKey={deskBookKey}
+        />
       </instancedMesh>
       <instancedMesh
         ref={flames}
@@ -458,17 +506,11 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
   const plaster = useSurfaceTexture("plaster", 6, 3);
   const shelves = useShelves();
   const chunks = useMemo(() => chunkShelves(shelves), [shelves]);
-  const bookPalette = useMemo(
-    () => [
-      colors["--color-scene-robe-1"],
-      colors["--color-scene-robe-2"],
-      colors["--color-scene-robe-3"],
-      colors["--color-scene-robe-4"],
-      colors["--color-scene-wood-light"],
-      colors["--color-scene-wall"],
-    ],
-    [colors],
-  );
+  const atlas = useTexture(BOOK_ATLAS_URL, (texture) => {
+    texture.colorSpace = SRGBColorSpace;
+    texture.anisotropy = 4;
+  });
+  const cloth = useSurfaceTexture("plaster", 3, 6);
   const w = ROOM.maxX - ROOM.minX + 2;
   // 뒷벽 ~ 앞벽(입구 홀 포함)
   const backZ = ROOM.minZ - 0.9;
@@ -476,8 +518,16 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
   const d = frontZ - backZ;
   const cz = (frontZ + backZ) / 2;
   const wall = colors["--color-scene-wall"];
-  const dark = colors["--color-scene-wood-dark"];
   const H = HALL.wallH;
+  const carpet = useTexture(
+    `${import.meta.env.BASE_URL}textures/burgundy-runner.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.wrapS = texture.wrapT = RepeatWrapping;
+      texture.repeat.set(1, (d - 2) / 2.8);
+      texture.anisotropy = 8;
+    },
+  );
 
   return (
     <group>
@@ -496,7 +546,9 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, cz]}>
         <planeGeometry args={[2, d - 2]} />
         <meshStandardMaterial
-          color={colors["--color-scene-rug"]}
+          map={carpet}
+          bumpMap={carpet}
+          bumpScale={0.003}
           roughness={1}
         />
       </mesh>
@@ -515,30 +567,15 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
         <boxGeometry args={[w, H, 0.2]} />
         <meshStandardMaterial color={wall} map={plaster} roughness={0.94} />
       </mesh>
-      {/* 입구 대문: 문틀(기둥 2 + 인방) + 두 짝 문 */}
-      <group position={[0, 0, FRONT_WALL_Z - 0.02]}>
-        {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * 1.05, 1.4, 0]}>
-            <boxGeometry args={[0.2, 2.8, 0.2]} />
-            <meshStandardMaterial color={dark} />
-          </mesh>
-        ))}
-        <mesh position={[0, 2.9, 0]}>
-          <boxGeometry args={[2.5, 0.25, 0.25]} />
-          <meshStandardMaterial color={dark} />
-        </mesh>
-        {[-1, 1].map((s) => (
-          <mesh key={`door${s}`} position={[s * 0.48, 1.3, 0.02]}>
-            <boxGeometry args={[0.92, 2.6, 0.04]} />
-            <meshStandardMaterial color={colors["--color-scene-wood"]} />
-          </mesh>
-        ))}
+      {/* 서고 안쪽에서 바라보는 한옥 창호문 */}
+      <group position={[0, 0, FRONT_WALL_Z - 0.02]} rotation={[0, Math.PI, 0]}>
+        <HanokDoor colors={colors} />
       </group>
 
       {chunks.map((c, i) => (
         <group key={i}>
           <ShelfFrames shelves={c} wood={colors["--color-scene-wood-dark"]} />
-          <Books shelves={c} palette={bookPalette} seed={42 + i * 101} />
+          <Books shelves={c} atlas={atlas} cloth={cloth} seed={42 + i * 101} />
         </group>
       ))}
 

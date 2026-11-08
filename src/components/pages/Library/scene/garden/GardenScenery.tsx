@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BufferAttribute, Color, ConeGeometry, Object3D } from "three";
 import type { InstancedMesh, Points, Texture } from "three";
+import { HanokDoor } from "../HanokDoor";
 import { useSurfaceTexture } from "../surfaceTexture";
 import { fillBoxes } from "../LibraryRoom";
 import type { Box } from "../LibraryRoom";
@@ -291,7 +292,6 @@ function FlowerWall({ colors }: { colors: SceneColors }) {
 function LibraryHall({ colors }: { colors: SceneColors }) {
   const pyramid = usePyramid();
   const { x, z, halfW, halfD, frontZ } = LIBRARY_BUILDING;
-  const wood = colors["--color-scene-wood"];
   const dark = colors["--color-scene-wood-dark"];
   const baseTop = 0.6;
   const wallH = 4.2;
@@ -345,17 +345,10 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
       <Inst boxes={windows} color={colors["--color-scene-flame"]} basic>
         {box()}
       </Inst>
-      {/* 대문 */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[x + s * 0.62, baseTop + 1.5, frontZ + 0.08]}>
-          <boxGeometry args={[1.18, 3, 0.14]} />
-          <meshStandardMaterial color={wood} />
-        </mesh>
-      ))}
-      <mesh position={[x, baseTop + 3.2, frontZ + 0.1]}>
-        <boxGeometry args={[2.9, 0.3, 0.3]} />
-        <meshStandardMaterial color={dark} />
-      </mesh>
+      {/* 서고와 같은 창호·고리 손잡이를 쓰는 대문 */}
+      <group position={[x, baseTop, frontZ + 0.12]}>
+        <HanokDoor colors={colors} width={2.4} height={3} warmInside />
+      </group>
       {/* 처마 밑 단청 띠 */}
       <mesh position={[x, baseTop + wallH - 0.15, frontZ + 0.6]}>
         <boxGeometry args={[halfW * 2, 0.34, 0.2]} />

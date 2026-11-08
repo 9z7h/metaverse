@@ -621,6 +621,7 @@ export function LibraryWorld({
                 seat={seat}
                 focusing={focusing}
                 subject={subject}
+                focusSeconds={timer.elapsedSeconds}
                 house={house}
                 onNearSeatChange={setNearSeat}
                 onNearExitChange={setAtExit}

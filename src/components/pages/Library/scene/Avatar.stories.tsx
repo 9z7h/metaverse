@@ -14,10 +14,12 @@ function AvatarPreview({
   house = "baekho",
   pose = "stand",
   practicing = false,
+  closeUp = false,
 }: {
   house?: HouseId;
   pose?: AvatarPose;
   practicing?: boolean;
+  closeUp?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<SceneColors | null>(null);
@@ -32,7 +34,10 @@ function AvatarPreview({
     >
       {colors ? (
         <Canvas
-          camera={{ position: [1.5, 1.45, 3.2], fov: 35 }}
+          camera={{
+            position: closeUp ? [0.5, 1.4, 1.4] : [1.5, 1.45, 3.2],
+            fov: 35,
+          }}
           aria-label="수련생 의상 미리보기"
         >
           <color attach="background" args={[colors["--color-scene-fog"]]} />
@@ -60,8 +65,8 @@ function AvatarPreview({
             }}
           />
           <OrbitControls
-            target={[0, 0.85, 0]}
-            minDistance={2}
+            target={closeUp ? [0, 1.35, 0] : [0, 0.85, 0]}
+            minDistance={closeUp ? 0.7 : 2}
             maxDistance={5}
           />
         </Canvas>
@@ -98,3 +103,5 @@ export const Cheongryong: Story = { args: { house: "cheongryong" } };
 export const Walking: Story = { args: { pose: "walk" } };
 export const Studying: Story = { args: { pose: "sit" } };
 export const Practicing: Story = { args: { pose: "sit", practicing: true } };
+
+export const FaceDetail: Story = { args: { closeUp: true } };

@@ -4,6 +4,10 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
+import { windowLandscapeCrop } from "./windowLandscape";
+import { windowWindKey, windowWindShader } from "./windowWind";
+import type { WindowWindUniforms } from "./windowWind";
 import {
   AdditiveBlending,
   BufferAttribute,
@@ -11,9 +15,10 @@ import {
   Color,
   DoubleSide,
   Object3D,
+  PlaneGeometry,
   SRGBColorSpace,
 } from "three";
-import type { InstancedMesh, Points } from "three";
+import type { InstancedMesh, Points, Texture } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
@@ -141,7 +146,88 @@ interface WindowSpec {
 
 const barsOf = (s: WindowSpec) => 4 + (s.cols - 1) + (s.rows - 1);
 
+function WindowView({
+  spec,
+  landscape,
+  wind,
+}: {
+  spec: WindowSpec;
+  landscape: Texture;
+  wind: WindowWindUniforms;
+}) {
+  const geometry = useMemo(() => {
+    const plane = new PlaneGeometry(spec.w, spec.h);
+    const image = landscape.image as { width: number; height: number };
+    // 각 창은 풍경의 서로 다른 부분을 본다. 큰 뒷창은 골짜기 중앙을 향한다.
+    const pan =
+      spec.x === 0
+        ? 0.5
+        : 0.2 + ((Math.abs(spec.z) * 0.073 + (spec.x > 0 ? 0.35 : 0)) % 0.6);
+    const crop = windowLandscapeCrop(
+      spec.w,
+      spec.h,
+      image.width,
+      image.height,
+      pan,
+    );
+    const uv = plane.getAttribute("uv");
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(
+        i,
+        uv.getX(i) * crop.scaleX + crop.offsetX,
+        uv.getY(i) * crop.scaleY + crop.offsetY,
+      );
+    uv.needsUpdate = true;
+    return plane;
+  }, [spec, landscape]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh
+      geometry={geometry}
+      position={[spec.x, spec.y, spec.z]}
+      rotation={[0, spec.ry, 0]}
+    >
+      <meshBasicMaterial
+        map={landscape}
+        toneMapped={false}
+        fog={false}
+        onBeforeCompile={(shader) => windowWindShader(shader, wind)}
+        customProgramCacheKey={windowWindKey}
+      />
+    </mesh>
+  );
+}
+
 function Windows({ colors }: { colors: SceneColors }) {
+  const wind = useMemo<WindowWindUniforms>(
+    () => ({
+      uForestTime: { value: 0 },
+      uForestMotion: { value: 1 },
+      uForestMoon: { value: new Color(colors["--color-scene-moonlight"]) },
+      uForestWarm: { value: new Color(colors["--color-scene-flame"]) },
+    }),
+    [colors],
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!media) return;
+    const update = () => {
+      wind.uForestMotion.value = media.matches ? 0 : 1;
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [wind]);
+  useFrame(({ clock }) => {
+    wind.uForestTime.value = clock.elapsedTime;
+  });
+  const landscape = useTexture(
+    `${import.meta.env.BASE_URL}textures/hidden-valley-night.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+    },
+  );
   const bars = useRef<InstancedMesh>(null);
   const windows = useMemo<WindowSpec[]>(
     () => [
@@ -260,18 +346,12 @@ function Windows({ colors }: { colors: SceneColors }) {
   return (
     <group>
       {windows.map((w) => (
-        <mesh
-          key={`${w.x}${w.z}`}
-          position={[w.x, w.y, w.z]}
-          rotation={[0, w.ry, 0]}
-        >
-          <planeGeometry args={[w.w, w.h]} />
-          {/* 창호지 너머 달빛 — 약하게 발광 */}
-          <meshBasicMaterial
-            color={colors["--color-scene-moonlight"]}
-            toneMapped={false}
-          />
-        </mesh>
+        <WindowView
+          key={`${w.x}:${w.z}`}
+          spec={w}
+          landscape={landscape}
+          wind={wind}
+        />
       ))}
       <instancedMesh ref={bars} args={[undefined, undefined, totalBars]}>
         <boxGeometry args={[1, 1, 1]} />

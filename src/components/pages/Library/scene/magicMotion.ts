@@ -11,12 +11,12 @@ import type { PresenceStudent } from "../libraryPresence";
 /** 빛줄기 가닥 수 */
 export const STREAKS = 14;
 /** 한 가닥을 이루는 마디 수 (곡선 매끄러움) */
-export const SEGMENTS = 10;
+export const SEGMENTS = 18;
 
 /** 상판 바로 위 */
 const BASE_Y = 0.85;
 /** 회오리 높이 */
-const HEIGHT = 1.5;
+const HEIGHT = 1.25;
 
 /** 0~1 결정적 의사난수 (가닥마다 고정) */
 function hash(i: number): number {
@@ -45,16 +45,16 @@ export function tornadoStreak(i: number, t: number): StreakFrame {
   const r1 = hash(i);
   const r2 = hash(i + 31);
   const r3 = hash(i + 77);
-  const period = 1.6 + r2 * 0.8;
+  const period = 2.6 + r2 * 1.2;
   const h = (((t / period + r1) % 1) + 1) % 1;
   return {
     h,
-    angle: r2 * Math.PI * 2 + t * (3.4 + r3 * 1.6),
+    angle: r2 * Math.PI * 2 + t * (1.8 + r3 * 0.9),
     radius: 0.08 + h * 0.6,
     y: BASE_Y + h * HEIGHT,
-    arc: 1.0 + r3 * 0.6,
+    arc: 1.5 + r3 * 0.7,
     fade: Math.sin(Math.PI * h),
-    width: 0.05 + h * 0.07,
+    width: 0.022 + h * 0.034,
   };
 }
 

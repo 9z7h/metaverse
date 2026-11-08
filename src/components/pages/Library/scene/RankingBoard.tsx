@@ -11,8 +11,16 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { CanvasTexture, LatheGeometry, SRGBColorSpace, Vector2 } from "three";
-import type { Group, Mesh, MeshBasicMaterial } from "three";
+import { useTexture } from "@react-three/drei";
+import {
+  CanvasTexture,
+  Color,
+  LatheGeometry,
+  PlaneGeometry,
+  SRGBColorSpace,
+  Vector2,
+} from "three";
+import type { Group, Mesh, MeshBasicMaterial, Texture } from "three";
 import { CREST_SHAPES } from "../HouseCrest";
 import { HOUSES, houseToken } from "../houses";
 import type { HouseId } from "../houses";
@@ -40,7 +48,7 @@ const SCROLL_GAP = 1.16;
 /** 윗부분 안내 카드 — 최소 길이(1.2m) 안에 들어간다 */
 const CARD_W = 0.8;
 const CARD_H = 1.1;
-const CARD_PX = { w: 256, h: 352 };
+const CARD_PX = { w: 512, h: 704 };
 /** 구름무늬가 앉는 족자 아랫단 (이 길이보다 짧으면 카드와 겹치므로 서서히 숨김) */
 const CLOUD_FADE_FROM = 1.45;
 
@@ -80,15 +88,6 @@ function useRedraw(draw: () => void, deps: unknown[]) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-}
-
-/** 0~1 결정적 의사난수 */
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 /**
@@ -158,7 +157,7 @@ function getCloudTexture() {
   if (ctx) {
     // 알파 마스크일 뿐 — 실제 색은 재질 color(기숙사 토큰)가 곱해지므로 흰색 토큰으로 그린다
     ctx.strokeStyle = rootToken(MASK_WHITE_TOKEN);
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 1.8;
     ctx.lineCap = "round";
     strokeCloud(ctx, 110, 70, 2, false);
   }
@@ -190,42 +189,51 @@ function getRodGeometry() {
   return rodGeo;
 }
 
-/** 세로 널판 질감 — 널판 사이 이음매, 널판마다 살짝 다른 어둡기, 나뭇결 */
-function drawPlanks(
+/** 실제 비단 질감에 기숙사색을 입히고 가장자리에 가는 자수선을 더한다. */
+function drawScrollCloth(
   ctx: CanvasRenderingContext2D,
-  base: string,
-  /** 널판 어둡기·이음매·결에 쓰는 가장 어두운 토큰 색 */
-  shade: string,
+  colors: SceneColors,
+  house: HouseId,
+  fabric: Texture,
 ) {
-  const W = 512;
-  const H = 512;
-  const rand = seeded(11);
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, W, H);
-  const planks = 8;
-  const pw = W / planks;
-  for (let i = 0; i < planks; i++) {
-    ctx.fillStyle = withAlpha(shade, 0.04 + rand() * 0.12);
-    ctx.fillRect(i * pw, 0, pw, H);
-    ctx.strokeStyle = withAlpha(shade, 0.16);
-    ctx.lineWidth = 1.5;
-    for (let g = 0; g < 5; g++) {
-      const gx = i * pw + 6 + rand() * (pw - 12);
-      ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      for (let y = 0; y <= H; y += 64) {
-        ctx.lineTo(gx + (rand() - 0.5) * 5, y);
-      }
-      ctx.stroke();
-    }
-    ctx.fillStyle = withAlpha(shade, 0.5);
-    ctx.fillRect(i * pw - 1.5, 0, 3, H);
+  const primary = colors[houseToken(house, "primary")];
+  const accent = colors[houseToken(house, "accent")];
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = primary;
+  ctx.fillRect(0, 0, 256, 768);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, 256, 768);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.strokeStyle = withAlpha(accent, 0.48);
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(8, 12, 240, 744);
+  ctx.strokeStyle = withAlpha(accent, 0.18);
+  ctx.lineWidth = 0.7;
+  ctx.strokeRect(12, 16, 232, 736);
+}
+
+/** 천 끝은 앞으로 조금 말리고, 글자가 놓이는 중앙은 평평하게 유지한다. */
+function createScrollGeometry() {
+  const geometry = new PlaneGeometry(SCROLL_W, 1, 24, 40);
+  const positions = geometry.getAttribute("position");
+  for (let i = 0; i < positions.count; i++) {
+    const edge = Math.abs(positions.getX(i)) / (SCROLL_W / 2);
+    const v = positions.getY(i) + 0.5;
+    positions.setZ(
+      i,
+      0.045 * edge ** 10 +
+        0.018 * Math.exp(-(1 - v) * 50) +
+        0.025 * Math.exp(-v * 45),
+    );
   }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 /* ── 현판 ─────────────────────────────────────────────── */
 
-function Plaque({ colors }: { colors: SceneColors }) {
+function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
   const texture = useMemo(() => makeTexture(2048, 280), []);
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -234,39 +242,37 @@ function Plaque({ colors }: { colors: SceneColors }) {
     if (!ctx) return;
     const W = 2048;
     const H = 280;
-    const gold = colors["--color-scene-light"];
-    const goldLight = colors["--color-scene-flame"];
+    const gold = new Color(colors["--color-scene-brass"])
+      .lerp(new Color(colors["--color-scene-collar"]), 0.32)
+      .getStyle();
+    const goldLight = colors["--color-scene-collar"];
     ctx.clearRect(0, 0, W, H);
-    // 바탕(어두운 나무) + 가장자리 살짝 어둡게
-    ctx.fillStyle = colors["--color-scene-wood-dark"];
-    ctx.fillRect(0, 0, W, H);
-    // 이중 금테
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 9;
-    ctx.strokeRect(18, 18, W - 36, H - 36);
+    // 실제 목재 앞에 얇은 금속선과 읽기 쉬운 글씨를 얹는다.
+    ctx.strokeStyle = withAlpha(gold, 0.8);
     ctx.lineWidth = 3;
-    ctx.strokeRect(40, 40, W - 80, H - 80);
-    // 구름무늬 (좌우 대칭)
-    ctx.lineWidth = 7;
+    ctx.strokeRect(22, 22, W - 44, H - 44);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(34, 34, W - 68, H - 68);
     ctx.lineCap = "round";
-    ctx.strokeStyle = gold;
-    strokeCloud(ctx, 190, 190, 3.2, false);
-    strokeCloud(ctx, W - 190, 190, 3.2, true);
-    // 모서리 꽃 장식
+    ctx.strokeStyle = withAlpha(gold, 0.65);
+    ctx.lineWidth = 3;
+    strokeCloud(ctx, 150, 178, 1.7, false);
+    strokeCloud(ctx, W - 150, 178, 1.7, true);
     for (const [x, y] of [
-      [58, 58],
-      [W - 58, 58],
-      [58, H - 58],
-      [W - 58, H - 58],
-    ]) {
-      fillRosette(ctx, x, y, 30, gold, colors["--color-scene-wood-dark"]);
-    }
-    // 금색 글자
+      [48, 48],
+      [W - 48, 48],
+      [48, H - 48],
+      [W - 48, H - 48],
+    ])
+      fillRosette(ctx, x, y, 10, gold, colors["--color-scene-wood-dark"]);
     ctx.fillStyle = goldLight;
-    ctx.font = `700 150px ${fontFamily()}`;
+    ctx.font = `700 120px ${fontFamily()}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("오 늘 의  사 신 제", W / 2, H / 2 + 6);
+    ctx.fillText("오늘의 사신제", W / 2, 112);
+    ctx.fillStyle = gold;
+    ctx.font = `400 34px ${fontFamily()}`;
+    ctx.fillText("네 기숙사가 함께 쌓은 오늘의 수련", W / 2, 216);
     texture.needsUpdate = true;
   }, [colors, texture]);
 
@@ -274,10 +280,7 @@ function Plaque({ colors }: { colors: SceneColors }) {
     <group position={[0, PLAQUE.y, 0]}>
       <mesh position={[0, 0, 0.02]}>
         <boxGeometry args={[PLAQUE.w, PLAQUE.h, 0.07]} />
-        <meshBasicMaterial
-          color={colors["--color-scene-wood-dark"]}
-          toneMapped={false}
-        />
+        <meshBasicMaterial map={timber} toneMapped={false} />
       </mesh>
       <mesh position={[0, 0, 0.058]}>
         <planeGeometry args={[PLAQUE.w, PLAQUE.h]} />
@@ -296,12 +299,23 @@ interface ScrollProps {
   maxSeconds: number;
   mine: boolean;
   colors: SceneColors;
+  timber: Texture;
+  fabric: Texture;
 }
 
-function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
+function Scroll({
+  house,
+  entry,
+  slot,
+  maxSeconds,
+  mine,
+  colors,
+  timber,
+  fabric,
+}: ScrollProps) {
   const root = useRef<Group>(null);
   const cloth = useRef<Mesh>(null);
-  const bottomRod = useRef<Mesh>(null);
+  const bottomRod = useRef<Group>(null);
   const cloud = useRef<Mesh>(null);
   const frame = useRef<Mesh>(null);
 
@@ -313,6 +327,15 @@ function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
   const target = useRef({ x: targetX, len: targetLen });
   target.current = { x: targetX, len: targetLen };
 
+  const scrollGeometry = useMemo(createScrollGeometry, []);
+  useEffect(() => () => scrollGeometry.dispose(), [scrollGeometry]);
+  const silk = useMemo(() => makeTexture(256, 768), []);
+  useEffect(() => () => silk.dispose(), [silk]);
+  useRedraw(() => {
+    const ctx = (silk.image as HTMLCanvasElement).getContext("2d");
+    if (ctx) drawScrollCloth(ctx, colors, house, fabric);
+    silk.needsUpdate = true;
+  }, [silk, colors, house, fabric]);
   const timeText = formatTotal(entry.seconds);
   const texture = useMemo(() => makeTexture(CARD_PX.w, CARD_PX.h), []);
   useEffect(() => () => texture.dispose(), [texture]);
@@ -327,14 +350,12 @@ function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
     if (bottomRod.current) bottomRod.current.position.y = -L;
     if (cloud.current) {
       cloud.current.position.y = -L + 0.3;
-      (cloud.current.material as MeshBasicMaterial).opacity = Math.min(
-        1,
-        Math.max(0, (L - CLOUD_FADE_FROM) / 0.15),
-      );
+      (cloud.current.material as MeshBasicMaterial).opacity =
+        Math.min(1, Math.max(0, (L - CLOUD_FADE_FROM) / 0.15)) * 0.24;
     }
     if (frame.current) {
-      frame.current.scale.y = L + 0.14;
-      frame.current.position.y = -L / 2 - 0.03;
+      frame.current.scale.y = L + 0.04;
+      frame.current.position.y = -L / 2;
     }
   };
   useLayoutEffect(apply);
@@ -359,87 +380,86 @@ function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
     const fg = colors[houseToken(house, "on")];
     const accent = colors[houseToken(house, "accent")];
     const subtle = colors[houseToken(house, "subtle")];
-    const gold = colors["--color-scene-light"];
+    const gold = new Color(colors["--color-scene-brass"])
+      .lerp(new Color(colors["--color-scene-collar"]), 0.22)
+      .getStyle();
+    const family = fontFamily();
     ctx.clearRect(0, 0, w, h);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = withAlpha(fg, 0.55);
+    ctx.font = `500 26px ${family}`;
+    ctx.fillText("수련 순위", w / 2, 38);
 
-    // 문장 메달: 어두운 원판 + 안쪽 포인트색 테 + 바깥 금테 + 상징
-    ctx.save();
-    ctx.translate(w / 2, 78);
-    ctx.scale(1.9, 1.9);
-    ctx.translate(-32, -32);
+    // 문장은 기숙사색 원판 위에 크게, 금테는 가늘게 그린다.
     ctx.fillStyle = subtle;
     ctx.beginPath();
-    ctx.arc(32, 32, 31, 0, Math.PI * 2);
+    ctx.arc(w / 2, 145, 68, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = gold;
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(32, 32, 31, 0, Math.PI * 2);
+    ctx.arc(w / 2, 145, 75, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(32, 32, 27.5, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.save();
+    ctx.translate(w / 2 - 48, 145 - 48);
+    ctx.scale(1.5, 1.5);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.scale(0.72, 0.72);
-    ctx.translate(12.4, 12.4);
-    for (const s of CREST_SHAPES[house]) {
-      const path = new Path2D(s.d);
-      if (s.stroke) {
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = s.stroke;
+    const crestColor = accent;
+    for (const shape of CREST_SHAPES[house]) {
+      const path = new Path2D(shape.d);
+      if (shape.stroke) {
+        ctx.strokeStyle = crestColor;
+        ctx.lineWidth = shape.stroke;
         ctx.stroke(path);
       } else {
-        ctx.fillStyle = accent;
-        ctx.fill(path, s.evenodd ? "evenodd" : "nonzero");
+        ctx.fillStyle = crestColor;
+        ctx.fill(path, shape.evenodd ? "evenodd" : "nonzero");
       }
     }
     ctx.restore();
 
-    const family = fontFamily();
     ctx.fillStyle = fg;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `700 64px ${family}`;
-    ctx.fillText(`${entry.rank}위`, w / 2, 192);
-    ctx.font = `700 42px ${family}`;
-    ctx.fillText(HOUSES[house].name, w / 2, 246);
-    ctx.font = `700 38px ${family}`;
-    ctx.fillText(timeText, w / 2, 294);
+    ctx.font = `700 120px ${family}`;
+    ctx.fillText(`${entry.rank}위`, w / 2, 287);
+    ctx.font = `600 80px ${family}`;
+    ctx.fillText(HOUSES[house].name, w / 2, 390);
+    ctx.strokeStyle = withAlpha(fg, 0.16);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(85, 430);
+    ctx.lineTo(w - 85, 430);
+    ctx.stroke();
+    ctx.fillStyle = withAlpha(fg, 0.55);
+    ctx.font = `400 28px ${family}`;
+    ctx.fillText("오늘의 수련", w / 2, 479);
+    ctx.fillStyle = fg;
+    ctx.font = `700 84px ${family}`;
+    ctx.fillText(timeText, w / 2, 551, w - 40);
     if (mine) {
-      // "— ◆ —" 장식선 + 내 기숙사
-      ctx.strokeStyle = gold;
+      ctx.fillStyle = withAlpha(fg, 0.76);
+      ctx.font = `600 32px ${family}`;
+      ctx.fillText("내 기숙사", w / 2, 653);
       ctx.fillStyle = gold;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(34, 322);
-      ctx.lineTo(w / 2 - 14, 322);
-      ctx.moveTo(w / 2 + 14, 322);
-      ctx.lineTo(w - 34, 322);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(w / 2, 314);
-      ctx.lineTo(w / 2 + 8, 322);
-      ctx.lineTo(w / 2, 330);
-      ctx.lineTo(w / 2 - 8, 322);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = fg;
-      ctx.font = `700 26px ${family}`;
-      ctx.fillText("내 기숙사", w / 2, 346);
+      ctx.save();
+      ctx.translate(w / 2, 610);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-5, -5, 10, 10);
+      ctx.restore();
     }
     texture.needsUpdate = true;
   }, [colors, house, entry.rank, timeText, mine, texture]);
 
-  const wood = colors["--color-scene-wood-light"];
-  const gold = colors["--color-scene-light"];
+  const gold = new Color(colors["--color-scene-brass"]).lerp(
+    new Color(colors["--color-scene-collar"]),
+    0.22,
+  );
   return (
     <group ref={root} position={[slotX(slot), SCROLL_TOP, 0.1]}>
       {/* 걸이 고리: 걸이대 위의 놋쇠 고리 */}
       <mesh position={[0, 0.1, 0]}>
-        <boxGeometry args={[0.09, 0.2, 0.05]} />
+        <torusGeometry args={[0.047, 0.009, 6, 16]} />
         <meshBasicMaterial color={gold} toneMapped={false} />
       </mesh>
       {/* 윗축 */}
@@ -448,20 +468,25 @@ function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
         rotation={[0, 0, Math.PI / 2]}
         position={[0, 0.01, 0.03]}
       >
-        <meshBasicMaterial color={wood} toneMapped={false} />
+        <meshBasicMaterial map={timber} toneMapped={false} />
       </mesh>
-      {/* 족자 천: 길이는 scale.y로 */}
-      <mesh ref={cloth}>
-        <planeGeometry args={[SCROLL_W, 1]} />
+      {/* 윗축에 감긴 비단. 나무 축의 양 끝은 밖으로 드러난다. */}
+      <mesh position={[0, 0.005, 0.012]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.043, 0.043, SCROLL_W, 24]} />
         <meshBasicMaterial
+          map={fabric}
           color={colors[houseToken(house, "primary")]}
           toneMapped={false}
         />
       </mesh>
+      {/* 말린 가장자리가 있는 족자 천: 길이는 scale.y로 */}
+      <mesh ref={cloth} geometry={scrollGeometry}>
+        <meshBasicMaterial map={silk} toneMapped={false} />
+      </mesh>
       {/* 내 기숙사: 천 둘레에 금색 틀 */}
       {mine ? (
         <mesh ref={frame} position={[0, 0, -0.004]}>
-          <planeGeometry args={[SCROLL_W + 0.14, 1]} />
+          <planeGeometry args={[SCROLL_W + 0.04, 1]} />
           <meshBasicMaterial color={gold} toneMapped={false} />
         </mesh>
       ) : null}
@@ -480,15 +505,20 @@ function Scroll({ house, entry, slot, maxSeconds, mine, colors }: ScrollProps) {
         <planeGeometry args={[CARD_W, CARD_H]} />
         <meshBasicMaterial map={texture} transparent toneMapped={false} />
       </mesh>
-      {/* 아랫축 */}
-      <mesh
-        ref={bottomRod}
-        geometry={getRodGeometry()}
-        rotation={[0, 0, Math.PI / 2]}
-        position={[0, -targetLen, 0.03]}
-      >
-        <meshBasicMaterial color={wood} toneMapped={false} />
-      </mesh>
+      {/* 아랫축을 감싸며 말린 비단과 돌출된 나무 마구리 */}
+      <group ref={bottomRod} position={[0, -targetLen, 0.03]}>
+        <mesh geometry={getRodGeometry()} rotation={[0, 0, Math.PI / 2]}>
+          <meshBasicMaterial map={timber} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.045, 0.045, SCROLL_W, 24]} />
+          <meshBasicMaterial
+            map={fabric}
+            color={colors[houseToken(house, "primary")]}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -505,47 +535,50 @@ export interface RankingBoardProps {
 export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
   const maxSeconds = Math.max(0, ...ranking.map((e) => e.seconds));
 
-  const planks = useMemo(() => makeTexture(512, 512), []);
-  useEffect(() => () => planks.dispose(), [planks]);
-  useRedraw(() => {
-    const ctx = (planks.image as HTMLCanvasElement).getContext("2d");
-    if (!ctx) return;
-    drawPlanks(
-      ctx,
-      colors["--color-scene-wood-dark"],
-      colors["--color-background-default"],
-    );
-    planks.needsUpdate = true;
-  }, [colors, planks]);
-
-  const gold = colors["--color-scene-light"];
-  const wood = colors["--color-scene-wood"];
+  const timber = useTexture(
+    `${import.meta.env.BASE_URL}textures/antique-walnut.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+    },
+  );
+  const fabric = useTexture(
+    `${import.meta.env.BASE_URL}textures/scroll-silk.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+    },
+  );
+  const gold = new Color(colors["--color-scene-brass"]).lerp(
+    new Color(colors["--color-scene-collar"]),
+    0.22,
+  );
   return (
     // 앞벽(문이 있는 벽) 안쪽 면 바로 앞. 판을 y축 180° 돌려 방 안쪽(-z)을 바라보게 한다.
     <group position={[0, 0, FRONT_WALL_Z - 0.2]} rotation={[0, Math.PI, 0]}>
       {/* 널판 벽 + 위아래 금띠 */}
-      <mesh position={[0, PANEL.cy, -0.05]}>
-        <planeGeometry args={[PANEL.w, PANEL.h]} />
-        <meshBasicMaterial map={planks} toneMapped={false} />
+      <mesh position={[0, PANEL.cy, -0.1]}>
+        <boxGeometry args={[PANEL.w, PANEL.h, 0.1]} />
+        <meshBasicMaterial map={timber} toneMapped={false} />
       </mesh>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[0, PANEL.cy + (s * PANEL.h) / 2, -0.03]}>
-          <boxGeometry args={[PANEL.w + 0.1, 0.07, 0.06]} />
+          <boxGeometry args={[PANEL.w + 0.04, 0.018, 0.025]} />
           <meshBasicMaterial color={gold} toneMapped={false} />
         </mesh>
       ))}
 
-      <Plaque colors={colors} />
+      <Plaque colors={colors} timber={timber} />
 
       {/* 걸이대: 가로 나무 + 양 끝 마구리 */}
-      <mesh position={[0, RAIL_Y, 0.06]}>
-        <boxGeometry args={[5.2, 0.09, 0.1]} />
-        <meshBasicMaterial color={wood} toneMapped={false} />
+      <mesh position={[0, RAIL_Y, 0.06]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.036, 0.036, 5.2, 16]} />
+        <meshBasicMaterial map={timber} toneMapped={false} />
       </mesh>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * 2.65, RAIL_Y, 0.06]}>
-          <boxGeometry args={[0.2, 0.3, 0.14]} />
-          <meshBasicMaterial color={wood} toneMapped={false} />
+          <boxGeometry args={[0.15, 0.21, 0.14]} />
+          <meshBasicMaterial map={timber} toneMapped={false} />
         </mesh>
       ))}
 
@@ -558,6 +591,8 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
           maxSeconds={maxSeconds}
           mine={entry.house === myHouse}
           colors={colors}
+          timber={timber}
+          fabric={fabric}
         />
       ))}
     </group>

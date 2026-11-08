@@ -1,10 +1,30 @@
-import { createContext, forwardRef, useContext, useMemo, useRef } from "react";
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import type { RefObject } from "react";
 import type { CSSProperties } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import { Color } from "three";
+import {
+  Color,
+  Float32BufferAttribute,
+  QuadraticBezierCurve3,
+  SphereGeometry,
+  Vector3,
+} from "three";
 import type { Group } from "three";
+import { formatClock } from "../../../ui/FocusTimer";
+
+const mouthCurve = new QuadraticBezierCurve3(
+  new Vector3(-0.028, 0.002, 0),
+  new Vector3(0, -0.012, 0.005),
+  new Vector3(0.028, 0.002, 0),
+);
 
 export type AvatarPose = "stand" | "walk" | "sit";
 
@@ -33,6 +53,8 @@ export interface AvatarProps {
   /** 머리 위 이름표 */
   name: string;
   subject?: string;
+  /** 오늘 누적 공부시간(초) — 있으면 이름표에 시계로 보인다 */
+  focusSeconds?: number;
   /** 내 아바타 — 이름표 강조 */
   highlight?: boolean;
   /** 이름표 표시 여부. 기본 true */
@@ -101,6 +123,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     focusing = false,
     name,
     subject,
+    focusSeconds,
     highlight = false,
     showLabel = true,
     practicing = false,
@@ -135,6 +158,35 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     () => new Color(face).offsetHSL(-0.01, 0.06, -0.06),
     [face],
   );
+  const eyelidTone = useMemo(
+    () => new Color(face).lerp(new Color(lip), 0.24),
+    [face, lip],
+  );
+  // 피부 자체에 홍조를 섞어 별도의 원판 테두리가 드러나지 않게 한다.
+  const faceGeometry = useMemo(() => {
+    const geometry = new SphereGeometry(0.295, 40, 28);
+    const positions = geometry.getAttribute("position");
+    const vertexColors = new Float32Array(positions.count * 3);
+    const shade = new Color();
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i);
+      const y = positions.getY(i);
+      const z = positions.getZ(i);
+      const jaw = Math.max(0, Math.min(1, (-y - 0.06) / 0.23));
+      positions.setX(i, x * (1 - jaw * 0.1));
+      const cheekDistance =
+        ((Math.abs(x) - 0.165) / 0.065) ** 2 + ((y + 0.075) / 0.05) ** 2;
+      const blush =
+        Math.exp(-cheekDistance * 1.8) * Math.max(0, z / 0.295) * 0.45;
+      shade.copy(face).lerp(cheek, blush);
+      shade.toArray(vertexColors, i * 3);
+    }
+    positions.needsUpdate = true;
+    geometry.setAttribute("color", new Float32BufferAttribute(vertexColors, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  }, [face, cheek]);
+  useEffect(() => () => faceGeometry.dispose(), [faceGeometry]);
   const trim = band ?? robe;
   const portal = useContext(LabelPortalContext);
 
@@ -321,13 +373,16 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
         ))}
         <group ref={head} position={[0, 1.1, 0]}>
           {/* 둥근 얼굴과 머리카락, 귀 */}
-          <mesh position={[0, 0.17, 0.012]} scale={[1, 0.94, 0.94]}>
-            <sphereGeometry args={[0.295, 24, 18]} />
-            <meshStandardMaterial color={face} roughness={0.9} />
+          <mesh
+            geometry={faceGeometry}
+            position={[0, 0.17, 0.012]}
+            scale={[1, 0.98, 0.94]}
+          >
+            <meshStandardMaterial vertexColors roughness={0.9} />
           </mesh>
           <mesh position={[0, 0.195, -0.008]}>
             <sphereGeometry
-              args={[0.302, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.49]}
+              args={[0.302, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.46]}
             />
             <meshStandardMaterial color={hat} roughness={0.95} />
           </mesh>
@@ -344,44 +399,46 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                 <sphereGeometry args={[0.086, 10, 8]} />
                 <meshStandardMaterial color={hat} roughness={0.95} />
               </mesh>
-              <mesh
-                position={[side * 0.101, 0.165, 0.27]}
-                scale={[1, 1.15, 0.55]}
+              {/* 검정 동그라미 눈과 작은 흰색 하이라이트 */}
+              <group
+                position={[side * 0.105, 0.162, 0.274]}
+                rotation={[0, side * 0.36, side * 0.025]}
               >
-                <sphereGeometry args={[0.036, 12, 10]} />
-                <meshStandardMaterial color={hat} roughness={0.5} />
-              </mesh>
-              <mesh position={[side * 0.101 - 0.008, 0.176, 0.286]}>
-                <sphereGeometry args={[0.007, 6, 6]} />
-                <meshBasicMaterial color={collar} />
-              </mesh>
-              {/* 눈썹 — 눈 위로 살짝 기운 짧은 획 */}
+                <mesh>
+                  <circleGeometry args={[0.029, 24]} />
+                  <meshBasicMaterial color={hat} />
+                </mesh>
+                <mesh position={[-0.008, 0.01, 0.002]}>
+                  <circleGeometry args={[0.007, 16]} />
+                  <meshBasicMaterial color={collar} toneMapped={false} />
+                </mesh>
+              </group>
+              {/* 귓바퀴 안쪽의 오목한 색면 */}
               <mesh
-                position={[side * 0.105, 0.222, 0.268]}
-                rotation={[0, side * 0.35, side * -0.18]}
-                scale={[1.9, 0.42, 0.5]}
+                position={[side * 0.3, 0.155, 0.034]}
+                rotation={[0, side * 0.75, 0]}
+                scale={[0.55, 1, 0.2]}
               >
-                <sphereGeometry args={[0.03, 8, 6]} />
-                <meshStandardMaterial color={hat} roughness={1} />
-              </mesh>
-              {/* 볼 홍조 */}
-              <mesh
-                position={[side * 0.17, 0.095, 0.236]}
-                rotation={[0, side * 0.6, 0]}
-                scale={[1, 0.7, 0.3]}
-              >
-                <sphereGeometry args={[0.052, 10, 8]} />
-                <meshStandardMaterial color={cheek} roughness={0.95} />
+                <sphereGeometry args={[0.034, 12, 10]} />
+                <meshStandardMaterial color={eyelidTone} roughness={1} />
               </mesh>
             </group>
           ))}
-          {/* 작은 코와 입 */}
-          <mesh position={[0, 0.095, 0.287]} scale={[0.7, 0.8, 0.8]}>
-            <sphereGeometry args={[0.025, 8, 8]} />
+          {/* 콧대와 코끝, 아랫입술의 볼륨 */}
+          <mesh position={[0, 0.113, 0.285]} scale={[0.65, 1.65, 0.45]}>
+            <sphereGeometry args={[0.024, 12, 12]} />
+            <meshStandardMaterial color={face} roughness={0.95} />
+          </mesh>
+          <mesh position={[0, 0.082, 0.298]} scale={[0.95, 0.7, 0.75]}>
+            <sphereGeometry args={[0.022, 14, 12]} />
             <meshStandardMaterial color={noseTone} roughness={0.9} />
           </mesh>
-          <mesh position={[0, 0.044, 0.277]} rotation={[0, 0, Math.PI * 1.25]}>
-            <torusGeometry args={[0.022, 0.005, 4, 10, Math.PI * 0.5]} />
+          <mesh position={[0, 0.027, 0.258]} scale={[1.3, 0.4, 0.25]}>
+            <sphereGeometry args={[0.022, 12, 8]} />
+            <meshStandardMaterial color={eyelidTone} roughness={1} />
+          </mesh>
+          <mesh position={[0, 0.038, 0.266]}>
+            <tubeGeometry args={[mouthCurve, 14, 0.003, 5, false]} />
             <meshStandardMaterial color={lip} roughness={1} />
           </mesh>
           {/* 갓의 얇은 챙, 원통형 대우와 가는 갓끈 */}
@@ -446,9 +503,19 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                   ? practicing
                     ? " · 실습 중"
                     : focusing
-                      ? " · 집중 중"
+                      ? ""
                       : " · 휴식"
                   : ""}
+              </span>
+            ) : null}
+            {focusSeconds !== undefined ? (
+              <span
+                style={{
+                  font: "var(--text-caption-lg-medium)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatClock(focusSeconds)}
               </span>
             ) : null}
           </div>

@@ -1,37 +1,31 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   AdditiveBlending,
   BufferAttribute,
-  BufferGeometry,
   CanvasTexture,
   Color,
   DoubleSide,
 } from "three";
 import type {
+  Group,
   Mesh,
   MeshBasicMaterial,
   Points,
   PointsMaterial,
   Texture,
 } from "three";
-import { MASK_WHITE_TOKEN, rootToken, withAlpha } from "./sceneLayout";
+import { MASK_WHITE_TOKEN, rootToken } from "./sceneLayout";
 import type { SceneColors, Vec2 } from "./sceneLayout";
 import { houseToken } from "../houses";
 import type { HouseId, HousePart } from "../houses";
 import {
   DISSOLVE_PARTICLES,
-  SEGMENTS,
-  STREAKS,
   dissolveParticle,
   dissolveProgress,
-  streakPoint,
-  tornadoStreak,
 } from "./magicMotion";
 
-/* ── 공유 알파 마스크 ──────────────────────────────────────
- * 흰색(gray/100 토큰)→투명 그라데이션은 "모양(번짐)"만 정하고, 실제 색은 토큰에서 온 색이 곱해진다.
- * 투명도가 있는 색은 `withAlpha`로 토큰에서 만든다 (rgba 직접 작성 금지). */
+/* ── 공유 알파 마스크 — 실제 색은 장면 토큰에서 가져온다 ── */
 
 /**
  * 파티클을 네모 대신 둥근 빛으로. 텍스처 없이 셰이더가 점 안의 거리(gl_PointCoord)로 번짐을 계산한다.
@@ -48,54 +42,86 @@ export function roundGlowShader(shader: { fragmentShader: string }) {
 }
 export const roundGlowKey = () => "round-glow";
 
-let streakTexture: Texture | null = null;
-/**
- * 빛줄기 한 가닥의 번짐 — 두께 방향은 가운데가 밝고 가장자리로 흐려지고(블러),
- * 길이 방향은 머리가 밝고 꼬리로 갈수록 사라진다.
- */
-function getStreakTexture(): Texture {
-  if (streakTexture) return streakTexture;
-  const w = 128;
-  const h = 32;
+let practiceSealTexture: Texture | null = null;
+/** 세계관의 기록 문양에서 착안한 창작 장식. 실제 문자나 의례 문양을 뜻하지 않는다. */
+function getPracticeSealTexture(): Texture {
+  if (practiceSealTexture) return practiceSealTexture;
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = canvas.height = 512;
   const ctx = canvas.getContext("2d");
   if (ctx) {
     const white = rootToken(MASK_WHITE_TOKEN);
-    const across = ctx.createLinearGradient(0, 0, 0, h);
-    across.addColorStop(0, withAlpha(white, 0));
-    across.addColorStop(0.5, withAlpha(white, 1));
-    across.addColorStop(1, withAlpha(white, 0));
-    ctx.fillStyle = across;
-    ctx.fillRect(0, 0, w, h);
-    // 길이 방향 페이드: 머리(u=0) 밝게 → 꼬리(u=1) 투명
-    ctx.globalCompositeOperation = "destination-in";
-    const along = ctx.createLinearGradient(0, 0, w, 0);
-    along.addColorStop(0, withAlpha(white, 0.3));
-    along.addColorStop(0.12, withAlpha(white, 1));
-    along.addColorStop(1, withAlpha(white, 0));
-    ctx.fillStyle = along;
-    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = white;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.translate(256, 256);
+    for (const [radius, width] of [
+      [219, 2],
+      [207, 1],
+      [155, 2],
+      [57, 1.5],
+    ]) {
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // 네 방위에 놓인 매듭과 붓획 모양의 짧은 선.
+    for (let i = 0; i < 4; i++) {
+      ctx.save();
+      ctx.rotate((i * Math.PI) / 2);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -188);
+      ctx.lineTo(13, -175);
+      ctx.lineTo(0, -162);
+      ctx.lineTo(-13, -175);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-12, -132);
+      ctx.quadraticCurveTo(30, -108, 0, -82);
+      ctx.quadraticCurveTo(-30, -108, 12, -132);
+      ctx.moveTo(-21, -110);
+      ctx.lineTo(21, -110);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      const inner = i % 4 === 0 ? 190 : 199;
+      ctx.lineWidth = i % 4 === 0 ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+      ctx.lineTo(Math.cos(a) * 204, Math.sin(a) * 204);
+      ctx.stroke();
+    }
+    // 가운데는 비워 책과 등잔이 보이도록 한다.
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -35);
+    ctx.quadraticCurveTo(7, -7, 35, 0);
+    ctx.quadraticCurveTo(7, 7, 0, 35);
+    ctx.quadraticCurveTo(-7, 7, -35, 0);
+    ctx.quadraticCurveTo(-7, -7, 0, -35);
+    ctx.stroke();
   }
-  streakTexture = new CanvasTexture(canvas);
-  return streakTexture;
+  practiceSealTexture = new CanvasTexture(canvas);
+  return practiceSealTexture;
 }
 
-/* ── 마법 회오리 ─────────────────────────────────────── */
+/* ── 실습 문양 ─────────────────────────────────────── */
 
 export interface MagicEffectProps {
   colors: SceneColors;
-  /** 시전자의 기숙사 — 노란 빛줄기 사이에 기숙사 색 가닥이 섞인다 */
+  /** 시전자의 기숙사 — 원형 문양의 빛깔 */
   house: HouseId;
   /** 책상 중심 (월드 좌표) */
   at: Vec2;
 }
 
-const VERTS_PER_STREAK = SEGMENTS * 2;
-
 /**
- * 회오리에 섞을 기숙사 색. 노란 빛과 구분돼야 하므로
+ * 원형 문양의 기숙사 색.
  * 주작(금색)·청룡(옅은 금색) accent 대신 primary를 쓰고, 어두운 primary는
  * 빛을 더하는(additive) 렌더링에서 흐려지므로 밝기 배율(gain)을 곱한다.
  * 현무는 은색 accent가 백호의 은백색과 겹쳐서 남색 primary를 쓴다.
@@ -108,92 +134,87 @@ const MAGIC_TINT: Record<HouseId, { part: HousePart; gain: number }> = {
 };
 
 /**
- * 실습 중 책상 위로 솟는 노란 마법 회오리. 흐릿한(블러) 빛줄기 14가닥이 깔때기 모양으로
- * 돌며 솟아오른다. 전체가 메시 하나(draw call 1회)이고, 매 프레임 정점 위치·밝기만 갱신한다.
- * 색은 촛불 토큰(--color-scene-flame, --color-scene-light) 두 가지를 가닥마다 번갈아 쓴다.
+ * 책 위의 원형 기록 문양과 떠오르는 작은 빛 입자.
  */
 export function MagicEffect({ colors, house, at }: MagicEffectProps) {
-  const mat = useRef<MeshBasicMaterial>(null);
   const born = useRef<number | null>(null);
+  const seal = useRef<Group>(null);
+  const sealMat = useRef<MeshBasicMaterial>(null);
+  const motes = useRef<Points>(null);
+  const moteMat = useRef<PointsMaterial>(null);
+  const motePositions = useMemo(() => new Float32Array(64 * 3), []);
 
-  const { geometry, positions, colorAttr, palette } = useMemo(() => {
-    const total = STREAKS * VERTS_PER_STREAK;
-    const positions = new Float32Array(total * 3);
-    const colorArr = new Float32Array(total * 3);
-    const uvs = new Float32Array(total * 2);
-    const index: number[] = [];
-    for (let s = 0; s < STREAKS; s++) {
-      const base = s * VERTS_PER_STREAK;
-      for (let k = 0; k < SEGMENTS; k++) {
-        const u = k / (SEGMENTS - 1);
-        // 위·아래 두 정점 (빛줄기 두께)
-        uvs.set([u, 1, u, 0], (base + k * 2) * 2);
-        if (k < SEGMENTS - 1) {
-          const a = base + k * 2;
-          index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-        }
-      }
-    }
-    const geometry = new BufferGeometry();
-    const posAttr = new BufferAttribute(positions, 3);
-    const colorAttr = new BufferAttribute(colorArr, 3);
-    geometry.setAttribute("position", posAttr);
-    geometry.setAttribute("color", colorAttr);
-    geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-    geometry.setIndex(index);
-    // 가닥마다 번갈아: 노란 빛(촛불 토큰) / 기숙사 색.
+  const sealColor = useMemo(() => {
     const tint = MAGIC_TINT[house];
-    const palette = [
-      new Color(colors["--color-scene-flame"]),
-      new Color(colors[houseToken(house, tint.part)]).multiplyScalar(tint.gain),
-    ];
-    return { geometry, positions, colorAttr, palette };
+    return new Color(colors[houseToken(house, tint.part)]).multiplyScalar(
+      tint.gain,
+    );
   }, [colors, house]);
-
-  const tmp = useMemo(() => new Color(), []);
-  // 실습을 멈추면 언마운트 → 정점 버퍼 해제 (텍스처는 공유라 유지)
-  useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (born.current === null) born.current = t;
-    for (let s = 0; s < STREAKS; s++) {
-      const f = tornadoStreak(s, t);
-      tmp.copy(palette[s % 2]).multiplyScalar(f.fade);
-      for (let k = 0; k < SEGMENTS; k++) {
-        const [x, y, z] = streakPoint(f, k / (SEGMENTS - 1));
-        const v = (s * VERTS_PER_STREAK + k * 2) * 3;
-        positions[v] = at.x + x;
-        positions[v + 1] = y + f.width / 2;
-        positions[v + 2] = at.z + z;
-        positions[v + 3] = at.x + x;
-        positions[v + 4] = y - f.width / 2;
-        positions[v + 5] = at.z + z;
-        tmp.toArray(colorAttr.array as Float32Array, v);
-        tmp.toArray(colorAttr.array as Float32Array, v + 3);
-      }
+    const appear = Math.min(1, (t - born.current) / 0.8);
+    if (seal.current) {
+      seal.current.rotation.y = -t * 0.12;
+      seal.current.position.y = 0.89 + Math.sin(t * 1.2) * 0.018;
     }
-    geometry.getAttribute("position").needsUpdate = true;
-    colorAttr.needsUpdate = true;
-    // 처음 0.6초 동안 서서히 나타남
-    if (mat.current)
-      mat.current.opacity = Math.min(1, (t - born.current) / 0.6);
+    if (sealMat.current)
+      sealMat.current.opacity = appear * (0.48 + Math.sin(t * 1.6) * 0.06);
+    if (moteMat.current) moteMat.current.opacity = appear * 0.72;
+    for (let i = 0; i < 64; i++) {
+      const h = (i * 0.618034 + t * (0.11 + (i % 5) * 0.009)) % 1;
+      const angle = i * 2.39996 + t * 0.45;
+      const radius = (0.12 + (i % 7) * 0.058) * Math.sin(Math.PI * h);
+      motePositions[i * 3] = Math.cos(angle) * radius;
+      motePositions[i * 3 + 1] = 0.91 + h * 1.3;
+      motePositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    const moteAttr = motes.current?.geometry.getAttribute("position");
+    if (moteAttr) moteAttr.needsUpdate = true;
   });
 
   return (
-    <mesh geometry={geometry} frustumCulled={false}>
-      <meshBasicMaterial
-        ref={mat}
-        map={getStreakTexture()}
-        vertexColors
-        transparent
-        opacity={0}
-        side={DoubleSide}
-        depthWrite={false}
-        blending={AdditiveBlending}
-        toneMapped={false}
-      />
-    </mesh>
+    <group>
+      <group position={[at.x, 0, at.z]}>
+        <group ref={seal} position={[0, 0.89, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[1.2, 1.2]} />
+            <meshBasicMaterial
+              ref={sealMat}
+              map={getPracticeSealTexture()}
+              color={sealColor}
+              transparent
+              opacity={0}
+              blending={AdditiveBlending}
+              side={DoubleSide}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+        <points ref={motes} frustumCulled={false}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              args={[motePositions, 3]}
+            />
+          </bufferGeometry>
+          <pointsMaterial
+            ref={moteMat}
+            color={colors["--color-scene-flame"]}
+            size={0.045}
+            transparent
+            opacity={0}
+            blending={AdditiveBlending}
+            depthWrite={false}
+            toneMapped={false}
+            onBeforeCompile={roundGlowShader}
+            customProgramCacheKey={roundGlowKey}
+          />
+        </points>
+      </group>
+    </group>
   );
 }
 

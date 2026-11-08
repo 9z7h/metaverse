@@ -65,6 +65,8 @@ export interface PlayerProps {
   seat: DeskLayout | null;
   focusing: boolean;
   subject: string;
+  /** 오늘 누적 공부시간(초) — 이름표에 보인다 */
+  focusSeconds?: number;
   /** 내 기숙사 — 로브·모자 띠 색 */
   house: HouseId;
   /** 근처 빈 좌석이 바뀔 때만 호출 */
@@ -119,6 +121,7 @@ export function Player({
   seat,
   focusing,
   subject,
+  focusSeconds,
   house,
   onNearSeatChange,
   onNearExitChange,
@@ -302,6 +305,7 @@ export function Player({
         glow: colors["--color-scene-flame"],
       }}
       name="나"
+      focusSeconds={focusSeconds}
       bubble={bubble}
       subject={seat ? subject : undefined}
       highlight
@@ -411,6 +415,7 @@ export function Bot({
         }}
         name={student.name}
         subject={student.subject}
+        focusSeconds={student.focusSeconds}
         bubble={bubble}
         // 걸어 들어오는 중엔 이름표 숨김 — 카메라 가까이 지나갈 때 화면을 가리지 않도록
         showLabel={pose === "sit"}
