@@ -356,23 +356,6 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 args={[colors["--color-background-default"]]}
               />
               <fog attach="fog" args={[colors["--color-scene-fog"], 30, 120]} />
-              {/* 달빛: 서늘하고 약한 전체광 + 위에서 비추는 한 줄기 */}
-              <ambientLight
-                intensity={0.5}
-                color={colors["--color-scene-light"]}
-              />
-              <hemisphereLight
-                args={[
-                  colors["--color-scene-light"],
-                  colors["--color-scene-floor"],
-                  0.45,
-                ]}
-              />
-              <directionalLight
-                position={[-18, 40, 12]}
-                intensity={0.7}
-                color={colors["--color-scene-light"]}
-              />
               <GardenScenery colors={colors} />
               {presence.walkers.map((w) => (
                 <RemoteRider

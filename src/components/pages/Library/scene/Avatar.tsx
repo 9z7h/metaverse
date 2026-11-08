@@ -136,6 +136,8 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   const head = useRef<Group>(null);
   const arm = useRef<Group>(null);
   const leftArm = useRef<Group>(null);
+  const leftFoot = useRef<Group>(null);
+  const rightFoot = useRef<Group>(null);
   const coat = useMemo(
     () => new Color(hat).lerp(new Color(robe), 0.16),
     [hat, robe],
@@ -193,11 +195,24 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (!body.current || !head.current) return;
+    const step = Math.sin(t * 7);
+    body.current.rotation.y = pose === "walk" ? step * 0.035 : 0;
+    head.current.rotation.z = pose === "walk" ? -step * 0.015 : 0;
+    for (const [foot, side] of [
+      [leftFoot.current, -1],
+      [rightFoot.current, 1],
+    ] as const) {
+      if (!foot) continue;
+      const stride = pose === "walk" ? step * side : 0;
+      foot.position.z = 0.045 + stride * 0.11;
+      foot.position.y = 0.065 + Math.max(0, stride) * 0.035;
+      foot.rotation.x = stride * -0.16;
+    }
     if (pose === "walk") {
-      body.current.position.y = Math.abs(Math.sin(t * 9)) * 0.06;
-      body.current.rotation.z = Math.sin(t * 9) * 0.05;
-      body.current.rotation.x = 0;
-      head.current.rotation.x = 0;
+      body.current.position.y = (1 - Math.cos(t * 14)) * 0.009;
+      body.current.rotation.z = step * 0.025;
+      body.current.rotation.x = 0.025;
+      head.current.rotation.x = -0.025;
     } else if (pose === "sit") {
       body.current.position.y = -0.22;
       body.current.rotation.z = 0;
@@ -220,7 +235,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
       arm.current.rotation.x = practicing
         ? -1.15 + Math.sin(t * 4) * 0.12
         : pose === "walk"
-          ? Math.sin(t * 9) * 0.18
+          ? step * 0.22
           : pose === "sit"
             ? -0.35
             : 0;
@@ -228,7 +243,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     }
     if (leftArm.current) {
       leftArm.current.rotation.x =
-        pose === "walk" ? -Math.sin(t * 9) * 0.18 : pose === "sit" ? -0.35 : 0;
+        pose === "walk" ? -step * 0.22 : pose === "sit" ? -0.35 : 0;
     }
   });
 
@@ -319,7 +334,11 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
         </group>
         {/* 버선과 검은 신발 */}
         {[-1, 1].map((side) => (
-          <group key={`shoe${side}`} position={[side * 0.125, 0.065, 0.045]}>
+          <group
+            key={`shoe${side}`}
+            ref={side === 1 ? rightFoot : leftFoot}
+            position={[side * 0.125, 0.065, 0.045]}
+          >
             <mesh position={[0, 0.035, -0.02]}>
               <cylinderGeometry args={[0.06, 0.06, 0.09, 10]} />
               <meshStandardMaterial color={collar} roughness={1} />
@@ -338,6 +357,10 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             position={[side * 0.255, 0.91, 0]}
           >
             <group rotation={[0, 0, side * 0.17]}>
+              <mesh position={[0, -0.035, 0]} scale={[1.15, 1, 1.2]}>
+                <sphereGeometry args={[0.125, 16, 12]} />
+                <meshStandardMaterial color={coat} roughness={0.9} />
+              </mesh>
               <mesh position={[side * 0.034, -0.18, 0]}>
                 <cylinderGeometry args={[0.09, 0.132, 0.39, 12]} />
                 <meshStandardMaterial color={coat} roughness={0.9} />
@@ -441,7 +464,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <tubeGeometry args={[mouthCurve, 14, 0.003, 5, false]} />
             <meshStandardMaterial color={lip} roughness={1} />
           </mesh>
-          {/* 갓의 얇은 챙, 원통형 대우와 가는 갓끈 */}
+          {/* 갓의 얇은 챙과 원통형 대우 */}
           <mesh position={[0, 0.425, 0]}>
             <cylinderGeometry args={[0.375, 0.385, 0.016, 32]} />
             <meshStandardMaterial color={hat} roughness={0.72} />
@@ -454,16 +477,6 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <torusGeometry args={[0.153, 0.008, 4, 24]} />
             <meshStandardMaterial color={trim} roughness={0.8} />
           </mesh>
-          {[-1, 1].map((side) => (
-            <mesh
-              key={`gat-string${side}`}
-              position={[side * 0.279, 0.16, 0.035]}
-              rotation={[0, 0, side * -0.08]}
-            >
-              <cylinderGeometry args={[0.005, 0.005, 0.48, 6]} />
-              <meshStandardMaterial color={hat} roughness={1} />
-            </mesh>
-          ))}
         </group>
       </group>
 

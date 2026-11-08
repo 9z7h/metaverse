@@ -35,3 +35,18 @@
 `scroll-silk.jpg`는 2026-11-08에 AI로 생성한 중립색 비단 재질입니다. 직조 결, 옅은 구름 직문과 자연스러운 접힘을 표현했습니다. JPG 품질 88로 저장했습니다.
 
 순위판에서는 이 재질에 기숙사별 primary 색을 곱해 전체 천을 채색합니다. 글씨는 별도 텍스처로 유지하며, 기숙사별 on 색으로 대비를 확보합니다. 천의 양옆과 위아래에 작은 말림을 주고, 나무 축에 감긴 비단 부분도 입체로 표현했습니다. 수련 시간에 따른 길이와 순위별 위치 변경은 유지합니다.
+
+
+
+- `models/pine-sapling.glb`: Poly Haven의 Pine Sapling Small 모델을 단순화한 에셋 (CC0, https://polyhaven.com/a/pine_sapling_small).
+
+- `garden-green.jpg`: AI 생성 잔디와 이끼 바닥 텍스처. 숨돌림 뜰 바닥에 적용한다.
+
+- `garden-panorama.jpg`: AI 생성 한국 산과 숲의 파노라마. 숨돌림 뜰의 원경에 적용한다.
+
+
+- `plum-branch.png`: AI 생성 매화 가지 투명 텍스처. 숨돌림 뜰 매화나무에 적용한다.
+
+- `garden-clouds.jpg`: AI 생성 구름 텍스처. 숨돌림 뜰의 높은 하늘에 적용한다.
+
+- `garden-water.jpg`: AI 생성 잔잔한 물결 텍스처. 숨돌림 뜰 연못에 적용한다.

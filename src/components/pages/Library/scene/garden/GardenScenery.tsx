@@ -3,11 +3,31 @@
  * 서고 건물, 정자, 연못, 소나무·대나무·매화, 석등, 꽃담, 연등, 달과 별, 반딧불.
  * 반복되는 것은 전부 InstancedMesh로 묶어 draw call을 아낀다. 색은 모두 장면 토큰에서 읽는다.
  */
-import { useLayoutEffect, useMemo, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BufferAttribute, Color, ConeGeometry, Object3D } from "three";
-import type { InstancedMesh, Points, Texture } from "three";
+import { useGLTF, useTexture } from "@react-three/drei";
+import {
+  AdditiveBlending,
+  BackSide,
+  BufferAttribute,
+  Color,
+  ConeGeometry,
+  DoubleSide,
+  Object3D,
+  RepeatWrapping,
+  SRGBColorSpace,
+} from "three";
+import type { Group, InstancedMesh, Points, Texture } from "three";
+import { gardenDaylight } from "./gardenTime";
 import { HanokDoor } from "../HanokDoor";
 import { useSurfaceTexture } from "../surfaceTexture";
 import { fillBoxes } from "../LibraryRoom";
@@ -27,7 +47,7 @@ import {
   STONE_LANTERNS,
   STONE_PATH,
 } from "./gardenLayout";
-import type { SchoolBuilding, Tree } from "./gardenLayout";
+import type { SchoolBuilding } from "./gardenLayout";
 
 function seeded(seed: number) {
   let s = seed;
@@ -139,16 +159,26 @@ function usePyramid() {
 
 /* ── 땅·길·연못·꽃담 ─────────────────────────────────────────── */
 
-function Ground({ colors }: { colors: SceneColors }) {
+function Ground() {
   const size = (GARDEN_HALF + 3) * 2;
-  const ground = useMemo(
-    () => new Color(colors["--color-scene-leaf"]).multiplyScalar(0.32),
-    [colors],
+  const ground = useTexture(
+    `${import.meta.env.BASE_URL}textures/garden-green.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.wrapS = texture.wrapT = RepeatWrapping;
+      texture.repeat.set(16, 16);
+      texture.anisotropy = 8;
+    },
   );
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[size, size]} />
-      <meshStandardMaterial color={ground} roughness={1} />
+      <meshStandardMaterial
+        map={ground}
+        bumpMap={ground}
+        bumpScale={0.025}
+        roughness={1}
+      />
     </mesh>
   );
 }
@@ -201,6 +231,31 @@ function Paths({ colors }: { colors: SceneColors }) {
 }
 
 function Pond({ colors }: { colors: SceneColors }) {
+  const water = useTexture(
+    `${import.meta.env.BASE_URL}textures/garden-water.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.wrapS = texture.wrapT = RepeatWrapping;
+      texture.repeat.set(2, 2);
+      texture.anisotropy = 8;
+    },
+  );
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useFrame((_, delta) => {
+    if (!reducedMotion) {
+      water.offset.x = (water.offset.x + Math.min(delta, 0.1) * 0.002) % 1;
+      water.offset.y = (water.offset.y + Math.min(delta, 0.1) * 0.001) % 1;
+    }
+  });
+  const stone = useSurfaceTexture("stone", 2, 2);
   const rim = useMemo<Box[]>(() => {
     const n = 44;
     return Array.from({ length: n }, (_, i) => {
@@ -223,14 +278,21 @@ function Pond({ colors }: { colors: SceneColors }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[POND.x, 0.03, POND.z]}>
         <circleGeometry args={[POND.r, 56]} />
         <meshStandardMaterial
-          color={colors["--color-scene-water"]}
-          roughness={0.12}
-          metalness={0.55}
+          map={water}
+          bumpMap={water}
+          bumpScale={0.012}
+          roughness={0.28}
+          metalness={0.15}
           emissive={colors["--color-scene-moonlight"]}
           emissiveIntensity={0.1}
         />
       </mesh>
-      <Inst boxes={rim} color={colors["--color-scene-stone"]} roughness={0.9}>
+      <Inst
+        boxes={rim}
+        color={colors["--color-scene-stone"]}
+        roughness={0.9}
+        map={stone}
+      >
         {box()}
       </Inst>
       {/* 물에 비친 달무리 */}
@@ -246,6 +308,8 @@ function Pond({ colors }: { colors: SceneColors }) {
 
 /** 꽃담: 뜰을 둘러싼 낮은 담과 기와 지붕돌 */
 function FlowerWall({ colors }: { colors: SceneColors }) {
+  const plaster = useSurfaceTexture("plaster", 2, 2);
+  const tile = useSurfaceTexture("tile", 2, 1);
   const { bodies, caps } = useMemo(() => {
     const bodies: Box[] = [];
     const caps: Box[] = [];
@@ -275,12 +339,13 @@ function FlowerWall({ colors }: { colors: SceneColors }) {
     <group>
       <Inst
         boxes={bodies}
+        map={plaster}
         color={colors["--color-scene-wall"]}
         roughness={0.95}
       >
         {box()}
       </Inst>
-      <Inst boxes={caps} color={colors["--color-scene-roof-tile"]}>
+      <Inst boxes={caps} map={tile} color={colors["--color-scene-roof-tile"]}>
         {box()}
       </Inst>
     </group>
@@ -290,6 +355,10 @@ function FlowerWall({ colors }: { colors: SceneColors }) {
 /* ── 서고 건물(뒷모습이 아닌 정면) ───────────────────────────── */
 
 function LibraryHall({ colors }: { colors: SceneColors }) {
+  const stone = useSurfaceTexture("stone", 3, 2);
+  const plaster = useSurfaceTexture("plaster", 3, 2);
+  const woodMap = useSurfaceTexture("wood", 1, 2);
+  const tile = useSurfaceTexture("tile", 3, 2);
   const pyramid = usePyramid();
   const { x, z, halfW, halfD, frontZ } = LIBRARY_BUILDING;
   const dark = colors["--color-scene-wood-dark"];
@@ -330,15 +399,21 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
         <boxGeometry args={[halfW * 2 + 3, baseTop, halfD * 2 + 4]} />
         <meshStandardMaterial
           color={colors["--color-scene-stone"]}
+          map={stone}
+          bumpMap={stone}
+          bumpScale={0.02}
           roughness={0.9}
         />
       </mesh>
       {/* 몸체 */}
       <mesh position={[x, baseTop + wallH / 2, z]}>
         <boxGeometry args={[halfW * 2 - 1, wallH, halfD * 2]} />
-        <meshStandardMaterial color={colors["--color-scene-wall"]} />
+        <meshStandardMaterial
+          color={colors["--color-scene-wall"]}
+          map={plaster}
+        />
       </mesh>
-      <Inst boxes={columns} color={dark}>
+      <Inst boxes={columns} color={dark} map={woodMap}>
         {cyl(10)}
       </Inst>
       {/* 불 켜진 창호 */}
@@ -362,6 +437,9 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
       >
         <meshStandardMaterial
           color={colors["--color-scene-roof-tile"]}
+          map={tile}
+          bumpMap={tile}
+          bumpScale={0.04}
           roughness={0.7}
         />
       </mesh>
@@ -421,6 +499,13 @@ function Roof({
   );
 }
 
+const BuildingMaterials = createContext<{
+  colors: SceneColors;
+  stone: Texture;
+  wall: Texture;
+  wood: Texture;
+} | null>(null);
+
 /** 칸 하나 — 상자 */
 function Block({
   at,
@@ -433,10 +518,25 @@ function Block({
   color: string;
   roughness?: number;
 }) {
+  const materials = useContext(BuildingMaterials);
+  const map =
+    materials &&
+    (color === materials.colors["--color-scene-stone"]
+      ? materials.stone
+      : color === materials.colors["--color-scene-wall"]
+        ? materials.wall
+        : color === materials.colors["--color-scene-wood"] ||
+            color === materials.colors["--color-scene-wood-dark"]
+          ? materials.wood
+          : undefined);
   return (
     <mesh position={at}>
       <boxGeometry args={size} />
-      <meshStandardMaterial color={color} roughness={roughness} />
+      <meshStandardMaterial
+        color={color}
+        map={map || undefined}
+        roughness={roughness}
+      />
     </mesh>
   );
 }
@@ -534,6 +634,7 @@ function Finial({
 
 function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
   const pyramid = usePyramid();
+  const woodTexture = useSurfaceTexture("wood", 1, 2);
   const wood = colors["--color-scene-wood"];
   const dark = colors["--color-scene-wood-dark"];
   const stone = colors["--color-scene-stone"];
@@ -755,7 +856,11 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
           ]}
         >
           <cylinderGeometry args={[0.15, 0.15, wallH, 10]} />
-          <meshStandardMaterial color={dark} roughness={0.8} />
+          <meshStandardMaterial
+            color={dark}
+            map={woodTexture}
+            roughness={0.8}
+          />
         </mesh>
       ))}
       {/* 닫힌 문과 창 */}
@@ -822,78 +927,84 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
 }
 
 function SchoolHalls({ colors }: { colors: SceneColors }) {
+  const stone = useSurfaceTexture("stone", 2, 2);
+  const wall = useSurfaceTexture("plaster", 2, 2);
+  const wood = useSurfaceTexture("wood", 1, 2);
+  const materials = useMemo(
+    () => ({ colors, stone, wall, wood }),
+    [colors, stone, wall, wood],
+  );
   return (
-    <>
+    <BuildingMaterials.Provider value={materials}>
       {SCHOOL_BUILDINGS.map((b) => (
         <SchoolHall key={b.id} b={b} colors={colors} />
       ))}
-    </>
+    </BuildingMaterials.Provider>
   );
 }
 
-/* ── 먼 산 ─────────────────────────────────────────────────────
- * 꽃담 너머로 겹겹이 이어진 능선. 멀수록 크고 안개에 묻히며, 꼭대기는 달빛 받은 눈. */
-
-const MOUNTAIN_LAYERS = [
-  { count: 14, radius: 80, width: 32, height: 24, seed: 11 },
-  { count: 16, radius: 104, width: 40, height: 34, seed: 29 },
-] as const;
-
-function Mountains({ colors }: { colors: SceneColors }) {
-  const cone = useMemo(() => new ConeGeometry(1, 1, 5), []);
-  const peaks = useMemo(
-    () =>
-      MOUNTAIN_LAYERS.flatMap((layer) => {
-        const rand = seeded(layer.seed);
-        return Array.from({ length: layer.count }, (_, i) => {
-          const a = (i / layer.count) * Math.PI * 2 + rand() * 0.2;
-          return {
-            x: Math.sin(a) * layer.radius,
-            z: Math.cos(a) * layer.radius,
-            w: layer.width * (0.7 + rand() * 0.6),
-            h: layer.height * (0.7 + rand() * 0.6),
-          };
-        });
-      }),
-    [],
-  );
-  const body = useMemo<Box[]>(
-    () =>
-      peaks.map((m) => ({ p: [m.x, m.h / 2 - 1, m.z], s: [m.w, m.h, m.w] })),
-    [peaks],
-  );
-  const bodyTint = useMemo(
-    () => peaks.map((_, i) => 0.28 + (i % 3) * 0.05),
-    [peaks],
-  );
-  // 눈 덮인 꼭대기: 같은 모양의 위쪽 28%
-  const snow = useMemo<Box[]>(
-    () =>
-      peaks.map((m) => ({
-        p: [m.x, m.h * 0.86 - 1, m.z],
-        s: [m.w * 0.28, m.h * 0.28, m.w * 0.28],
-      })),
-    [peaks],
+/* ── 숲과 산으로 둘러싸인 원경 ─────────────────────────── */
+function Landscape({ daylight }: { daylight: number }) {
+  const map = useTexture(
+    `${import.meta.env.BASE_URL}textures/garden-panorama.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
   );
   return (
-    <group>
-      {/* 달밤이라 산 몸체는 어둡게 눌러 윤곽으로만 보이게 한다 */}
-      <Inst
-        boxes={body}
-        color={colors["--color-scene-stone"]}
-        roughness={1}
-        tint={bodyTint}
-      >
-        <primitive object={cone} attach="geometry" />
-      </Inst>
-      <Inst
-        boxes={snow}
-        color={colors["--color-scene-moonlight"]}
-        roughness={1}
-        emissive={colors["--color-scene-moonlight"]}
-      >
-        <primitive object={cone} attach="geometry" />
-      </Inst>
+    <mesh>
+      <sphereGeometry args={[150, 64, 32]} />
+      <meshBasicMaterial
+        map={map}
+        color={new Color().setScalar(0.045 + daylight * 0.955)}
+        side={BackSide}
+        fog={false}
+        toneMapped={false}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+/** 수평선과 나무 위로 충분히 떨어진 높은 하늘의 구름 */
+function Clouds({ daylight }: { daylight: number }) {
+  const group = useRef<Group>(null);
+  const map = useTexture(
+    `${import.meta.env.BASE_URL}textures/garden-clouds.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
+  );
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useFrame((_, delta) => {
+    if (group.current && !reducedMotion)
+      group.current.rotation.y += Math.min(delta, 0.1) * 0.003;
+  });
+  return (
+    <group ref={group}>
+      <mesh>
+        <sphereGeometry args={[140, 64, 32, 0, Math.PI * 2, 0, Math.PI / 3]} />
+        <meshBasicMaterial
+          map={map}
+          side={BackSide}
+          transparent
+          opacity={0.12 + daylight * 0.48}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          fog={false}
+          toneMapped={false}
+        />
+      </mesh>
     </group>
   );
 }
@@ -901,6 +1012,9 @@ function Mountains({ colors }: { colors: SceneColors }) {
 /* ── 정자 ──────────────────────────────────────────────────── */
 
 function Pavilion({ colors }: { colors: SceneColors }) {
+  const woodMap = useSurfaceTexture("wood", 2, 2);
+  const tile = useSurfaceTexture("tile", 3, 2);
+  const stone = useSurfaceTexture("stone", 2, 2);
   const pyramid = usePyramid();
   const { x, z, half } = PAVILION;
   const dark = colors["--color-scene-wood-dark"];
@@ -936,17 +1050,18 @@ function Pavilion({ colors }: { colors: SceneColors }) {
         <boxGeometry args={[half * 2, baseTop, half * 2]} />
         <meshStandardMaterial
           color={colors["--color-scene-stone"]}
+          map={stone}
           roughness={0.9}
         />
       </mesh>
       <mesh position={[x, baseTop + 0.03, z]}>
         <boxGeometry args={[half * 2 - 0.6, 0.06, half * 2 - 0.6]} />
-        <meshStandardMaterial color={wood} />
+        <meshStandardMaterial color={wood} map={woodMap} />
       </mesh>
-      <Inst boxes={posts} color={dark}>
+      <Inst boxes={posts} color={dark} map={woodMap}>
         {cyl(10)}
       </Inst>
-      <Inst boxes={rails} color={dark}>
+      <Inst boxes={rails} color={dark} map={woodMap}>
         {box()}
       </Inst>
       {/* 도리(가로보)와 단청 띠 */}
@@ -966,6 +1081,7 @@ function Pavilion({ colors }: { colors: SceneColors }) {
       >
         <meshStandardMaterial
           color={colors["--color-scene-roof-tile"]}
+          map={tile}
           roughness={0.7}
         />
       </mesh>
@@ -996,44 +1112,39 @@ function Pavilion({ colors }: { colors: SceneColors }) {
 
 /* ── 나무: 소나무·대나무·매화 ────────────────────────────────── */
 
-function Pines({ colors }: { colors: SceneColors }) {
-  const parts = useMemo(() => {
-    const tiers = [
-      { y: 2.6, r: 2.0, h: 2.6 },
-      { y: 4.3, r: 1.6, h: 2.3 },
-      { y: 5.8, r: 1.15, h: 2.0 },
-    ];
-    const trunks: Box[] = PINES.map((t: Tree) => ({
-      p: [t.x, 1.2 * t.s, t.z],
-      s: [0.22 * t.s, 2.4 * t.s, 0.22 * t.s],
-    }));
-    const cones = tiers.map((tier) =>
-      PINES.map((t: Tree) => ({
-        p: [t.x, tier.y * t.s, t.z] as Box["p"],
-        s: [tier.r * t.s, tier.h * t.s, tier.r * t.s] as Box["s"],
-      })),
-    );
-    // 나무마다 잎 색을 조금씩 달리
-    const rand = seeded(5);
-    const tint = PINES.map(() => 0.85 + rand() * 0.3);
-    return { trunks, cones, tint };
-  }, []);
+function Pines() {
+  const { scene } = useGLTF(
+    `${import.meta.env.BASE_URL}models/pine-sapling.glb`,
+  );
+  const trees = useMemo(
+    () =>
+      PINES.flatMap((tree, i) => {
+        const variants = [
+          "pine_sapling_small_a",
+          "pine_sapling_small_b",
+          "pine_sapling_small_c",
+        ];
+        return [0, 1, 2].map((layer) => {
+          const source = scene.getObjectByName(
+            variants[(i + layer) % variants.length],
+          );
+          if (!source) return null;
+          const model = source.clone(true);
+          model.position.set(tree.x, 0, tree.z);
+          model.rotation.y = i * 2.39996 + layer * 1.7;
+          model.scale.set(
+            tree.s * 4.5 * [1.2, 1.42, 1.3][layer],
+            tree.s * 4.5 * [1, 0.86, 0.96][layer],
+            tree.s * 4.5 * [1.2, 1.42, 1.3][layer],
+          );
+          return model;
+        });
+      }),
+    [scene],
+  );
   return (
     <group>
-      <Inst boxes={parts.trunks} color={colors["--color-scene-wood-dark"]}>
-        {cyl(8)}
-      </Inst>
-      {parts.cones.map((boxes, i) => (
-        <Inst
-          key={i}
-          boxes={boxes}
-          color={colors["--color-scene-leaf"]}
-          tint={parts.tint}
-          roughness={0.95}
-        >
-          <coneGeometry args={[1, 1, 9]} />
-        </Inst>
-      ))}
+      {trees.map((tree, i) => tree && <primitive key={i} object={tree} />)}
     </group>
   );
 }
@@ -1058,39 +1169,81 @@ function Bamboo({ colors }: { colors: SceneColors }) {
 
 /** 매화: 줄기와 하얗게 핀 꽃무리 (백호관 아이보리색) */
 function PlumTrees({ colors }: { colors: SceneColors }) {
-  const { trunks, blossoms } = useMemo(() => {
-    const rand = seeded(31);
-    const trunks: Box[] = PLUM_TREES.map((t) => ({
-      p: [t.x, 0.9, t.z],
-      s: [0.16, 1.8, 0.16],
-    }));
-    const blossoms: Box[] = PLUM_TREES.flatMap((t) =>
-      Array.from({ length: 7 }, () => {
-        const a = rand() * Math.PI * 2;
-        const r = 0.2 + rand() * 0.9;
-        const s = 0.45 + rand() * 0.35;
-        return {
-          p: [t.x + Math.cos(a) * r, 2.0 + rand() * 0.9, t.z + Math.sin(a) * r],
-          s: [s, s, s],
-        } as Box;
-      }),
-    );
-    return { trunks, blossoms };
-  }, []);
+  const bark = useSurfaceTexture("wood", 1, 2);
+  const blossoms = useTexture(
+    `${import.meta.env.BASE_URL}textures/plum-branch.png`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+    },
+  );
+  const trunks = useMemo<Box[]>(
+    () =>
+      PLUM_TREES.map((tree) => ({
+        p: [tree.x, 1.05, tree.z],
+        s: [0.16, 2.1, 0.16],
+      })),
+    [],
+  );
   return (
     <group>
-      <Inst boxes={trunks} color={colors["--color-scene-wood-dark"]}>
-        {cyl(7)}
+      <Inst boxes={trunks} color={colors["--color-scene-wood-dark"]} map={bark}>
+        {cyl(10)}
       </Inst>
-      <Inst
-        boxes={blossoms}
-        color={colors["--color-house-baekho-primary"]}
-        emissive={colors["--color-house-baekho-primary"]}
-        roughness={0.8}
-      >
-        <sphereGeometry args={[1, 8, 8]} />
-      </Inst>
+      {PLUM_TREES.map((tree, i) => (
+        <group key={i} position={[tree.x, 0, tree.z]}>
+          {[0, 1, 2].map((branch) => (
+            <group
+              key={branch}
+              rotation={[0, (branch * Math.PI) / 3 + i * 0.4, 0]}
+            >
+              <mesh position={[0, 2.35, 0]}>
+                <planeGeometry args={[3.5, 2.35]} />
+                <meshStandardMaterial
+                  map={blossoms}
+                  transparent
+                  alphaTest={0.35}
+                  side={DoubleSide}
+                  roughness={0.9}
+                />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      ))}
     </group>
+  );
+}
+
+/** 매화 위에 떠 있는 하얀 구름 무리 */
+function WhiteCloudClusters({ colors }: { colors: SceneColors }) {
+  const clouds = useMemo<Box[]>(() => {
+    const rand = seeded(31);
+    return PLUM_TREES.flatMap((tree) =>
+      Array.from({ length: 7 }, () => {
+        const angle = rand() * Math.PI * 2;
+        const radius = 0.2 + rand() * 0.9;
+        const size = 0.45 + rand() * 0.35;
+        return {
+          p: [
+            tree.x + Math.cos(angle) * radius,
+            5.3 + rand() * 0.6,
+            tree.z + Math.sin(angle) * radius,
+          ],
+          s: [size, size * 0.8, size],
+        };
+      }),
+    );
+  }, []);
+  return (
+    <Inst
+      boxes={clouds}
+      color={colors["--color-house-baekho-primary"]}
+      emissive={colors["--color-house-baekho-primary"]}
+      roughness={0.8}
+    >
+      <sphereGeometry args={[1, 8, 8]} />
+    </Inst>
   );
 }
 
@@ -1226,7 +1379,7 @@ function GardenLanterns({ colors }: { colors: SceneColors }) {
 
 /* ── 하늘(달·별)과 반딧불 ───────────────────────────────────── */
 
-function Sky({ colors }: { colors: SceneColors }) {
+function Sky({ colors, night }: { colors: SceneColors; night: number }) {
   const stars = useMemo(() => {
     const rand = seeded(3);
     const arr = new Float32Array(520 * 3);
@@ -1254,7 +1407,7 @@ function Sky({ colors }: { colors: SceneColors }) {
           size={1.8}
           sizeAttenuation={false}
           transparent
-          opacity={0.85}
+          opacity={0.85 * night}
           depthWrite={false}
           fog={false}
           toneMapped={false}
@@ -1266,6 +1419,9 @@ function Sky({ colors }: { colors: SceneColors }) {
         <sphereGeometry args={[6, 24, 24]} />
         <meshBasicMaterial
           color={colors["--color-scene-moonlight"]}
+          transparent
+          opacity={night}
+          depthWrite={false}
           fog={false}
           toneMapped={false}
         />
@@ -1274,7 +1430,7 @@ function Sky({ colors }: { colors: SceneColors }) {
         positions={halo}
         color={colors["--color-scene-moonlight"]}
         size={150}
-        opacity={0.28}
+        opacity={0.28 * night}
       />
     </group>
   );
@@ -1328,22 +1484,56 @@ function Fireflies({ colors }: { colors: SceneColors }) {
 
 /** 숨돌림 뜰 전체 */
 export function GardenScenery({ colors }: { colors: SceneColors }) {
+  const [daylight, setDaylight] = useState(() => gardenDaylight(new Date()));
+  useEffect(() => {
+    const update = () => setDaylight(gardenDaylight(new Date()));
+    const timer = window.setInterval(update, 30_000);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
   return (
     <group>
-      <Ground colors={colors} />
+      <Ground />
       <Paths colors={colors} />
       <Pond colors={colors} />
       <FlowerWall colors={colors} />
       <LibraryHall colors={colors} />
       <SchoolHalls colors={colors} />
-      <Mountains colors={colors} />
+      <Landscape daylight={daylight} />
+      <Clouds daylight={daylight} />
+      <ambientLight
+        color={new Color(colors["--color-scene-moonlight"]).lerp(
+          new Color(colors["--color-scene-light"]),
+          daylight,
+        )}
+        intensity={0.3 + daylight * 0.85}
+      />
+      <hemisphereLight
+        args={[
+          colors["--color-scene-moonlight"],
+          colors["--color-scene-floor"],
+          0.26 + daylight * 0.19,
+        ]}
+      />
+      <directionalLight
+        position={[-18, 40, 12]}
+        intensity={0.4 + daylight * 0.3}
+        color={new Color(colors["--color-scene-moonlight"]).lerp(
+          new Color(colors["--color-scene-light"]),
+          daylight,
+        )}
+      />
       <Pavilion colors={colors} />
-      <Pines colors={colors} />
+      <Pines />
       <Bamboo colors={colors} />
       <PlumTrees colors={colors} />
+      <WhiteCloudClusters colors={colors} />
       <StoneLanterns colors={colors} />
       <GardenLanterns colors={colors} />
-      <Sky colors={colors} />
+      <Sky colors={colors} night={1 - daylight} />
       <Fireflies colors={colors} />
     </group>
   );
