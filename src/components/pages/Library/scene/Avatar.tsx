@@ -117,9 +117,23 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     () => new Color(hat).lerp(new Color(robe), 0.16),
     [hat, robe],
   );
+  // 흰 동정을 많이 섞으면 창백해진다 — 살구빛이 남도록 살짝만 섞는다
   const face = useMemo(
-    () => new Color(skin).lerp(new Color(collar), 0.42),
+    () => new Color(skin).lerp(new Color(collar), 0.1),
     [skin, collar],
+  );
+  // 볼·입·코는 피부색에서 붉게/짙게 비껴 만든다 (색을 따로 쓰지 않고 같은 토큰에서 파생)
+  const cheek = useMemo(
+    () => new Color(skin).offsetHSL(-0.025, 0.28, -0.06),
+    [skin],
+  );
+  const lip = useMemo(
+    () => new Color(skin).offsetHSL(-0.04, 0.3, -0.22),
+    [skin],
+  );
+  const noseTone = useMemo(
+    () => new Color(face).offsetHSL(-0.01, 0.06, -0.06),
+    [face],
   );
   const trim = band ?? robe;
   const portal = useContext(LabelPortalContext);
@@ -334,23 +348,41 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                 position={[side * 0.101, 0.165, 0.27]}
                 scale={[1, 1.15, 0.55]}
               >
-                <sphereGeometry args={[0.032, 12, 10]} />
+                <sphereGeometry args={[0.036, 12, 10]} />
                 <meshStandardMaterial color={hat} roughness={0.5} />
               </mesh>
               <mesh position={[side * 0.101 - 0.008, 0.176, 0.286]}>
                 <sphereGeometry args={[0.007, 6, 6]} />
                 <meshBasicMaterial color={collar} />
               </mesh>
+              {/* 눈썹 — 눈 위로 살짝 기운 짧은 획 */}
+              <mesh
+                position={[side * 0.105, 0.222, 0.268]}
+                rotation={[0, side * 0.35, side * -0.18]}
+                scale={[1.9, 0.42, 0.5]}
+              >
+                <sphereGeometry args={[0.03, 8, 6]} />
+                <meshStandardMaterial color={hat} roughness={1} />
+              </mesh>
+              {/* 볼 홍조 */}
+              <mesh
+                position={[side * 0.17, 0.095, 0.236]}
+                rotation={[0, side * 0.6, 0]}
+                scale={[1, 0.7, 0.3]}
+              >
+                <sphereGeometry args={[0.052, 10, 8]} />
+                <meshStandardMaterial color={cheek} roughness={0.95} />
+              </mesh>
             </group>
           ))}
           {/* 작은 코와 입 */}
           <mesh position={[0, 0.095, 0.287]} scale={[0.7, 0.8, 0.8]}>
             <sphereGeometry args={[0.025, 8, 8]} />
-            <meshStandardMaterial color={face} roughness={0.9} />
+            <meshStandardMaterial color={noseTone} roughness={0.9} />
           </mesh>
           <mesh position={[0, 0.044, 0.277]} rotation={[0, 0, Math.PI * 1.25]}>
-            <torusGeometry args={[0.022, 0.004, 4, 10, Math.PI * 0.5]} />
-            <meshStandardMaterial color={hat} roughness={1} />
+            <torusGeometry args={[0.022, 0.005, 4, 10, Math.PI * 0.5]} />
+            <meshStandardMaterial color={lip} roughness={1} />
           </mesh>
           {/* 갓의 얇은 챙, 원통형 대우와 가는 갓끈 */}
           <mesh position={[0, 0.425, 0]}>
