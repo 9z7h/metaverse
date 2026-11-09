@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Vector3 } from "three";
+import { Color, Vector3 } from "three";
 import type { BufferAttribute, Group, Mesh, Points, ShaderMaterial } from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
@@ -90,23 +90,54 @@ function CloudMist({ colors, reducedMotion }: { colors: SceneColors; reducedMoti
   );
 }
 
+/**
+ * 구름 덩어리 — [x, y, z, 가로, 세로, 깊이, 밝기].
+ * 납작한 가운데 덩어리를 크기가 비슷한 덩어리들이 둥글게 감싸 윤곽이 완만하다.
+ * 아래쪽 덩어리일수록 살짝 어둡다.
+ */
+const CLOUD_PUFFS: ReadonlyArray<readonly number[]> = [
+  [0, 0.12, 0, 0.5, 0.26, 0.54, 1],
+  [-0.36, 0.09, -0.04, 0.33, 0.22, 0.38, 0.97],
+  [0.36, 0.09, -0.04, 0.33, 0.22, 0.38, 0.97],
+  [-0.2, 0.08, 0.3, 0.32, 0.22, 0.32, 0.99],
+  [0.2, 0.08, 0.3, 0.32, 0.22, 0.32, 0.99],
+  [-0.2, 0.08, -0.32, 0.32, 0.22, 0.32, 0.96],
+  [0.2, 0.08, -0.32, 0.32, 0.22, 0.32, 0.96],
+];
+
 export function BroomModel({ colors, reducedMotion = false }: { colors: SceneColors; reducedMotion?: boolean }) {
+  const puffRefs = useRef<Array<Mesh | null>>([]);
+  const tints = useMemo(
+    () => CLOUD_PUFFS.map((p) => new Color(colors["--color-scene-collar"]).multiplyScalar(p[6])),
+    [colors],
+  );
+  // 덩어리마다 박자를 달리해 숨 쉬듯 부풀었다 가라앉는다
+  useFrame(({ clock }) => {
+    if (reducedMotion) return;
+    const t = clock.elapsedTime;
+    CLOUD_PUFFS.forEach((p, i) => {
+      const m = puffRefs.current[i];
+      if (!m) return;
+      const breathe = 1 + Math.sin(t * 0.9 + i * 1.7) * 0.03;
+      m.scale.set(p[3] * breathe, p[4] * (2 - breathe), p[5] * breathe);
+      m.position.y = p[1] + Math.sin(t * 0.7 + i * 2.3) * 0.012;
+    });
+  });
   return (
     <group scale={[1.12, 1.04, 1.12]}>
-      {[
-        { position: [0, 0.1, 0], scale: [0.42, 0.34, 0.48] },
-        { position: [-0.31, 0.08, -0.2], scale: [0.31, 0.29, 0.32] },
-        { position: [0.31, 0.08, -0.2], scale: [0.31, 0.29, 0.32] },
-        { position: [-0.3, 0.1, 0.27], scale: [0.32, 0.3, 0.34] },
-        { position: [0.3, 0.1, 0.27], scale: [0.32, 0.3, 0.34] },
-        { position: [0, 0.11, 0.4], scale: [0.34, 0.31, 0.3] },
-        { position: [0, 0.1, -0.38], scale: [0.34, 0.3, 0.3] },
-      ].map((puff, index) => (
-        <mesh key={index} position={puff.position as [number, number, number]} scale={puff.scale as [number, number, number]}>
-          <sphereGeometry args={[1, 32, 24]} />
+      {CLOUD_PUFFS.map((puff, index) => (
+        <mesh
+          key={index}
+          ref={(m) => {
+            puffRefs.current[index] = m;
+          }}
+          position={[puff[0], puff[1], puff[2]]}
+          scale={[puff[3], puff[4], puff[5]]}
+        >
+          <sphereGeometry args={[1, 24, 16]} />
           <meshStandardMaterial
-            color={colors["--color-scene-collar"]}
-            emissive={colors["--color-scene-collar"]}
+            color={tints[index]}
+            emissive={tints[index]}
             emissiveIntensity={0.12}
             roughness={1}
             onBeforeCompile={cloudRimShader}

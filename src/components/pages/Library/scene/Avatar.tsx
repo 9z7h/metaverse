@@ -11,6 +11,7 @@ import type { CSSProperties } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html, useTexture } from "@react-three/drei";
 import {
+  BufferGeometry,
   Color,
   DoubleSide,
   Float32BufferAttribute,
@@ -25,6 +26,89 @@ import type { Group } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
 import type { HouseId } from "../houses";
+
+/** 도포 윤곽 [높이 y, 반지름 r] — 몸통(Lathe)과 깃이 같은 곡선을 따른다 */
+const COAT_PROFILE: ReadonlyArray<readonly [number, number]> = [
+  [0.12, 0.345],
+  [0.2, 0.338],
+  [0.3, 0.318],
+  [0.42, 0.296],
+  [0.54, 0.268],
+  [0.62, 0.246],
+  [0.68, 0.238],
+  [0.76, 0.228],
+  [0.85, 0.222],
+  [0.93, 0.22],
+  [1.0, 0.205],
+  [1.043, 0.15],
+  [1.057, 0.1],
+];
+
+/** 높이 y에서 도포의 반지름 */
+function coatRadiusAt(y: number) {
+  const p = COAT_PROFILE;
+  if (y <= p[0][0]) return p[0][1];
+  for (let i = 1; i < p.length; i++) {
+    if (y <= p[i][0]) {
+      const [y0, r0] = p[i - 1];
+      const [y1, r1] = p[i];
+      return r0 + ((y - y0) / (y1 - y0)) * (r1 - r0);
+    }
+  }
+  return p[p.length - 1][1];
+}
+
+/**
+ * 깃 한 줄: 목선에서 가슴 한가운데로 내려오며 도포 표면을 따라 휘는 띠.
+ * 평평한 판자 두 장으로는 몸통의 둥근 면에서 떠서 뻣뻣해 보이므로, 띠의 모든 점을
+ * 도포 반지름에 붙여 만든다. 위는 넓고 아래로 갈수록 좁아지며, `lift`로 겹침 순서를 준다.
+ * side는 +x(입은 사람의 왼쪽) 쪽이면 1.
+ */
+function collarStrip(
+  side: 1 | -1,
+  widthTop: number,
+  widthBottom: number,
+  lift: number,
+  inset = 0,
+) {
+  const steps = 16;
+  const top = 1.035;
+  const drop = 0.24;
+  const pos: number[] = [];
+  const index: number[] = [];
+  const center = (t: number) => ({
+    // 목선에서 가슴 한가운데로 내려오며 살짝 둥글게 모이고, 아래에서 반대쪽으로 겹친다
+    x: side * (0.078 * Math.pow(1 - t, 1.1) - 0.012 * t - inset * (1 - t)),
+    y: top - drop * t,
+  });
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const a = center(Math.max(0, t - 0.02));
+    const b = center(Math.min(1, t + 0.02));
+    const c = center(t);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const w = widthTop + (widthBottom - widthTop) * t;
+    for (const k of [-0.5, 0.5]) {
+      const x = c.x + nx * w * k;
+      const y = c.y + ny * w * k;
+      const r = coatRadiusAt(y) + lift;
+      pos.push(x, y, Math.sqrt(Math.max(r * r - x * x, 1e-4)));
+    }
+    if (i < steps) {
+      const v = i * 2;
+      index.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(-0.028, 0.002, 0),
@@ -179,23 +263,36 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   const coatGeometry = useMemo(
     () =>
       new LatheGeometry(
-        [
-          new Vector2(0.345, 0.12),
-          new Vector2(0.338, 0.2),
-          new Vector2(0.31, 0.36),
-          new Vector2(0.27, 0.54),
-          new Vector2(0.24, 0.69),
-          new Vector2(0.22, 0.82),
-          new Vector2(0.21, 0.91),
-          new Vector2(0.205, 0.98),
-          new Vector2(0.15, 1.04),
-          new Vector2(0.1, 1.055),
-        ],
+        COAT_PROFILE.map(([y, r]) => new Vector2(r, y)),
         32,
       ),
     [],
   );
   useEffect(() => () => coatGeometry.dispose(), [coatGeometry]);
+  // 깃: 입은 사람의 오른쪽(-x) 깃이 왼쪽(+x) 깃 위에 겹친다 (우임). 안깃 위에 흰 동정이 얹힌다.
+  const collarGeometries = useMemo(
+    () =>
+      ([-1, 1] as const).map((side) => ({
+        side,
+        base: collarStrip(side, 0.068, 0.05, side === -1 ? 0.012 : 0.006),
+        trim: collarStrip(
+          side,
+          0.024,
+          0.016,
+          side === -1 ? 0.016 : 0.01,
+          0.014,
+        ),
+      })),
+    [],
+  );
+  useEffect(
+    () => () =>
+      collarGeometries.forEach((c) => {
+        c.base.dispose();
+        c.trim.dispose();
+      }),
+    [collarGeometries],
+  );
   // 흰 동정을 많이 섞으면 창백해진다 — 살구빛이 남도록 살짝만 섞는다
   const face = useMemo(
     () => new Color(skin).lerp(new Color(collar), 0.1),
@@ -368,27 +465,23 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             />
           </mesh>
         ))}
-        {/* 저고리의 안깃과 그 위에 겹쳐지는 흰 동정 */}
-        {[-1, 1].map((side) => (
-          <group
-            key={`collar${side}`}
-            position={[side * 0.062, 0.895, 0.211]}
-            rotation={[0, 0, side * -0.46]}
-          >
-            <mesh>
-              <boxGeometry args={[0.088, 0.29, 0.025]} />
+        {/* 저고리의 안깃과 그 위에 겹쳐지는 흰 동정 — 도포 표면을 따라 휘는 띠 */}
+        {collarGeometries.map(({ side, base, trim: trimGeo }) => (
+          <group key={`collar${side}`}>
+            <mesh geometry={base}>
               <meshStandardMaterial
                 map={fabric}
                 color={robe}
                 roughness={0.85}
+                side={DoubleSide}
               />
             </mesh>
-            <mesh position={[side * -0.012, 0, 0.016]}>
-              <boxGeometry args={[0.034, 0.29, 0.012]} />
+            <mesh geometry={trimGeo}>
               <meshStandardMaterial
                 map={fabric}
                 color={collar}
                 roughness={0.95}
+                side={DoubleSide}
               />
             </mesh>
           </group>
@@ -448,8 +541,19 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             position={[side * 0.19, 0.96, 0]}
           >
             <group rotation={[0, 0, side * 0.3]}>
-              <mesh position={[side * 0.035, -0.17, 0]} scale={[1.04, 1, 0.92]}>
-                <capsuleGeometry args={[0.125, 0.16, 8, 24]} />
+              {/* 소매: 어깨에서 좁게 시작해 소맷부리로 갈수록 넓어지는 한복 소매 */}
+              <mesh position={[side * 0.035, 0.0, 0]} scale={[1, 1, 0.95]}>
+                <sphereGeometry args={[0.082, 16, 12]} />
+                <meshStandardMaterial
+                  map={fabric}
+                  bumpMap={fabric}
+                  bumpScale={0.0015}
+                  color={coat}
+                  roughness={0.9}
+                />
+              </mesh>
+              <mesh position={[side * 0.035, -0.17, 0]} scale={[1, 1, 0.92]}>
+                <cylinderGeometry args={[0.082, 0.122, 0.31, 20]} />
                 <meshStandardMaterial
                   map={fabric}
                   bumpMap={fabric}
@@ -459,7 +563,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                 />
               </mesh>
               <mesh position={[side * 0.035, -0.31, 0]}>
-                <cylinderGeometry args={[0.115, 0.115, 0.032, 16]} />
+                <cylinderGeometry args={[0.124, 0.124, 0.032, 20]} />
                 <meshStandardMaterial
                   map={fabric}
                   color={robe}
@@ -467,10 +571,10 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                 />
               </mesh>
               <mesh
-                position={[side * 0.035, -0.405, 0.005]}
-                scale={[0.8, 1.1, 0.8]}
+                position={[side * 0.035, -0.385, 0.005]}
+                scale={[0.85, 1.15, 0.8]}
               >
-                <sphereGeometry args={[0.059, 10, 8]} />
+                <sphereGeometry args={[0.066, 12, 10]} />
                 <meshStandardMaterial color={face} roughness={0.85} />
               </mesh>
               {side === 1 && practicing && wand ? (
@@ -491,7 +595,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             </group>
           </group>
         ))}
-        <group ref={head} position={[0, 1.1, 0]}>
+        <group ref={head} position={[0, 1.1, 0]} scale={0.92}>
           {/* 둥근 얼굴과 머리카락, 귀 */}
           <mesh
             geometry={faceGeometry}
