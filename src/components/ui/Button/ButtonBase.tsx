@@ -33,7 +33,7 @@ export function ButtonBase({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={className}
+      className={className ? `ds-button ${className}` : "ds-button"}
       aria-label={ariaLabel}
       style={radius ? { ...rootStyle, borderRadius: radius } : rootStyle}
     >

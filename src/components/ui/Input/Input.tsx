@@ -77,7 +77,10 @@ export function Input({
 
       {/* 입력 박스 */}
       <div
+        className="ds-input-box"
         style={{
+          ["--ds-input-border" as string]: borderColor,
+          ["--ds-input-focus" as string]: disabled ? borderColor : focusColor,
           display: "flex",
           alignItems: "center",
           gap: "var(--spacing-8)",
@@ -88,19 +91,11 @@ export function Input({
           /* ⚠️ 토큰 외 값(44px): 대응 spacing/size 토큰이 없어 입력 필드 고정 높이로 직접 지정 */
           height: "44px",
           borderRadius: "var(--radius-md)",
-          border: `1px solid ${borderColor}`,
+          borderWidth: "1px",
+          borderStyle: "solid",
           backgroundColor: disabled
             ? "var(--color-background-muted)"
             : "var(--color-background-default)",
-        }}
-        /* focus-within 은 인라인 스타일로 표현 불가하므로 onFocus/onBlur로 테두리 색 전환 */
-        onFocus={(e) => {
-          if (!disabled) {
-            e.currentTarget.style.borderColor = focusColor;
-          }
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = borderColor;
         }}
       >
         {/* 왼쪽 아이콘 */}

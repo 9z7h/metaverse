@@ -5,3 +5,65 @@
 @import "./tokens/_generated.css";
 /* 테마 토큰 — [data-theme="library"] 범위에서 시맨틱 토큰 재정의 */
 @import "./tokens/_theme-library.css";
+
+/* 공용 상호작용 상태 — 버튼·입력창은 인라인 스타일이라 :hover/:focus-visible 를 여기서 담당 */
+:root {
+  /* 터치 최소 영역 (WCAG 2.5.5 / 모바일 가이드 44px) */
+  --ds-touch-target: 44px;
+}
+
+.ds-button {
+  position: relative;
+  transition:
+    filter 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+/* 시각 크기는 그대로, 터치 영역만 44px 까지 확장 */
+.ds-button::before {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - var(--ds-touch-target)) / 2))
+    min(0px, calc((100% - var(--ds-touch-target)) / 2));
+}
+
+.ds-button:focus-visible {
+  outline: 2px solid var(--color-border-brand);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .ds-button:not(:disabled):hover {
+    filter: brightness(1.12);
+  }
+}
+
+.ds-button:not(:disabled):active {
+  filter: brightness(0.92);
+  transform: scale(0.97);
+}
+
+.ds-input-box {
+  border-color: var(--ds-input-border);
+  transition: border-color 150ms ease-out;
+}
+
+.ds-input-box:focus-within {
+  border-color: var(--ds-input-focus);
+}
+
+.ds-input-box:has(:focus-visible) {
+  outline: 2px solid var(--ds-input-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-button,
+  .ds-input-box {
+    transition: none;
+  }
+
+  .ds-button:not(:disabled):active {
+    transform: none;
+  }
+}
