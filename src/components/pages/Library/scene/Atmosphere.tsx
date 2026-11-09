@@ -451,7 +451,13 @@ function useBannerTexture(house: HouseId, colors: SceneColors) {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 6;
       ctx.strokeRect(14, 14, W - 28, H - 120);
-      ctx.drawImage(crest.image as CanvasImageSource, W / 2 - 100, 22, 200, 200);
+      ctx.drawImage(
+        crest.image as CanvasImageSource,
+        W / 2 - 100,
+        22,
+        200,
+        200,
+      );
       // 세로 현판 글씨 (한 글자씩)
       const family = getComputedStyle(document.body).fontFamily;
       ctx.fillStyle = accent;

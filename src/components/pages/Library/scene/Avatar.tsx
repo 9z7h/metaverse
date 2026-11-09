@@ -116,7 +116,7 @@ const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(0.028, 0.002, 0),
 );
 
-export type AvatarPose = "stand" | "walk" | "run" | "sit";
+export type AvatarPose = "stand" | "walk" | "run" | "sit" | "ride";
 
 /**
  * 이름표(Html)를 붙일 DOM 컨테이너. 기본값(R3F 내부 노드)에 붙이면 Canvas 언마운트 시
@@ -345,7 +345,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
 
   // 걸음·앉음 상태 — 위상(phase)을 누적해 박자가 바뀌어도 발이 튀지 않게 하고,
   // 걷기/달리기/앉기 가중치는 부드럽게 따라가게 해서 출발·정지·착석 때 동작이 뚝 끊기지 않게 한다
-  const gait = useRef({ phase: 0, move: 0, run: 0, sit: 0 });
+  const gait = useRef({ phase: 0, move: 0, run: 0, sit: 0, ride: 0 });
 
   useFrame(({ clock }, rawDt) => {
     const t = clock.elapsedTime;
@@ -355,7 +355,10 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     const moving = pose === "walk" || pose === "run";
     g.move += ((moving ? 1 : 0) - g.move) * (1 - Math.exp(-10 * dt));
     g.run += ((pose === "run" ? 1 : 0) - g.run) * (1 - Math.exp(-8 * dt));
-    g.sit += ((pose === "sit" ? 1 : 0) - g.sit) * (1 - Math.exp(-7 * dt));
+    // 구름 탈것("ride")도 앉은 몸짓을 쓰되, 팔은 책상이 없으니 아래로 내린다
+    const seated = pose === "sit" || pose === "ride";
+    g.sit += ((seated ? 1 : 0) - g.sit) * (1 - Math.exp(-7 * dt));
+    g.ride += ((pose === "ride" ? 1 : 0) - g.ride) * (1 - Math.exp(-7 * dt));
     // 걷기 ↔ 달리기 사이 값을 섞는다: mix(걷기, 달리기)
     const mix = (walk: number, run: number) => walk + (run - walk) * g.run;
     // 서 있는 값 ↔ 앉은 값을 섞는다: seat(선 값, 앉은 값)
@@ -409,14 +412,20 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     // 지팡이 휘두르기: 앞으로 든 팔이 작은 원을 그림
     const armSwing = sw * mix(0.45, 1) * g.move;
     const sitArm = focusing ? -1.05 : -0.85;
+    // 구름 위: 팔을 몸 옆으로 내리고 구름 흔들림에 맞춰 미세하게 흔든다
+    const rideArm = -0.08 + Math.sin(t * 1.6) * 0.03;
+    const armDown = (sat: number) => sat + (rideArm - sat) * g.ride;
     if (arm.current) {
       arm.current.rotation.x = practicing
         ? -1.15 + Math.sin(t * 4) * 0.12
-        : seat(armSwing, sitArm + (focusing ? Math.sin(t * 2.6) * 0.03 : 0));
+        : seat(
+            armSwing,
+            armDown(sitArm + (focusing ? Math.sin(t * 2.6) * 0.03 : 0)),
+          );
       arm.current.rotation.z = practicing ? -0.25 + Math.cos(t * 4) * 0.15 : 0;
     }
     if (leftArm.current) {
-      leftArm.current.rotation.x = seat(-armSwing, sitArm + 0.05);
+      leftArm.current.rotation.x = seat(-armSwing, armDown(sitArm + 0.05));
     }
   });
 

@@ -83,7 +83,10 @@ const meta = {
   parameters: { layout: "fullscreen" },
   argTypes: {
     house: { control: "select", options: HOUSE_IDS },
-    pose: { control: "select", options: ["stand", "walk", "run", "sit"] },
+    pose: {
+      control: "select",
+      options: ["stand", "walk", "run", "sit", "ride"],
+    },
   },
   args: { house: "baekho", pose: "stand", practicing: false },
 } satisfies Meta<typeof AvatarPreview>;

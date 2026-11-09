@@ -46,7 +46,6 @@
 
 - `garden-panorama.jpg`: AI 생성 한국 산과 숲의 파노라마. 숨돌림 뜰의 원경에 적용한다.
 
-
 - `plum-branch.png`: AI 생성 매화 가지 투명 텍스처. 숨돌림 뜰 매화나무에 적용한다.
 
 - `garden-clouds.jpg`: AI 생성 구름 텍스처. 숨돌림 뜰의 높은 하늘에 적용한다.

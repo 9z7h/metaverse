@@ -3,7 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color, Vector3 } from "three";
-import type { BufferAttribute, Group, Mesh, Points, ShaderMaterial } from "three";
+import type {
+  BufferAttribute,
+  Group,
+  Mesh,
+  Points,
+  ShaderMaterial,
+} from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
 import { FOLLOW_RATE, IDLE_SEND_MS, MOVE_SEND_MS } from "../Characters";
@@ -43,7 +49,13 @@ function cloudRimShader(shader: { fragmentShader: string }) {
 }
 
 /** 바닥에 부드러운 그림자를 투영하고 높이에 따라 크기와 농도를 조절한다. */
-function CloudShadow({ target, visible }: { target: React.RefObject<Group | null>; visible: boolean }) {
+function CloudShadow({
+  target,
+  visible,
+}: {
+  target: React.RefObject<Group | null>;
+  visible: boolean;
+}) {
   const mesh = useRef<Mesh>(null);
   const uniforms = useMemo(() => ({ strength: { value: 0 } }), []);
   useFrame(() => {
@@ -53,19 +65,30 @@ function CloudShadow({ target, visible }: { target: React.RefObject<Group | null
     mesh.current.visible = visible && target.current.visible;
     mesh.current.position.set(pos.x, 0.015, pos.z);
     mesh.current.scale.setScalar(1 + Math.min(height * 0.13, 1.1));
-    (mesh.current.material as ShaderMaterial).uniforms.strength.value = 0.32 / (1 + height * 0.22);
+    (mesh.current.material as ShaderMaterial).uniforms.strength.value =
+      0.32 / (1 + height * 0.22);
   });
   return (
     <mesh ref={mesh} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
       <planeGeometry args={[2.5, 2.5]} />
-      <shaderMaterial transparent depthWrite={false} uniforms={uniforms}
+      <shaderMaterial
+        transparent
+        depthWrite={false}
+        uniforms={uniforms}
         vertexShader="varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }"
-        fragmentShader="varying vec2 vUv; uniform float strength; void main() { float d = length((vUv - 0.5) * 2.0); float a = (1.0 - smoothstep(0.05, 1.0, d)); gl_FragColor = vec4(0.025, 0.03, 0.04, strength * a * a); }" />
+        fragmentShader="varying vec2 vUv; uniform float strength; void main() { float d = length((vUv - 0.5) * 2.0); float a = (1.0 - smoothstep(0.05, 1.0, d)); gl_FragColor = vec4(0.025, 0.03, 0.04, strength * a * a); }"
+      />
     </mesh>
   );
 }
 
-function CloudMist({ colors, reducedMotion }: { colors: SceneColors; reducedMotion: boolean }) {
+function CloudMist({
+  colors,
+  reducedMotion,
+}: {
+  colors: SceneColors;
+  reducedMotion: boolean;
+}) {
   const points = useRef<Points>(null);
   const positions = useMemo(() => new Float32Array(24 * 3), []);
   useFrame(({ clock }) => {
@@ -79,13 +102,25 @@ function CloudMist({ colors, reducedMotion }: { colors: SceneColors; reducedMoti
       positions[i * 3 + 2] = Math.sin(angle + t * 0.06) * radius;
     }
     if (points.current) {
-      (points.current.geometry.getAttribute("position") as BufferAttribute).needsUpdate = true;
+      (
+        points.current.geometry.getAttribute("position") as BufferAttribute
+      ).needsUpdate = true;
     }
   });
   return (
     <points ref={points} frustumCulled={false}>
-      <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
-      <pointsMaterial color={colors["--color-scene-collar"]} size={0.55} transparent opacity={0.2} depthWrite={false} onBeforeCompile={roundGlowShader} customProgramCacheKey={roundGlowKey} />
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color={colors["--color-scene-collar"]}
+        size={0.55}
+        transparent
+        opacity={0.2}
+        depthWrite={false}
+        onBeforeCompile={roundGlowShader}
+        customProgramCacheKey={roundGlowKey}
+      />
     </points>
   );
 }
@@ -105,10 +140,19 @@ const CLOUD_PUFFS: ReadonlyArray<readonly number[]> = [
   [0.2, 0.08, -0.32, 0.32, 0.22, 0.32, 0.96],
 ];
 
-export function BroomModel({ colors, reducedMotion = false }: { colors: SceneColors; reducedMotion?: boolean }) {
+export function BroomModel({
+  colors,
+  reducedMotion = false,
+}: {
+  colors: SceneColors;
+  reducedMotion?: boolean;
+}) {
   const puffRefs = useRef<Array<Mesh | null>>([]);
   const tints = useMemo(
-    () => CLOUD_PUFFS.map((p) => new Color(colors["--color-scene-collar"]).multiplyScalar(p[6])),
+    () =>
+      CLOUD_PUFFS.map((p) =>
+        new Color(colors["--color-scene-collar"]).multiplyScalar(p[6]),
+      ),
     [colors],
   );
   // 덩어리마다 박자를 달리해 숨 쉬듯 부풀었다 가라앉는다
@@ -314,7 +358,7 @@ export function BroomRider({
     const flying = cur.y > 0.04 || riding;
     if (flying !== showBroom) setShowBroom(flying);
     const nextPose: AvatarPose = flying
-      ? "sit"
+      ? "ride"
       : moving
         ? boost.current
           ? "run"
@@ -380,7 +424,11 @@ export function BroomRider({
         history.current.length = Math.min(history.current.length, TRAIL * 3);
       } else if (reducedMotion) {
         history.current.length = 0;
-      } else if (history.current.length > 0 && (cur.speed <= 1 || !flying) && t - lastTrail.current > 0.07) {
+      } else if (
+        history.current.length > 0 &&
+        (cur.speed <= 1 || !flying) &&
+        t - lastTrail.current > 0.07
+      ) {
         lastTrail.current = t;
         history.current.length = Math.max(0, history.current.length - 3);
       }
@@ -389,7 +437,8 @@ export function BroomRider({
         // 기록이 없는 칸은 눈에 보이지 않는 먼 곳에 둔다
         trailPositions[i * 3] = (h[i * 3] ?? 0) + Math.sin(i * 2.4) * i * 0.012;
         trailPositions[i * 3 + 1] = (h[i * 3 + 1] ?? -50) + i * 0.012;
-        trailPositions[i * 3 + 2] = (h[i * 3 + 2] ?? 0) + Math.cos(i * 2.4) * i * 0.012;
+        trailPositions[i * 3 + 2] =
+          (h[i * 3 + 2] ?? 0) + Math.cos(i * 2.4) * i * 0.012;
       }
       (
         trail.current.geometry.getAttribute("position") as BufferAttribute
@@ -430,7 +479,9 @@ export function BroomRider({
     <>
       <group ref={root}>
         <group ref={tilt}>
-          {showBroom ? <BroomModel colors={colors} reducedMotion={reducedMotion} /> : null}
+          {showBroom ? (
+            <BroomModel colors={colors} reducedMotion={reducedMotion} />
+          ) : null}
           <Avatar
             ref={avatar}
             house={house}
@@ -537,7 +588,7 @@ export function RemoteRider({
     const flying = c.y > 0.04 || move.riding;
     if (flying !== showBroom) setShowBroom(flying);
     const walking = move.moving || Math.hypot(dx, dz) > 0.1;
-    const nextPose: AvatarPose = flying ? "sit" : walking ? "walk" : "stand";
+    const nextPose: AvatarPose = flying ? "ride" : walking ? "walk" : "stand";
     if (nextPose !== pose) setPose(nextPose);
 
     const t = clock.elapsedTime;
@@ -561,26 +612,28 @@ export function RemoteRider({
 
   return (
     <>
-    <group ref={root}>
-      <group ref={tilt}>
-        {showBroom ? <BroomModel colors={colors} reducedMotion={reducedMotion} /> : null}
-        <Avatar
-          ref={avatar}
-          house={walker.house}
-          robe={colors[houseToken(walker.house, "primary")]}
-          band={colors[houseToken(walker.house, "accent")]}
-          collar={colors["--color-scene-collar"]}
-          houseDot={colors[houseToken(walker.house, "accent")]}
-          skin={colors["--color-scene-skin"]}
-          hat={colors["--color-scene-hat"]}
-          pose={pose}
-          name={walker.name}
-          showLabel
-          bubble={bubble}
-        />
+      <group ref={root}>
+        <group ref={tilt}>
+          {showBroom ? (
+            <BroomModel colors={colors} reducedMotion={reducedMotion} />
+          ) : null}
+          <Avatar
+            ref={avatar}
+            house={walker.house}
+            robe={colors[houseToken(walker.house, "primary")]}
+            band={colors[houseToken(walker.house, "accent")]}
+            collar={colors["--color-scene-collar"]}
+            houseDot={colors[houseToken(walker.house, "accent")]}
+            skin={colors["--color-scene-skin"]}
+            hat={colors["--color-scene-hat"]}
+            pose={pose}
+            name={walker.name}
+            showLabel
+            bubble={bubble}
+          />
+        </group>
       </group>
-    </group>
-    <CloudShadow target={root} visible={showBroom} />
+      <CloudShadow target={root} visible={showBroom} />
     </>
   );
 }
