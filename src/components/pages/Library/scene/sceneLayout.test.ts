@@ -34,6 +34,8 @@ import {
   SIDE_SHELF_PITCH,
   SIDE_SHELF_Z,
   boardCameraRig,
+  BOARD_CENTER_X,
+  BOARD_STAND_Z,
   BOARD_EXTENT,
   BOARD_VIEW_DIST,
   CAMERA_FOV,
@@ -654,19 +656,19 @@ describe("boardCameraRig — 순위판 보기 카메라", () => {
   const aspects = [0.46, 0.56, 0.75, 1, 1.6, 2.2];
   const view = (aspect: number) => {
     const { cam, look } = boardCameraRig(aspect);
-    const d = FRONT_WALL_Z - cam[2];
+    const d = BOARD_STAND_Z - cam[2];
     const visibleH = 2 * d * tanHalf;
     /** 높이 y의 점이 화면 위에서 어느 비율에 오는지 (0 = 맨 위, 1 = 맨 아래) */
     const frac = (y: number) => 0.5 - (y - look[1]) / visibleH;
     return { cam, look, d, frac };
   };
 
-  it("가운데 통로 위에서 순위판(앞벽, +z)을 정면으로 바라본다", () => {
+  it("문 오른쪽 순위판을 정면으로 바라본다", () => {
     for (const a of aspects) {
       const { cam, look } = boardCameraRig(a);
-      expect(cam[0]).toBe(0);
-      expect(look[0]).toBe(0);
-      expect(look[2]).toBe(FRONT_WALL_Z);
+      expect(cam[0]).toBe(BOARD_CENTER_X);
+      expect(look[0]).toBe(BOARD_CENTER_X);
+      expect(look[2]).toBe(BOARD_STAND_Z);
       expect(look[2]).toBeGreaterThan(cam[2]);
     }
   });
@@ -678,11 +680,11 @@ describe("boardCameraRig — 순위판 보기 카메라", () => {
     }
   });
 
-  it("순위판 전체가 화면 안에 있고, 아래 하단 패널(약 35%)에 가리지 않는다", () => {
+  it("순위판 전체가 화면 안에 들어온다 (보기 중에는 HUD를 걷어 내므로 아래까지 쓴다)", () => {
     for (const a of aspects) {
       const { frac } = view(a);
       expect(frac(BOARD_EXTENT.top)).toBeGreaterThanOrEqual(0.02);
-      expect(frac(BOARD_EXTENT.bottom)).toBeLessThanOrEqual(0.65);
+      expect(frac(BOARD_EXTENT.bottom)).toBeLessThanOrEqual(0.95);
     }
   });
 

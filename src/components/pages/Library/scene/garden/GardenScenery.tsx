@@ -36,6 +36,7 @@ import { roundGlowKey, roundGlowShader } from "../MagicEffect";
 import type { SceneColors } from "../sceneLayout";
 import {
   BAMBOO,
+  BUILDING_PLATFORMS,
   GARDEN_HALF,
   LIBRARY_BUILDING,
   PAVILION,
@@ -46,6 +47,9 @@ import {
   POND_PATH,
   STONE_LANTERNS,
   STONE_PATH,
+  STAIR_COUNT,
+  STAIR_DEPTH,
+  STAIR_WIDTH,
 } from "./gardenLayout";
 import type { SchoolBuilding } from "./gardenLayout";
 
@@ -829,16 +833,6 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
         color={stone}
         roughness={0.9}
       />
-      {/* 앞 계단 */}
-      {[0, 1].map((i) => (
-        <Block
-          key={i}
-          at={[b.x, 0.25 + i * 0.3, b.z + b.halfD + 1.2 + (1 - i) * 0.5]}
-          size={[2.4, 0.5 + i * 0.3, 0.8]}
-          color={stone}
-          roughness={0.9}
-        />
-      ))}
       {/* 몸체 */}
       <Block
         at={[b.x, step2 + wallH / 2, b.z]}
@@ -940,6 +934,31 @@ function SchoolHalls({ colors }: { colors: SceneColors }) {
         <SchoolHall key={b.id} b={b} colors={colors} />
       ))}
     </BuildingMaterials.Provider>
+  );
+}
+
+function BuildingSteps({ colors }: { colors: SceneColors }) {
+  const stone = useSurfaceTexture("stone", 2, 2);
+  return (
+    <group>
+      {BUILDING_PLATFORMS.flatMap((p, building) =>
+        Array.from({ length: STAIR_COUNT }, (_, i) => {
+          const height = p.height * (STAIR_COUNT - i) / (STAIR_COUNT + 1);
+          return (
+            <mesh key={`${building}-${i}`} position={[p.x, height / 2, p.z + p.halfD + STAIR_DEPTH * (i + 0.5)]}>
+              <boxGeometry args={[STAIR_WIDTH, height, STAIR_DEPTH]} />
+              <meshStandardMaterial color={colors["--color-scene-stone"]} map={stone} bumpMap={stone} bumpScale={0.02} roughness={0.9} />
+            </mesh>
+          );
+        }),
+      )}
+      {SCHOOL_BUILDINGS.filter((b) => b.kind === "dorm").map((b) => (
+        <mesh key={`upper-${b.id}`} position={[b.x, 0.35, b.z + b.halfD + 1.2]}>
+          <boxGeometry args={[STAIR_WIDTH, 0.7, 0.8]} />
+          <meshStandardMaterial color={colors["--color-scene-stone"]} map={stone} bumpMap={stone} bumpScale={0.02} roughness={0.9} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -1538,6 +1557,7 @@ export function GardenScenery({ colors }: { colors: SceneColors }) {
       <FlowerWall colors={colors} />
       <LibraryHall colors={colors} />
       <SchoolHalls colors={colors} />
+      <BuildingSteps colors={colors} />
       <Landscape daylight={daylight} />
       <Clouds daylight={daylight} />
       <ambientLight

@@ -590,59 +590,62 @@ export function LibraryWorld({
               <HallFrame colors={colors} />
               <Armillary colors={colors} />
               <Atmosphere colors={colors} />
-              {presence.others.map((s) => (
-                <Bot
-                  key={s.id}
-                  student={s}
+              {/* 순위판 보기 중에는 순위판 앞을 가리지 않게 인물을 모두 숨긴다 */}
+              <group visible={!viewingBoard}>
+                {presence.others.map((s) => (
+                  <Bot
+                    key={s.id}
+                    student={s}
+                    colors={colors}
+                    entering={!initialIds.current.has(s.id)}
+                    from={startFrom(presence.moves.current.get(s.id))}
+                    registry={botRegistry}
+                    bubble={bubbles.get(s.id)?.text}
+                  />
+                ))}
+                {presence.walkers.map((w) => (
+                  <RemoteWalker
+                    key={w.id}
+                    walker={w}
+                    place="library"
+                    colors={colors}
+                    moves={presence.moves}
+                    bubble={bubbles.get(w.id)?.text}
+                  />
+                ))}
+                {leavers.map((l) => (
+                  <LeavingBot
+                    key={`${l.student.id}:${l.since}`}
+                    student={l.student}
+                    colors={colors}
+                    since={l.since}
+                    registry={botRegistry}
+                  />
+                ))}
+                <Player
+                  positionRef={playerPos}
+                  bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
+                  boardView={boardViewRef}
                   colors={colors}
-                  entering={!initialIds.current.has(s.id)}
-                  from={startFrom(presence.moves.current.get(s.id))}
-                  registry={botRegistry}
-                  bubble={bubbles.get(s.id)?.text}
+                  desks={desks}
+                  input={input}
+                  running={running}
+                  moveOrder={moveOrder}
+                  onArriveSeat={onSit}
+                  practicing={Boolean(seat && focusing && mode === "practice")}
+                  occupied={occupied}
+                  seat={seat}
+                  focusing={focusing}
+                  subject={subject}
+                  focusSeconds={timer.elapsedSeconds}
+                  house={house}
+                  onNearSeatChange={setNearSeat}
+                  onNearExitChange={setAtExit}
+                  orbit={orbit}
+                  dragging={draggingRef}
+                  onMove={presence.sendMove}
                 />
-              ))}
-              {presence.walkers.map((w) => (
-                <RemoteWalker
-                  key={w.id}
-                  walker={w}
-                  place="library"
-                  colors={colors}
-                  moves={presence.moves}
-                  bubble={bubbles.get(w.id)?.text}
-                />
-              ))}
-              {leavers.map((l) => (
-                <LeavingBot
-                  key={`${l.student.id}:${l.since}`}
-                  student={l.student}
-                  colors={colors}
-                  since={l.since}
-                  registry={botRegistry}
-                />
-              ))}
-              <Player
-                positionRef={playerPos}
-                bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
-                boardView={boardViewRef}
-                colors={colors}
-                desks={desks}
-                input={input}
-                running={running}
-                moveOrder={moveOrder}
-                onArriveSeat={onSit}
-                practicing={Boolean(seat && focusing && mode === "practice")}
-                occupied={occupied}
-                seat={seat}
-                focusing={focusing}
-                subject={subject}
-                focusSeconds={timer.elapsedSeconds}
-                house={house}
-                onNearSeatChange={setNearSeat}
-                onNearExitChange={setAtExit}
-                orbit={orbit}
-                dragging={draggingRef}
-                onMove={presence.sendMove}
-              />
+              </group>
               <FloorPicker pickRef={pickFloor} />
               <RankingBoard colors={colors} ranking={ranking} myHouse={house} />
               {marker && !seat ? (
@@ -653,7 +656,7 @@ export function LibraryWorld({
                 />
               ) : null}
               {/* 내가 실습 중이면 내 책상 위로 기숙사 마법 */}
-              {seat && focusing && mode === "practice" ? (
+              {seat && focusing && mode === "practice" && !viewingBoard ? (
                 <MagicEffect colors={colors} house={house} at={seat.desk} />
               ) : null}
               <FrameDriver
@@ -680,6 +683,7 @@ export function LibraryWorld({
           inset: 0,
           overflow: "hidden",
           pointerEvents: "none",
+          display: viewingBoard ? "none" : undefined,
           // 독립된 쌓임 맥락: 이름표 안쪽의 z-index(최대 10)가 HUD(순위표 등) 위로 올라오지 않게 가둔다
           zIndex: 0,
         }}
@@ -694,7 +698,10 @@ export function LibraryWorld({
             gap: "var(--spacing-8)",
           }}
         >
-          <div style={rowStyle}>
+          {/* 순위판 보기 중에는 "돌아가기" 말고 화면 위 요소를 모두 걷어 낸다 */}
+          <div
+            style={viewingBoard ? { ...rowStyle, display: "none" } : rowStyle}
+          >
             <div
               style={{
                 ...auto,
@@ -745,6 +752,7 @@ export function LibraryWorld({
                 background: houseVar(house, "subtle"),
                 color: houseVar(house, "accent"),
                 font: "var(--text-caption-lg-bold)",
+                ...(viewingBoard ? { display: "none" } : null),
               }}
             >
               <HouseCrest house={house} size={28} aria-hidden />
@@ -756,15 +764,17 @@ export function LibraryWorld({
             >
               {viewingBoard ? "돌아가기" : "순위판 보기"}
             </ButtonSmall>
-            <ButtonSmall
-              style="monolight"
-              aria-expanded={chatOpen}
-              onClick={() => setChatOpen((v) => !v)}
-            >
-              대화
-            </ButtonSmall>
+            {viewingBoard ? null : (
+              <ButtonSmall
+                style="monolight"
+                aria-expanded={chatOpen}
+                onClick={() => setChatOpen((v) => !v)}
+              >
+                대화
+              </ButtonSmall>
+            )}
           </div>
-          {chatOpen ? (
+          {chatOpen && !viewingBoard ? (
             <div style={{ ...auto, alignSelf: "stretch" }}>
               <ChatPanel
                 messages={chatEnabled ? chatMessages : []}
@@ -784,7 +794,7 @@ export function LibraryWorld({
           ) : null}
         </div>
 
-        {seat ? (
+        {seat && !viewingBoard ? (
           <section
             aria-label={`${labelOf(seat.seatId)} 자리 집중 타이머`}
             style={sheetStyle}

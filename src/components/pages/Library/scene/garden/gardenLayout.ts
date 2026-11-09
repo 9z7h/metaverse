@@ -161,6 +161,45 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
     kind: "tower",
   },
 ];
+/** 기단과 계단의 크기를 풍경과 보행 높이 계산에서 함께 사용한다. */
+export const BUILDING_PLATFORMS = [
+  { x: LIBRARY_BUILDING.x, z: LIBRARY_BUILDING.z + 1, halfW: LIBRARY_BUILDING.halfW + 1.5, halfD: LIBRARY_BUILDING.halfD + 2, height: 0.6 },
+  // 정자 기단의 윗면과 앞 계단의 보행 높이를 맞춘다.
+  { x: PAVILION.x, z: PAVILION.z, halfW: PAVILION.half, halfD: PAVILION.half, height: 0.48 },
+  ...SCHOOL_BUILDINGS.filter((b) => b.kind !== "gate").map((b) => ({
+    x: b.x,
+    z: b.z + (b.kind === "tower" ? 0.2 : b.kind === "workshop" ? 0.3 : 0.4),
+    halfW: b.halfW + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
+    halfD: b.halfD + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
+    height: b.kind === "tower" ? 1.2 : b.kind === "workshop" ? 0.5 : 0.4,
+  })),
+] as const;
+
+export const STAIR_DEPTH = 0.65;
+export const STAIR_WIDTH = 3;
+export const STAIR_COUNT = 3;
+
+/** 건물 기단과 앞 계단의 실제 윗면 높이. */
+export function gardenWalkHeight(pos: Vec2): number {
+  let height = 0;
+  for (const p of BUILDING_PLATFORMS) {
+    const dx = Math.abs(pos.x - p.x);
+    const dz = pos.z - (p.z + p.halfD);
+    if (dx <= p.halfW && pos.z >= p.z - p.halfD && dz <= 0) {
+      height = Math.max(height, p.height);
+    }
+    if (dx <= STAIR_WIDTH / 2 && dz > 0 && dz <= STAIR_COUNT * STAIR_DEPTH) {
+      const step = Math.min(STAIR_COUNT - 1, Math.floor(dz / STAIR_DEPTH));
+      height = Math.max(height, p.height * (STAIR_COUNT - step) / (STAIR_COUNT + 1));
+    }
+  }
+  for (const b of SCHOOL_BUILDINGS) {
+    if (b.kind !== "dorm") continue;
+    if (Math.abs(pos.x - b.x) <= STAIR_WIDTH / 2 && pos.z >= b.z + b.halfD + 0.8 && pos.z <= b.z + b.halfD + 1.6) height = Math.max(height, 0.7);
+    if (Math.abs(pos.x - b.x) <= b.halfW + 0.6 && Math.abs(pos.z - (b.z + 0.2)) <= b.halfD + 0.6) height = Math.max(height, 1);
+  }
+  return height;
+}
 /** 건물 가장자리에서 이 거리 안에 서면 안내가 나타난다 */
 export const BUILDING_REACH = 3;
 

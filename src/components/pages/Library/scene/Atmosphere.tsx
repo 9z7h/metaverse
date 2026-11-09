@@ -22,7 +22,13 @@ import type { InstancedMesh, Points, Texture } from "three";
 import { houseCrestUrl } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { FRONT_WALL_Z, HALL, ROOM, SIDE_SHELF_Z } from "./sceneLayout";
+import {
+  FRONT_WALL_Z,
+  HALL,
+  HALL_WINDOW,
+  ROOM,
+  SIDE_SHELF_Z,
+} from "./sceneLayout";
 import { fillBoxes } from "./LibraryRoom";
 import type { Box } from "./LibraryRoom";
 import { useSurfaceTexture } from "./surfaceTexture";
@@ -271,11 +277,11 @@ function Windows({ colors }: { colors: SceneColors }) {
       // 입구 홀(서가 없는 앞쪽): 순위판 양옆 앞벽과 옆벽에도 살창을 내어 허전하지 않게
       ...[-5.5, 5.5].map((x) => ({
         x,
-        y: 6.2,
+        y: HALL_WINDOW.y,
         z: FRONT_WALL_Z - 0.02,
         ry: Math.PI,
         w: 2.2,
-        h: 4,
+        h: HALL_WINDOW.h,
         cols: 4,
         rows: 6,
         bar: 0.04,

@@ -4,7 +4,7 @@ import { expect, within } from "@storybook/test";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { RankingBoard } from "./RankingBoard";
-import { readSceneColors, FRONT_WALL_Z } from "./sceneLayout";
+import { readSceneColors, BOARD_CENTER_X, BOARD_STAND_Z } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 import { rankHouses } from "../houseRankingLogic";
 import { HOUSE_IDS } from "../houses";
@@ -33,7 +33,7 @@ function RankingPreview({
     <div ref={root} data-theme="library" style={{ height: "100dvh" }}>
       {colors ? (
         <Canvas
-          camera={{ position: [0.6, 4.6, FRONT_WALL_Z - 6.3], fov: 35 }}
+          camera={{ position: [BOARD_CENTER_X + 0.4, 3.5, BOARD_STAND_Z - 7.3], fov: 35 }}
           aria-label="오늘의 사신제 순위판 미리보기"
         >
           <color attach="background" args={[colors["--color-scene-fog"]]} />
@@ -41,9 +41,9 @@ function RankingPreview({
             <RankingBoard colors={colors} ranking={ranking} myHouse={myHouse} />
           </Suspense>
           <OrbitControls
-            target={[0, 4.5, FRONT_WALL_Z - 0.2]}
+            target={[BOARD_CENTER_X, 3.2, BOARD_STAND_Z]}
             minDistance={3}
-            maxDistance={10}
+            maxDistance={14}
           />
         </Canvas>
       ) : null}

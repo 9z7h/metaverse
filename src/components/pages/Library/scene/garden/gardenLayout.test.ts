@@ -16,6 +16,9 @@ import {
   POND_PATH,
   SCHOOL_BUILDINGS,
   BUILDING_REACH,
+  BUILDING_PLATFORMS,
+  STAIR_DEPTH,
+  gardenWalkHeight,
   STONE_LANTERNS,
   STONE_PATH,
   WALK_RADIUS,
@@ -55,6 +58,26 @@ const run = (
 };
 
 describe("뜰 배치", () => {
+  it("서고 앞 계단을 따라가면 바닥에서 기단까지 높이가 단계적으로 올라간다", () => {
+    const p = BUILDING_PLATFORMS[0];
+    const front = p.z + p.halfD;
+    const heights = [3.2, 2.5, 1.5, 0.5, -0.1].map((step) =>
+      gardenWalkHeight({ x: p.x, z: front + step * STAIR_DEPTH }),
+    );
+    [0, 0.15, 0.3, 0.45, 0.6].forEach((h, i) => expect(heights[i]).toBeCloseTo(h));
+  });
+
+  it("정자 앞 계단을 따라가면 기단 높이까지 자연스럽게 올라간다", () => {
+    const p = BUILDING_PLATFORMS.find((platform) => platform.x === PAVILION.x)!;
+    const front = p.z + p.halfD;
+    const heights = [1.7, 1, 0.5, 0.1, -0.1].map((step) =>
+      gardenWalkHeight({ x: PAVILION.x, z: front + step }),
+    );
+    [0.12, 0.24, 0.36, 0.36, 0.48].forEach((height, i) =>
+      expect(heights[i]).toBeCloseTo(height),
+    );
+  });
+
   it("서고에서 나온 자리와 문 앞은 걸어서 닿을 수 있고 서로 가깝다", () => {
     expect(resolveWalk(GARDEN_SPAWN)).toEqual(GARDEN_SPAWN);
     expect(resolveWalk(LIBRARY_DOOR)).toEqual(LIBRARY_DOOR);

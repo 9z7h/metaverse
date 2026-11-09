@@ -22,6 +22,7 @@ import type { RemoteMove, Walker } from "../../libraryPresence";
 import {
   GARDEN_CAMERA_BOUNDS,
   GARDEN_SPAWN,
+  gardenWalkHeight,
   isGrounded,
   nearLibraryDoor,
   nearSchoolBuilding,
@@ -372,7 +373,9 @@ export function BroomRider({
       flying && !reducedMotion
         ? Math.sin(t * 1.6) * (cur.speed < 1 ? 0.08 : 0.03)
         : 0;
-    g.position.set(cur.x, cur.y + bob, cur.z);
+    const groundHeight = gardenWalkHeight(cur);
+    const visualY = Math.max(cur.y, groundHeight) + bob;
+    g.position.set(cur.x, visualY, cur.z);
     g.rotation.y = cur.heading;
     if (tilt.current) {
       // 돌아가는 쪽으로 몸을 기울인다. 이 아바타는 +z를 보고 있어 +x가 왼쪽이므로
@@ -593,7 +596,7 @@ export function RemoteRider({
 
     const t = clock.elapsedTime;
     const bob = flying && !reducedMotion ? Math.sin(t * 1.6 + c.x) * 0.05 : 0;
-    g.position.set(c.x, c.y + bob, c.z);
+    g.position.set(c.x, Math.max(c.y, gardenWalkHeight(c)) + bob, c.z);
     g.rotation.y = c.heading;
     if (tilt.current) {
       // 돌아가는 쪽으로 기울이는 방식은 BroomRider와 같다

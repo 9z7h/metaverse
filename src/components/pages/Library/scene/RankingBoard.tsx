@@ -1,10 +1,8 @@
 /**
- * 사신제 순위판 — 문 위 앞벽에 거는 현판과 걸이대, 기숙사 족자(두루마리) 네 폭.
+ * 사신제 순위판 — 문 왼쪽에 세우는 목재 걸이대와 기숙사별 비단 족자 네 폭.
  *
- * 구름무늬·꽃 장식이 있는 현판("오늘의 사신제") 아래 걸이대에 놋쇠 고리로 족자가 걸린다.
- * 족자는 위아래에 축(두루마리 막대)이 있고, 집중 시간이 많을수록 길다.
- * 순위 순서대로 왼쪽부터 걸리며, 순위가 바뀌면 족자가 부드럽게 자리를 옮긴다.
- * 족자 한 폭에는 문장 메달·순위·기숙사 이름·합계 시간이 적히고, 내 기숙사는 금색 틀을 두른다.
+ * 족자에는 문장 메달·순위·기숙사 이름·합계 시간이 표시되고, 수련 시간에 따라 길이가 달라진다.
+ * 내 기숙사의 족자에는 금실 테두리를 둘러 구분한다.
  *
  * 문 쪽은 방의 조명이 닿지 않아 어둡기 때문에, 순위판은 조명에 영향받지 않는
  * (MeshBasicMaterial) 재질로 항상 또렷하게 읽히도록 한다. 색은 모두 장면 토큰에서 읽는다.
@@ -15,42 +13,46 @@ import { useTexture } from "@react-three/drei";
 import {
   CanvasTexture,
   Color,
-  LatheGeometry,
   PlaneGeometry,
   SRGBColorSpace,
-  Vector2,
 } from "three";
-import type { Group, Mesh, MeshBasicMaterial, Texture } from "three";
+import type { Group, Mesh, Texture } from "three";
 import { houseCrestUrl } from "../HouseCrest";
 import { HOUSES, houseToken } from "../houses";
 import type { HouseId } from "../houses";
-import { flagLength, formatTotal } from "../houseRankingLogic";
+import { formatTotal } from "../houseRankingLogic";
 import type { RankEntry } from "../houseRankingLogic";
 import {
-  FRONT_WALL_Z,
-  MASK_WHITE_TOKEN,
-  rootToken,
+  BOARD_CENTER_X,
+  BOARD_STAND_Z,
+  HALL_WINDOW,
   withAlpha,
 } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 
 /* ── 배치 (그룹 로컬 좌표, +z가 보는 사람 쪽) ───────────────── */
 
-/** 널판 벽: 순위판 뒤를 받치는 나무 패널 */
-const PANEL = { w: 5.7, h: 2.3, cy: 4.82 } as const;
-const PLAQUE = { w: 4.6, h: 0.62, y: 5.62 } as const;
-const RAIL_Y = 5.0;
-/** 족자 천이 시작되는 높이 — 윗축이 이 높이에 있다 */
-const SCROLL_TOP = 4.9;
-/** 족자 폭·간격 (보는 사람 기준 좌→우) */
+/** 판 전체 배율 — 현판 높이를 월드 기준(창문)으로 맞출 때 보정한다 */
+const BOARD_SCALE = [0.65, 0.82, 1] as const;
+/** 현판 하단이 앞벽 창문 하단과 같은 높이가 되도록 로컬 y를 구한다 */
+const PLAQUE_H = 0.62;
+/** 창문 하단에서 월드 기준으로 더 내려 달 높이(m) */
+const PLAQUE_DROP = 0.06;
+const PLAQUE = {
+  w: 4.6,
+  h: PLAQUE_H,
+  y:
+    (HALL_WINDOW.y - HALL_WINDOW.h / 2 - PLAQUE_DROP) / BOARD_SCALE[1] +
+    PLAQUE_H / 2,
+} as const;
+/** 네 족자의 폭과 간격 */
 const SCROLL_W = 0.96;
 const SCROLL_GAP = 1.16;
-/** 윗부분 안내 카드 — 최소 길이(1.2m) 안에 들어간다 */
-const CARD_W = 0.8;
-const CARD_H = 1.1;
+const SCROLL_TOP = 4.83;
+const CARD_SIZE = { w: 0.84, h: 1.18 };
 const CARD_PX = { w: 512, h: 704 };
-/** 구름무늬가 앉는 족자 아랫단 (이 길이보다 짧으면 카드와 겹치므로 서서히 숨김) */
-const CLOUD_FADE_FROM = 1.45;
+const TIME_SIZE = { w: 0.78, h: 0.24 };
+const TIME_PX = { w: 768, h: 216 };
 
 /**
  * 순위 칸(0~3) → 족자 그룹의 x. 1위가 보는 사람의 왼쪽 끝이다.
@@ -90,37 +92,6 @@ function useRedraw(draw: () => void, deps: unknown[]) {
   }, deps);
 }
 
-/**
- * 상서구름: 윗면이 둥근 구름 덩이 셋과 말려 나가는 꼬리. (0,0)이 밑선 가운데, 오른쪽이 꼬리.
- * `flip`이면 좌우 반전, `s`는 배율.
- */
-function strokeCloud(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  s: number,
-  flip: boolean,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(flip ? -s : s, s);
-  ctx.beginPath();
-  ctx.moveTo(-40, 0);
-  ctx.lineTo(8, 0);
-  ctx.moveTo(-36, 0);
-  ctx.arc(-24, 0, 12, Math.PI, Math.PI * 2);
-  ctx.moveTo(-18, 0);
-  ctx.arc(-6, -2, 14, Math.PI, Math.PI * 2);
-  ctx.moveTo(2, 0);
-  ctx.arc(12, 0, 10, Math.PI, Math.PI * 2);
-  // 꼬리: 오른쪽으로 뻗어 위로 말림
-  ctx.moveTo(22, 0);
-  ctx.bezierCurveTo(34, 4, 48, -4, 54, -16);
-  ctx.arc(50, -20, 6, 0.3, Math.PI * 1.55, true);
-  ctx.stroke();
-  ctx.restore();
-}
-
 /** 8장 꽃잎 장식(현판 모서리) */
 function fillRosette(
   ctx: CanvasRenderingContext2D,
@@ -146,91 +117,6 @@ function fillRosette(
   ctx.restore();
 }
 
-/* ── 공유 자원: 널판 벽·구름무늬·축 ─────────────────────── */
-
-let cloudTex: CanvasTexture | null = null;
-/** 흰색 구름무늬 알파 마스크 — 재질 color(기숙사 포인트색)가 곱해진다 */
-function getCloudTexture() {
-  if (cloudTex) return cloudTex;
-  const tex = makeTexture(256, 96);
-  const ctx = (tex.image as HTMLCanvasElement).getContext("2d");
-  if (ctx) {
-    // 알파 마스크일 뿐 — 실제 색은 재질 color(기숙사 토큰)가 곱해지므로 흰색 토큰으로 그린다
-    ctx.strokeStyle = rootToken(MASK_WHITE_TOKEN);
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = "round";
-    strokeCloud(ctx, 110, 70, 2, false);
-  }
-  tex.needsUpdate = true;
-  cloudTex = tex;
-  return tex;
-}
-
-let rodGeo: LatheGeometry | null = null;
-/**
- * 족자 축 — 양 끝이 굵은 막대. 모든 족자 폭이 같아서 geometry 하나를 공유한다.
- * y축 방향으로 만들어 z축으로 90° 눕혀 쓴다.
- */
-function getRodGeometry() {
-  if (rodGeo) return rodGeo;
-  const half = (SCROLL_W + 0.2) / 2;
-  const cap = 0.06;
-  const pts: Vector2[] = [
-    new Vector2(0, -half),
-    new Vector2(0.05, -half),
-    new Vector2(0.05, -half + cap),
-    new Vector2(0.024, -half + cap + 0.012),
-    new Vector2(0.024, half - cap - 0.012),
-    new Vector2(0.05, half - cap),
-    new Vector2(0.05, half),
-    new Vector2(0, half),
-  ];
-  rodGeo = new LatheGeometry(pts, 14);
-  return rodGeo;
-}
-
-/** 실제 비단 질감에 기숙사색을 입히고 가장자리에 가는 자수선을 더한다. */
-function drawScrollCloth(
-  ctx: CanvasRenderingContext2D,
-  colors: SceneColors,
-  house: HouseId,
-  fabric: Texture,
-) {
-  const primary = colors[houseToken(house, "primary")];
-  const accent = colors[houseToken(house, "accent")];
-  ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = primary;
-  ctx.fillRect(0, 0, 256, 768);
-  ctx.globalCompositeOperation = "multiply";
-  ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, 256, 768);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.strokeStyle = withAlpha(accent, 0.48);
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(8, 12, 240, 744);
-  ctx.strokeStyle = withAlpha(accent, 0.18);
-  ctx.lineWidth = 0.7;
-  ctx.strokeRect(12, 16, 232, 736);
-}
-
-/** 천 끝은 앞으로 조금 말리고, 글자가 놓이는 중앙은 평평하게 유지한다. */
-function createScrollGeometry() {
-  const geometry = new PlaneGeometry(SCROLL_W, 1, 24, 40);
-  const positions = geometry.getAttribute("position");
-  for (let i = 0; i < positions.count; i++) {
-    const edge = Math.abs(positions.getX(i)) / (SCROLL_W / 2);
-    const v = positions.getY(i) + 0.5;
-    positions.setZ(
-      i,
-      0.045 * edge ** 10 +
-        0.018 * Math.exp(-(1 - v) * 50) +
-        0.025 * Math.exp(-v * 45),
-    );
-  }
-  positions.needsUpdate = true;
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 /* ── 현판 ─────────────────────────────────────────────── */
 
 function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
@@ -253,11 +139,6 @@ function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
     ctx.strokeRect(22, 22, W - 44, H - 44);
     ctx.lineWidth = 1;
     ctx.strokeRect(34, 34, W - 68, H - 68);
-    ctx.lineCap = "round";
-    ctx.strokeStyle = withAlpha(gold, 0.65);
-    ctx.lineWidth = 3;
-    strokeCloud(ctx, 150, 178, 1.7, false);
-    strokeCloud(ctx, W - 150, 178, 1.7, true);
     for (const [x, y] of [
       [48, 48],
       [W - 48, 48],
@@ -268,11 +149,14 @@ function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
     ctx.fillStyle = goldLight;
     ctx.font = `700 120px ${fontFamily()}`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("오늘의 사신제", W / 2, 112);
-    ctx.fillStyle = gold;
-    ctx.font = `400 34px ${fontFamily()}`;
-    ctx.fillText("네 기숙사가 함께 쌓은 오늘의 수련", W / 2, 216);
+    ctx.textBaseline = "alphabetic";
+    const title = "오늘의 사신제";
+    const m = ctx.measureText(title);
+    // 글자 실측 상자의 한가운데를 나무칸 한가운데(가로 W/2, 세로 H/2)에 맞춘다
+    const cx = W / 2 + (m.actualBoundingBoxLeft - m.actualBoundingBoxRight) / 2;
+    const cy =
+      H / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+    ctx.fillText(title, cx, cy);
     texture.needsUpdate = true;
   }, [colors, texture]);
 
@@ -290,7 +174,7 @@ function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
   );
 }
 
-/* ── 족자 ─────────────────────────────────────────────── */
+/* ── 비단 족자 ───────────────────────────────────────────── */
 
 interface ScrollProps {
   house: HouseId;
@@ -301,6 +185,44 @@ interface ScrollProps {
   colors: SceneColors;
   timber: Texture;
   fabric: Texture;
+}
+
+function createScrollGeometry() {
+  const geometry = new PlaneGeometry(SCROLL_W, 1, 24, 32);
+  const positions = geometry.getAttribute("position");
+  for (let i = 0; i < positions.count; i++) {
+    const edge = Math.abs(positions.getX(i)) / (SCROLL_W / 2);
+    positions.setZ(i, 0.026 * edge ** 8);
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function drawSilk(
+  ctx: CanvasRenderingContext2D,
+  colors: SceneColors,
+  house: HouseId,
+  fabric: Texture,
+) {
+  const primary = colors[houseToken(house, "primary")];
+  const accent = colors[houseToken(house, "accent")];
+  ctx.clearRect(0, 0, 256, 768);
+  ctx.fillStyle = primary;
+  ctx.fillRect(0, 0, 256, 768);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, 256, 768);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.strokeStyle = withAlpha(accent, 0.56);
+  ctx.lineWidth = 3;
+  ctx.strokeRect(10, 10, 236, 748);
+  ctx.strokeStyle = withAlpha(colors["--color-scene-collar"], 0.42);
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(17, 17, 222, 734);
+  // 한국 전통 직물의 단정한 끝단처럼 위아래에 얇은 색띠를 넣는다.
+  ctx.fillStyle = withAlpha(accent, 0.78);
+  ctx.fillRect(18, 22, 220, 10);
+  ctx.fillRect(18, 736, 220, 10);
 }
 
 function Scroll({
@@ -317,178 +239,149 @@ function Scroll({
   const root = useRef<Group>(null);
   const cloth = useRef<Mesh>(null);
   const bottomRod = useRef<Group>(null);
-  const cloud = useRef<Mesh>(null);
   const frame = useRef<Mesh>(null);
+  const timeLabel = useRef<Mesh>(null);
+  const ratio = maxSeconds > 0 ? entry.seconds / maxSeconds : 0;
+  const targetLength = 2.35 + ratio * 0.85;
+  const length = useRef(targetLength);
+  const currentX = useRef(slotX(slot));
+  const target = useRef({ x: slotX(slot), length: targetLength });
+  target.current = { x: slotX(slot), length: targetLength };
+  const geometry = useMemo(createScrollGeometry, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
-  const targetX = slotX(slot);
-  const targetLen = flagLength(entry.seconds, maxSeconds);
-  // 현재 값 — 매 프레임 목표를 향해 부드럽게 따라간다 (처음엔 목표에서 시작해 미끄러져 들어오지 않게)
-  const x = useRef(targetX);
-  const len = useRef(targetLen);
-  const target = useRef({ x: targetX, len: targetLen });
-  target.current = { x: targetX, len: targetLen };
-
-  const scrollGeometry = useMemo(createScrollGeometry, []);
-  useEffect(() => () => scrollGeometry.dispose(), [scrollGeometry]);
   const silk = useMemo(() => makeTexture(256, 768), []);
   useEffect(() => () => silk.dispose(), [silk]);
   useRedraw(() => {
     const ctx = (silk.image as HTMLCanvasElement).getContext("2d");
-    if (ctx) drawScrollCloth(ctx, colors, house, fabric);
+    if (ctx) drawSilk(ctx, colors, house, fabric);
     silk.needsUpdate = true;
   }, [silk, colors, house, fabric]);
+
   const timeText = formatTotal(entry.seconds);
-  const texture = useMemo(() => makeTexture(CARD_PX.w, CARD_PX.h), []);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const cardTexture = useMemo(() => makeTexture(CARD_PX.w, CARD_PX.h), []);
+  useEffect(() => () => cardTexture.dispose(), [cardTexture]);
+  useRedraw(() => {
+    const ctx = (cardTexture.image as HTMLCanvasElement).getContext("2d");
+    if (!ctx) return;
+    const { w, h } = CARD_PX;
+    const ink = colors[houseToken(house, "on")];
+    const gold = colors["--color-scene-collar"];
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = withAlpha(colors[houseToken(house, "primary")], 0.92);
+    ctx.fillRect(10, 10, w - 20, h - 20);
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 5;
+    ctx.strokeRect(14, 14, w - 28, h - 28);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(23, 23, w - 46, h - 46);
+    ctx.drawImage(crest.image as CanvasImageSource, w / 2 - 130, 48, 260, 260);
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 92px ${fontFamily()}`;
+    ctx.fillText(`${entry.rank}위`, w / 2, 390);
+    ctx.font = `600 78px ${fontFamily()}`;
+    ctx.fillText(HOUSES[house].name, w / 2, 510);
+    if (mine) {
+      ctx.fillStyle = gold;
+      ctx.font = `600 42px ${fontFamily()}`;
+      ctx.fillText("내 기숙사", w / 2, 620);
+    }
+    cardTexture.needsUpdate = true;
+  }, [colors, house, entry.rank, mine, cardTexture, crest]);
+
+  const timeTexture = useMemo(() => makeTexture(TIME_PX.w, TIME_PX.h), []);
+  useEffect(() => () => timeTexture.dispose(), [timeTexture]);
+  useRedraw(() => {
+    const ctx = (timeTexture.image as HTMLCanvasElement).getContext("2d");
+    if (!ctx) return;
+    const { w, h } = TIME_PX;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = colors[houseToken(house, "on")];
+    ctx.font = `700 138px ${fontFamily()}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(timeText, w / 2, h / 2, w - 24);
+    timeTexture.needsUpdate = true;
+  }, [colors, house, timeText, timeTexture]);
 
   const apply = () => {
-    const L = len.current;
-    if (root.current) root.current.position.x = x.current;
+    const L = length.current;
+    if (root.current) root.current.position.x = currentX.current;
     if (cloth.current) {
       cloth.current.scale.y = L;
-      cloth.current.position.y = -L / 2;
+      cloth.current.position.y = -L / 2 - 0.035;
     }
     if (bottomRod.current) bottomRod.current.position.y = -L;
-    if (cloud.current) {
-      cloud.current.position.y = -L + 0.3;
-      (cloud.current.material as MeshBasicMaterial).opacity =
-        Math.min(1, Math.max(0, (L - CLOUD_FADE_FROM) / 0.15)) * 0.24;
-    }
+    if (timeLabel.current) timeLabel.current.position.y = -L + 0.2;
     if (frame.current) {
-      frame.current.scale.y = L + 0.04;
-      frame.current.position.y = -L / 2;
+      frame.current.scale.y = L + 0.02;
+      frame.current.position.y = -L / 2 - 0.035;
     }
   };
   useLayoutEffect(apply);
-
   useFrame(({ clock }, dt) => {
-    const k = 1 - Math.exp(-Math.min(dt, 0.1) * 4);
-    x.current += (target.current.x - x.current) * k;
-    len.current += (target.current.len - len.current) * k;
+    const ease = 1 - Math.exp(-Math.min(dt, 0.1) * 4);
+    currentX.current += (target.current.x - currentX.current) * ease;
+    length.current += (target.current.length - length.current) * ease;
     apply();
-    // 바람에 살짝 흔들림 (윗축을 중심으로)
-    if (root.current) {
+    if (root.current)
       root.current.rotation.z =
-        Math.sin(clock.elapsedTime * 0.9 + slot * 1.3) * 0.012;
-    }
+        Math.sin(clock.elapsedTime * 0.8 + slot * 1.2) * 0.009;
   });
 
-  // 글자가 바뀔 때만 다시 그린다 (시간은 분 단위로만 바뀐다)
-  useRedraw(() => {
-    const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
-    if (!ctx) return;
-    const { w, h } = CARD_PX;
-    const fg = colors[houseToken(house, "on")];
-    const gold = new Color(colors["--color-scene-brass"])
-      .lerp(new Color(colors["--color-scene-collar"]), 0.22)
-      .getStyle();
-    const family = fontFamily();
-    ctx.clearRect(0, 0, w, h);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = withAlpha(fg, 0.55);
-    ctx.font = `500 26px ${family}`;
-    ctx.fillText("수련 순위", w / 2, 38);
-
-    ctx.drawImage(crest.image as CanvasImageSource, w / 2 - 96, 45, 192, 192);
-
-    ctx.fillStyle = fg;
-    ctx.font = `700 120px ${family}`;
-    ctx.fillText(`${entry.rank}위`, w / 2, 287);
-    ctx.font = `600 80px ${family}`;
-    ctx.fillText(HOUSES[house].name, w / 2, 390);
-    ctx.strokeStyle = withAlpha(fg, 0.16);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(85, 430);
-    ctx.lineTo(w - 85, 430);
-    ctx.stroke();
-    ctx.fillStyle = withAlpha(fg, 0.55);
-    ctx.font = `400 28px ${family}`;
-    ctx.fillText("오늘의 수련", w / 2, 479);
-    ctx.fillStyle = fg;
-    ctx.font = `700 84px ${family}`;
-    ctx.fillText(timeText, w / 2, 551, w - 40);
-    if (mine) {
-      ctx.fillStyle = withAlpha(fg, 0.76);
-      ctx.font = `600 32px ${family}`;
-      ctx.fillText("내 기숙사", w / 2, 653);
-      ctx.fillStyle = gold;
-      ctx.save();
-      ctx.translate(w / 2, 610);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillRect(-5, -5, 10, 10);
-      ctx.restore();
-    }
-    texture.needsUpdate = true;
-  }, [colors, house, entry.rank, timeText, mine, texture, crest]);
-
-  const gold = new Color(colors["--color-scene-brass"]).lerp(
+  const brass = new Color(colors["--color-scene-brass"]).lerp(
     new Color(colors["--color-scene-collar"]),
-    0.22,
+    0.24,
   );
   return (
-    <group ref={root} position={[slotX(slot), SCROLL_TOP, 0.1]}>
-      {/* 걸이 고리: 걸이대 위의 놋쇠 고리 */}
-      <mesh position={[0, 0.1, 0]}>
-        <torusGeometry args={[0.047, 0.009, 6, 16]} />
-        <meshBasicMaterial color={gold} toneMapped={false} />
+    <group ref={root} position={[slotX(slot), SCROLL_TOP, 0.08]}>
+      {/* 걸이대와 놋쇠 고리를 잇는 짧은 꼰 끈 */}
+      <mesh position={[0, 0.08, 0]}>
+        <torusGeometry args={[0.048, 0.009, 8, 20]} />
+        <meshBasicMaterial color={brass} toneMapped={false} />
       </mesh>
-      {/* 윗축 */}
+      <mesh position={[0, 0.015, 0.018]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.013, 0.013, 0.14, 8]} />
+        <meshStandardMaterial map={timber} roughness={0.74} />
+      </mesh>
+      {/* 윗축에 걸린 비단과, 금실로 두른 안내 패 */}
+      <mesh position={[0, -0.005, 0.025]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.052, 0.052, SCROLL_W + 0.16, 24]} />
+        <meshStandardMaterial map={timber} roughness={0.58} />
+      </mesh>
       <mesh
-        geometry={getRodGeometry()}
-        rotation={[0, 0, Math.PI / 2]}
-        position={[0, 0.01, 0.03]}
+        ref={cloth}
+        geometry={geometry}
+        position={[0, -0.5, 0.012]}
+        scale={[1, 1, 1]}
       >
-        <meshBasicMaterial map={timber} toneMapped={false} />
-      </mesh>
-      {/* 윗축에 감긴 비단. 나무 축의 양 끝은 밖으로 드러난다. */}
-      <mesh position={[0, 0.005, 0.012]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.043, 0.043, SCROLL_W, 24]} />
-        <meshBasicMaterial
-          map={fabric}
-          color={colors[houseToken(house, "primary")]}
-          toneMapped={false}
-        />
-      </mesh>
-      {/* 말린 가장자리가 있는 족자 천: 길이는 scale.y로 */}
-      <mesh ref={cloth} geometry={scrollGeometry}>
         <meshBasicMaterial map={silk} toneMapped={false} />
       </mesh>
-      {/* 내 기숙사: 천 둘레에 금색 틀 */}
       {mine ? (
-        <mesh ref={frame} position={[0, 0, -0.004]}>
-          <planeGeometry args={[SCROLL_W + 0.04, 1]} />
-          <meshBasicMaterial color={gold} toneMapped={false} />
+        <mesh ref={frame} position={[0, -0.5, 0.006]}>
+          <planeGeometry args={[SCROLL_W + 0.025, 1]} />
+          <meshBasicMaterial color={brass} toneMapped={false} />
         </mesh>
       ) : null}
-      {/* 아랫단 구름무늬 (기숙사 포인트색) — 길 때만 보임 */}
-      <mesh ref={cloud} position={[0, -targetLen + 0.3, 0.003]}>
-        <planeGeometry args={[0.72, 0.27]} />
-        <meshBasicMaterial
-          map={getCloudTexture()}
-          color={colors[houseToken(house, "accent")]}
-          transparent
-          toneMapped={false}
-        />
+      <mesh position={[0, -0.68, 0.03]}>
+        <planeGeometry args={[CARD_SIZE.w, CARD_SIZE.h]} />
+        <meshBasicMaterial map={cardTexture} transparent toneMapped={false} />
       </mesh>
-      {/* 안내 카드 (메달·순위·이름·시간) */}
-      <mesh position={[0, -0.06 - CARD_H / 2, 0.005]}>
-        <planeGeometry args={[CARD_W, CARD_H]} />
-        <meshBasicMaterial map={texture} transparent toneMapped={false} />
+      <mesh ref={timeLabel} position={[0, -targetLength + 0.2, 0.032]}>
+        <planeGeometry args={[TIME_SIZE.w, TIME_SIZE.h]} />
+        <meshBasicMaterial map={timeTexture} transparent toneMapped={false} />
       </mesh>
-      {/* 아랫축을 감싸며 말린 비단과 돌출된 나무 마구리 */}
-      <group ref={bottomRod} position={[0, -targetLen, 0.03]}>
-        <mesh geometry={getRodGeometry()} rotation={[0, 0, Math.PI / 2]}>
-          <meshBasicMaterial map={timber} toneMapped={false} />
-        </mesh>
+      {/* 아랫축과 짧은 금실 술로 족자 끝을 정돈한다. */}
+      <group ref={bottomRod} position={[0, -targetLength, 0.025]}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.045, 0.045, SCROLL_W, 24]} />
-          <meshBasicMaterial
-            map={fabric}
-            color={colors[houseToken(house, "primary")]}
-            toneMapped={false}
-          />
+          <cylinderGeometry args={[0.047, 0.047, SCROLL_W + 0.16, 24]} />
+          <meshStandardMaterial map={timber} roughness={0.58} />
+        </mesh>
+        <mesh position={[0, -0.12, 0.01]}>
+          <cylinderGeometry args={[0.012, 0.008, 0.24, 8]} />
+          <meshStandardMaterial color={brass} metalness={0.46} roughness={0.4} />
         </mesh>
       </group>
     </group>
@@ -526,33 +419,50 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
     0.22,
   );
   return (
-    // 앞벽(문이 있는 벽) 안쪽 면 바로 앞. 판을 y축 180° 돌려 방 안쪽(-z)을 바라보게 한다.
-    <group position={[0, 0, FRONT_WALL_Z - 0.2]} rotation={[0, Math.PI, 0]}>
-      {/* 널판 벽 + 위아래 금띠 */}
-      <mesh position={[0, PANEL.cy, -0.1]}>
-        <boxGeometry args={[PANEL.w, PANEL.h, 0.1]} />
-        <meshBasicMaterial map={timber} toneMapped={false} />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[0, PANEL.cy + (s * PANEL.h) / 2, -0.03]}>
-          <boxGeometry args={[PANEL.w + 0.04, 0.018, 0.025]} />
-          <meshBasicMaterial color={gold} toneMapped={false} />
-        </mesh>
+    // 문 오른쪽에 세워 두는 독립형 거치대. 벽에서 떨어져 방 안쪽을 바라본다.
+    <group
+      position={[BOARD_CENTER_X, 0, BOARD_STAND_Z]}
+      rotation={[0, Math.PI, 0]}
+      scale={BOARD_SCALE}
+    >
+      {/* 양쪽 지지 기둥과 바닥의 무게 받침 */}
+      {[-2.65, 2.65].map((x) => (
+        <group key={x}>
+          <mesh position={[x, 2.98, -0.02]}>
+            <boxGeometry args={[0.14, 5.72, 0.16]} />
+            <meshStandardMaterial map={timber} roughness={0.68} />
+          </mesh>
+          <mesh position={[x, 0.12, 0.12]}>
+            <boxGeometry args={[0.86, 0.22, 0.8]} />
+            <meshStandardMaterial
+              color={colors["--color-scene-wood-dark"]}
+              map={timber}
+              roughness={0.82}
+            />
+          </mesh>
+          <mesh position={[x, 0.245, 0.12]}>
+            <boxGeometry args={[0.82, 0.025, 0.75]} />
+            <meshBasicMaterial color={gold} toneMapped={false} />
+          </mesh>
+          {/* 뒤쪽으로 기울어진 버팀목이 측면에서도 독립형 구조를 드러낸다. */}
+          <mesh position={[x, 1.82, -0.48]} rotation={[-0.16, 0, 0]}>
+            <boxGeometry args={[0.075, 3.28, 0.075]} />
+            <meshStandardMaterial map={timber} roughness={0.72} />
+          </mesh>
+        </group>
       ))}
+
+      {/* 비단 족자를 거는 전통 목재 걸이대와 놋쇠 마감 */}
+      <mesh position={[0, SCROLL_TOP + 0.02, 0.04]}>
+        <boxGeometry args={[5.18, 0.14, 0.24]} />
+        <meshStandardMaterial map={timber} roughness={0.62} />
+      </mesh>
+      <mesh position={[0, SCROLL_TOP - 0.075, 0.055]}>
+        <boxGeometry args={[5.12, 0.022, 0.25]} />
+        <meshBasicMaterial color={gold} toneMapped={false} />
+      </mesh>
 
       <Plaque colors={colors} timber={timber} />
-
-      {/* 걸이대: 가로 나무 + 양 끝 마구리 */}
-      <mesh position={[0, RAIL_Y, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.036, 0.036, 5.2, 16]} />
-        <meshBasicMaterial map={timber} toneMapped={false} />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 2.65, RAIL_Y, 0.06]}>
-          <boxGeometry args={[0.15, 0.21, 0.14]} />
-          <meshBasicMaterial map={timber} toneMapped={false} />
-        </mesh>
-      ))}
 
       {ranking.map((entry, i) => (
         <Scroll
