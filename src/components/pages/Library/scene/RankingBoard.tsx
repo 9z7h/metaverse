@@ -4,8 +4,8 @@
  * 족자에는 문장 메달·순위·기숙사 이름·합계 시간이 표시되고, 수련 시간에 따라 길이가 달라진다.
  * 내 기숙사의 족자에는 금실 테두리를 둘러 구분한다.
  *
- * 문 쪽은 방의 조명이 닿지 않아 어둡기 때문에, 순위판은 조명에 영향받지 않는
- * (MeshBasicMaterial) 재질로 항상 또렷하게 읽히도록 한다. 색은 모두 장면 토큰에서 읽는다.
+ * 문 쪽은 방의 조명이 잘 닿지 않아, 순위판 전용 등불을 따로 두고 재질에 약한 자체 발광을 더해
+ * 어두운 곳에서도 읽히되 비단 결·금박·목재의 입체감은 살아 있게 한다. 색은 모두 장면 토큰에서 읽는다.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -14,6 +14,7 @@ import {
   CanvasTexture,
   Color,
   PlaneGeometry,
+  RepeatWrapping,
   SRGBColorSpace,
 } from "three";
 import type { Group, Mesh, Texture } from "three";
@@ -34,6 +35,17 @@ import type { SceneColors } from "./sceneLayout";
 
 /** 판 전체 배율 — 현판 높이를 월드 기준(창문)으로 맞출 때 보정한다 */
 const BOARD_SCALE = [0.65, 0.82, 1] as const;
+/**
+ * 판이 가로로만 더 줄어든 비균등 배율이라 평면에 그린 문양이 가로로 눌려 보인다.
+ * 그림을 그릴 때 가로를 이만큼 미리 늘려 두면 화면에서 원래 비율로 보인다.
+ */
+const SQUASH_FIX = BOARD_SCALE[1] / BOARD_SCALE[0];
+/** 가운데를 기준으로 가로만 `SQUASH_FIX`배 늘려 그리도록 캔버스 변환을 건다 */
+function stretchX(ctx: CanvasRenderingContext2D, w: number) {
+  ctx.translate(w / 2, 0);
+  ctx.scale(SQUASH_FIX, 1);
+  ctx.translate(-w / 2, 0);
+}
 /** 현판 하단이 앞벽 창문 하단과 같은 높이가 되도록 로컬 y를 구한다 */
 const PLAQUE_H = 0.62;
 /** 창문 하단에서 월드 기준으로 더 내려 달 높이(m) */
@@ -49,6 +61,13 @@ const PLAQUE = {
 const SCROLL_W = 0.96;
 const SCROLL_GAP = 1.16;
 const SCROLL_TOP = 4.83;
+/** 족자 길이: 0분이면 min(안내 카드와 시간이 겨우 들어가는 길이), 1위는 min+span */
+const SCROLL_LEN = { min: 1.9, span: 1.3 } as const;
+/**
+ * 시간 글씨 중심이 아랫단에서 올라온 높이. 글씨 아래 여백이 천 위쪽 끝에서 메달까지의
+ * 여백(약 0.255)과 같아지도록 잡았다.
+ */
+const TIME_LIFT = 0.275;
 const CARD_SIZE = { w: 0.84, h: 1.18 };
 const CARD_PX = { w: 512, h: 704 };
 const TIME_SIZE = { w: 0.78, h: 0.24 };
@@ -92,34 +111,17 @@ function useRedraw(draw: () => void, deps: unknown[]) {
   }, deps);
 }
 
-/** 8장 꽃잎 장식(현판 모서리) */
-function fillRosette(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  r: number,
-  petal: string,
-  center: string,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.fillStyle = petal;
-  for (let i = 0; i < 8; i++) {
-    ctx.rotate(Math.PI / 4);
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.62, r * 0.3, r * 0.42, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = center;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
 /* ── 현판 ─────────────────────────────────────────────── */
 
-function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
+function Plaque({
+  colors,
+  timber,
+  gilt,
+}: {
+  colors: SceneColors;
+  timber: Texture;
+  gilt: Texture;
+}) {
   const texture = useMemo(() => makeTexture(2048, 280), []);
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -128,26 +130,52 @@ function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
     if (!ctx) return;
     const W = 2048;
     const H = 280;
-    const gold = new Color(colors["--color-scene-brass"])
+    const img = gilt.image as HTMLImageElement;
+    const n = img.width;
+    const goldColor = new Color(colors["--color-scene-brass"])
       .lerp(new Color(colors["--color-scene-collar"]), 0.32)
       .getStyle();
     const goldLight = colors["--color-scene-collar"];
+    const woodDark = colors["--color-scene-wood-dark"];
     ctx.clearRect(0, 0, W, H);
-    // 실제 목재 앞에 얇은 금속선과 읽기 쉬운 글씨를 얹는다.
-    ctx.strokeStyle = withAlpha(gold, 0.8);
+    // 바탕: 생성한 금박 편액 재질의 한가운데 나뭇결을 가로로 늘려 쓴다 (결이 가로라 늘어나도 자연스럽다)
+    ctx.drawImage(img, n * 0.22, n * 0.3, n * 0.56, n * 0.4, 0, 0, W, H);
+    // 양 끝: 같은 재질의 구름무늬 모서리를 가장자리가 번지게 겹쳐 네 모서리에 둔다
+    const cornerSrc = n * 0.31;
+    const cornerPx = H * 1.02;
+    const corner = document.createElement("canvas");
+    corner.width = corner.height = 256;
+    const cc = corner.getContext("2d");
+    if (cc) {
+      cc.drawImage(img, 0, 0, cornerSrc, cornerSrc, 0, 0, 256, 256);
+      cc.globalCompositeOperation = "destination-in";
+      const fade = cc.createRadialGradient(0, 0, 70, 0, 0, 256);
+      fade.addColorStop(0, "rgba(0,0,0,1)");
+      fade.addColorStop(0.78, "rgba(0,0,0,1)");
+      fade.addColorStop(1, "rgba(0,0,0,0)");
+      cc.fillStyle = fade;
+      cc.fillRect(0, 0, 256, 256);
+    }
+    for (const [fx, fy] of [
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+      [-1, -1],
+    ]) {
+      ctx.save();
+      ctx.translate(fx === 1 ? 0 : W, fy === 1 ? 0 : H);
+      ctx.scale(fx, fy);
+      ctx.drawImage(corner, 0, 0, cornerPx, cornerPx);
+      ctx.restore();
+    }
+    // 안쪽 금선 두 줄
+    ctx.strokeStyle = withAlpha(goldColor, 0.85);
     ctx.lineWidth = 3;
-    ctx.strokeRect(22, 22, W - 44, H - 44);
+    ctx.strokeRect(cornerPx * 0.62, 30, W - cornerPx * 1.24, H - 60);
     ctx.lineWidth = 1;
-    ctx.strokeRect(34, 34, W - 68, H - 68);
-    for (const [x, y] of [
-      [48, 48],
-      [W - 48, 48],
-      [48, H - 48],
-      [W - 48, H - 48],
-    ])
-      fillRosette(ctx, x, y, 10, gold, colors["--color-scene-wood-dark"]);
-    ctx.fillStyle = goldLight;
-    ctx.font = `700 120px ${fontFamily()}`;
+    ctx.strokeRect(cornerPx * 0.62 + 9, 39, W - cornerPx * 1.24 - 18, H - 78);
+    // 글씨: 파낸 자리에 금박을 입힌 양각 — 아래 그림자, 위 하이라이트, 금빛 그라데이션
+    ctx.font = `700 118px ${fontFamily()}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     const title = "오늘의 사신제";
@@ -156,20 +184,72 @@ function Plaque({ colors, timber }: { colors: SceneColors; timber: Texture }) {
     const cx = W / 2 + (m.actualBoundingBoxLeft - m.actualBoundingBoxRight) / 2;
     const cy =
       H / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+    ctx.fillStyle = withAlpha(woodDark, 0.9);
+    ctx.fillText(title, cx + 3, cy + 5);
+    ctx.fillStyle = withAlpha(goldLight, 0.55);
+    ctx.fillText(title, cx - 1.5, cy - 2.5);
+    const top = cy - m.actualBoundingBoxAscent;
+    const grad = ctx.createLinearGradient(
+      0,
+      top,
+      0,
+      cy + m.actualBoundingBoxDescent,
+    );
+    grad.addColorStop(0, goldLight);
+    grad.addColorStop(0.55, goldColor);
+    grad.addColorStop(1, withAlpha(goldColor, 0.82));
+    ctx.fillStyle = grad;
     ctx.fillText(title, cx, cy);
     texture.needsUpdate = true;
-  }, [colors, texture]);
+  }, [colors, texture, gilt]);
 
+  const brass = colors["--color-scene-brass"];
   return (
     <group position={[0, PLAQUE.y, 0]}>
-      <mesh position={[0, 0, 0.02]}>
+      {/* 뒤에 한 단 더 두른 짙은 틀 — 판이 벽에서 떠 보이게 */}
+      <mesh position={[0, 0, 0.0]}>
+        <boxGeometry args={[PLAQUE.w + 0.1, PLAQUE.h + 0.1, 0.05]} />
+        <meshStandardMaterial
+          map={timber}
+          color={colors["--color-scene-wood-dark"]}
+          roughness={0.7}
+        />
+      </mesh>
+      <mesh position={[0, 0, 0.04]}>
         <boxGeometry args={[PLAQUE.w, PLAQUE.h, 0.07]} />
-        <meshBasicMaterial map={timber} toneMapped={false} />
+        <meshStandardMaterial map={timber} roughness={0.5} />
       </mesh>
-      <mesh position={[0, 0, 0.058]}>
+      <mesh position={[0, 0, 0.078]}>
         <planeGeometry args={[PLAQUE.w, PLAQUE.h]} />
-        <meshBasicMaterial map={texture} transparent toneMapped={false} />
+        <meshStandardMaterial
+          map={texture}
+          emissiveMap={texture}
+          emissive="white"
+          emissiveIntensity={0.42}
+          roughness={0.42}
+          metalness={0.28}
+        />
       </mesh>
+      {/* 네 모서리 놋쇠 못 */}
+      {[-1, 1].flatMap((sx) =>
+        [-1, 1].map((sy) => (
+          <mesh
+            key={`${sx}${sy}`}
+            position={[
+              sx * (PLAQUE.w / 2 - 0.045),
+              sy * (PLAQUE.h / 2 - 0.045),
+              0.092,
+            ]}
+          >
+            <sphereGeometry args={[0.022, 12, 8]} />
+            <meshStandardMaterial
+              color={brass}
+              metalness={0.7}
+              roughness={0.35}
+            />
+          </mesh>
+        )),
+      )}
     </group>
   );
 }
@@ -185,6 +265,8 @@ interface ScrollProps {
   colors: SceneColors;
   timber: Texture;
   fabric: Texture;
+  silkBump: Texture;
+  brocade: Texture;
 }
 
 function createScrollGeometry() {
@@ -192,7 +274,15 @@ function createScrollGeometry() {
   const positions = geometry.getAttribute("position");
   for (let i = 0; i < positions.count; i++) {
     const edge = Math.abs(positions.getX(i)) / (SCROLL_W / 2);
-    positions.setZ(i, 0.026 * edge ** 8);
+    const x = positions.getX(i);
+    const v = positions.getY(i) + 0.5;
+    // 가장자리는 말려 올라가고, 천은 가운데가 살짝 불룩하며 세로로 아주 완만한 결이 흐른다
+    positions.setZ(
+      i,
+      0.026 * edge ** 8 +
+        0.014 * (1 - edge * edge) +
+        0.006 * Math.sin(v * Math.PI * 3.2 + x * 2.4),
+    );
   }
   positions.needsUpdate = true;
   geometry.computeVertexNormals();
@@ -204,25 +294,41 @@ function drawSilk(
   colors: SceneColors,
   house: HouseId,
   fabric: Texture,
+  brocade: Texture,
 ) {
   const primary = colors[houseToken(house, "primary")];
   const accent = colors[houseToken(house, "accent")];
-  ctx.clearRect(0, 0, 256, 768);
+  const gold = colors["--color-scene-brass"];
+  const W = 256;
+  const H = 768;
+  ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = primary;
-  ctx.fillRect(0, 0, 256, 768);
+  ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = "multiply";
-  ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, 256, 768);
+  ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, W, H);
   ctx.globalCompositeOperation = "source-over";
-  ctx.strokeStyle = withAlpha(accent, 0.56);
-  ctx.lineWidth = 3;
-  ctx.strokeRect(10, 10, 236, 748);
-  ctx.strokeStyle = withAlpha(colors["--color-scene-collar"], 0.42);
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(17, 17, 222, 734);
-  // 한국 전통 직물의 단정한 끝단처럼 위아래에 얇은 색띠를 넣는다.
-  ctx.fillStyle = withAlpha(accent, 0.78);
-  ctx.fillRect(18, 22, 220, 10);
-  ctx.fillRect(18, 736, 220, 10);
+  // 표구: 본폭 둘레를 금실 운문 비단(배접)으로 두르고 위아래는 조금 더 넓게 댄다
+  const bro = brocade.image as HTMLImageElement;
+  const band = (x: number, y: number, w: number, h: number) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    const sh = bro.width * (h / w);
+    ctx.drawImage(bro, 0, 0, bro.width, Math.min(sh, bro.height), x, y, w, h);
+    ctx.restore();
+    ctx.strokeStyle = withAlpha(gold, 0.9);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, w, h);
+  };
+  band(0, 0, W, 38);
+  band(0, H - 38, W, 38);
+  band(0, 38, 17, H - 76);
+  band(W - 17, 38, 17, H - 76);
+  // 본폭 안쪽의 얇은 금실 선
+  ctx.strokeStyle = withAlpha(accent, 0.7);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(24, 46, W - 48, H - 92);
 }
 
 function Scroll({
@@ -234,6 +340,8 @@ function Scroll({
   colors,
   timber,
   fabric,
+  silkBump,
+  brocade,
 }: ScrollProps) {
   const crest = useTexture(houseCrestUrl(house));
   const root = useRef<Group>(null);
@@ -242,7 +350,7 @@ function Scroll({
   const frame = useRef<Mesh>(null);
   const timeLabel = useRef<Mesh>(null);
   const ratio = maxSeconds > 0 ? entry.seconds / maxSeconds : 0;
-  const targetLength = 2.35 + ratio * 0.85;
+  const targetLength = SCROLL_LEN.min + ratio * SCROLL_LEN.span;
   const length = useRef(targetLength);
   const currentX = useRef(slotX(slot));
   const target = useRef({ x: slotX(slot), length: targetLength });
@@ -254,9 +362,9 @@ function Scroll({
   useEffect(() => () => silk.dispose(), [silk]);
   useRedraw(() => {
     const ctx = (silk.image as HTMLCanvasElement).getContext("2d");
-    if (ctx) drawSilk(ctx, colors, house, fabric);
+    if (ctx) drawSilk(ctx, colors, house, fabric, brocade);
     silk.needsUpdate = true;
-  }, [silk, colors, house, fabric]);
+  }, [silk, colors, house, fabric, brocade]);
 
   const timeText = formatTotal(entry.seconds);
   const cardTexture = useMemo(() => makeTexture(CARD_PX.w, CARD_PX.h), []);
@@ -268,13 +376,9 @@ function Scroll({
     const ink = colors[houseToken(house, "on")];
     const gold = colors["--color-scene-collar"];
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = withAlpha(colors[houseToken(house, "primary")], 0.92);
-    ctx.fillRect(10, 10, w - 20, h - 20);
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 5;
-    ctx.strokeRect(14, 14, w - 28, h - 28);
-    ctx.lineWidth = 2;
-    ctx.strokeRect(23, 23, w - 46, h - 46);
+    ctx.save();
+    stretchX(ctx, w);
+    // 바탕·테두리 없이 메달과 글씨만 그려 천 위에 한 겹 덧댄 것처럼 보이지 않게 한다
     ctx.drawImage(crest.image as CanvasImageSource, w / 2 - 130, 48, 260, 260);
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
@@ -288,6 +392,7 @@ function Scroll({
       ctx.font = `600 42px ${fontFamily()}`;
       ctx.fillText("내 기숙사", w / 2, 620);
     }
+    ctx.restore();
     cardTexture.needsUpdate = true;
   }, [colors, house, entry.rank, mine, cardTexture, crest]);
 
@@ -298,11 +403,14 @@ function Scroll({
     if (!ctx) return;
     const { w, h } = TIME_PX;
     ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    stretchX(ctx, w);
     ctx.fillStyle = colors[houseToken(house, "on")];
     ctx.font = `700 138px ${fontFamily()}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(timeText, w / 2, h / 2, w - 24);
+    ctx.fillText(timeText, w / 2, h / 2, (w - 24) / SQUASH_FIX);
+    ctx.restore();
     timeTexture.needsUpdate = true;
   }, [colors, house, timeText, timeTexture]);
 
@@ -314,7 +422,7 @@ function Scroll({
       cloth.current.position.y = -L / 2 - 0.035;
     }
     if (bottomRod.current) bottomRod.current.position.y = -L;
-    if (timeLabel.current) timeLabel.current.position.y = -L + 0.2;
+    if (timeLabel.current) timeLabel.current.position.y = -L + TIME_LIFT;
     if (frame.current) {
       frame.current.scale.y = L + 0.02;
       frame.current.position.y = -L / 2 - 0.035;
@@ -351,13 +459,41 @@ function Scroll({
         <cylinderGeometry args={[0.052, 0.052, SCROLL_W + 0.16, 24]} />
         <meshStandardMaterial map={timber} roughness={0.58} />
       </mesh>
+      {[-1, 1].map((sx) => (
+        <mesh
+          key={sx}
+          position={[sx * (SCROLL_W / 2 + 0.095), -0.005, 0.025]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <cylinderGeometry args={[0.066, 0.058, 0.07, 20]} />
+          <meshStandardMaterial
+            color={colors["--color-scene-brass"]}
+            metalness={0.3}
+            roughness={0.35}
+            emissive={colors["--color-scene-brass"]}
+            emissiveIntensity={0.4}
+          />
+        </mesh>
+      ))}
       <mesh
         ref={cloth}
         geometry={geometry}
         position={[0, -0.5, 0.012]}
         scale={[1, 1, 1]}
       >
-        <meshBasicMaterial map={silk} toneMapped={false} />
+        {/* 비단: 직조 결을 범프로, 비스듬히 볼 때 은은한 광택(sheen)을 준다 */}
+        <meshPhysicalMaterial
+          map={silk}
+          bumpMap={silkBump}
+          bumpScale={1.4}
+          roughness={0.52}
+          sheen={1}
+          sheenRoughness={0.4}
+          sheenColor={colors[houseToken(house, "accent")]}
+          emissiveMap={silk}
+          emissive="white"
+          emissiveIntensity={0.34}
+        />
       </mesh>
       {mine ? (
         <mesh ref={frame} position={[0, -0.5, 0.006]}>
@@ -365,24 +501,36 @@ function Scroll({
           <meshBasicMaterial color={brass} toneMapped={false} />
         </mesh>
       ) : null}
-      <mesh position={[0, -0.68, 0.03]}>
+      <mesh position={[0, -0.8, 0.07]}>
         <planeGeometry args={[CARD_SIZE.w, CARD_SIZE.h]} />
         <meshBasicMaterial map={cardTexture} transparent toneMapped={false} />
       </mesh>
-      <mesh ref={timeLabel} position={[0, -targetLength + 0.2, 0.032]}>
+      <mesh ref={timeLabel} position={[0, -targetLength + TIME_LIFT, 0.072]}>
         <planeGeometry args={[TIME_SIZE.w, TIME_SIZE.h]} />
         <meshBasicMaterial map={timeTexture} transparent toneMapped={false} />
       </mesh>
-      {/* 아랫축과 짧은 금실 술로 족자 끝을 정돈한다. */}
+      {/* 아랫축: 양 끝에 금색 마개 */}
       <group ref={bottomRod} position={[0, -targetLength, 0.025]}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.047, 0.047, SCROLL_W + 0.16, 24]} />
           <meshStandardMaterial map={timber} roughness={0.58} />
         </mesh>
-        <mesh position={[0, -0.12, 0.01]}>
-          <cylinderGeometry args={[0.012, 0.008, 0.24, 8]} />
-          <meshStandardMaterial color={brass} metalness={0.46} roughness={0.4} />
-        </mesh>
+        {[-1, 1].map((sx) => (
+          <mesh
+            key={sx}
+            position={[sx * (SCROLL_W / 2 + 0.095), 0, 0]}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry args={[0.062, 0.054, 0.07, 20]} />
+            <meshStandardMaterial
+              color={colors["--color-scene-brass"]}
+              metalness={0.3}
+              roughness={0.35}
+              emissive={colors["--color-scene-brass"]}
+              emissiveIntensity={0.4}
+            />
+          </mesh>
+        ))}
       </group>
     </group>
   );
@@ -414,6 +562,28 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
       texture.anisotropy = 4;
     },
   );
+  const silkBump = useTexture(
+    `${import.meta.env.BASE_URL}textures/scroll-silk-bump.jpg`,
+    (texture) => {
+      texture.wrapS = texture.wrapT = RepeatWrapping;
+      texture.repeat.set(5, 14);
+      texture.anisotropy = 4;
+    },
+  );
+  const brocade = useTexture(
+    `${import.meta.env.BASE_URL}textures/scroll-brocade.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+    },
+  );
+  const gilt = useTexture(
+    `${import.meta.env.BASE_URL}textures/plaque-gilt.jpg`,
+    (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+    },
+  );
   const gold = new Color(colors["--color-scene-brass"]).lerp(
     new Color(colors["--color-scene-collar"]),
     0.22,
@@ -440,9 +610,16 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
               roughness={0.82}
             />
           </mesh>
+          {/* 받침 윗면: 금색 판 — 장면에 반사할 주변이 없어 금속 재질은 어둡게 나오므로 자체 발광을 더한다 */}
           <mesh position={[x, 0.245, 0.12]}>
-            <boxGeometry args={[0.82, 0.025, 0.75]} />
-            <meshBasicMaterial color={gold} toneMapped={false} />
+            <boxGeometry args={[0.8, 0.025, 0.74]} />
+            <meshStandardMaterial
+              color={colors["--color-scene-brass"]}
+              metalness={0.3}
+              roughness={0.35}
+              emissive={colors["--color-scene-brass"]}
+              emissiveIntensity={0.4}
+            />
           </mesh>
           {/* 뒤쪽으로 기울어진 버팀목이 측면에서도 독립형 구조를 드러낸다. */}
           <mesh position={[x, 1.82, -0.48]} rotation={[-0.16, 0, 0]}>
@@ -462,7 +639,15 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
         <meshBasicMaterial color={gold} toneMapped={false} />
       </mesh>
 
-      <Plaque colors={colors} timber={timber} />
+      {/* 순위판 전용 등불 — 방 조명이 닿지 않는 문 쪽에서도 비단 결과 금박이 살아나게 */}
+      <pointLight
+        position={[0, 3.6, 2.4]}
+        color={colors["--color-scene-light"]}
+        intensity={9}
+        distance={11}
+        decay={1.6}
+      />
+      <Plaque colors={colors} timber={timber} gilt={gilt} />
 
       {ranking.map((entry, i) => (
         <Scroll
@@ -475,6 +660,8 @@ export function RankingBoard({ colors, ranking, myHouse }: RankingBoardProps) {
           colors={colors}
           timber={timber}
           fabric={fabric}
+          silkBump={silkBump}
+          brocade={brocade}
         />
       ))}
     </group>
