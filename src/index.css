@@ -6,6 +6,15 @@
 /* 테마 토큰 — [data-theme="library"] 범위에서 시맨틱 토큰 재정의 */
 @import "./tokens/_theme-library.css";
 
+html {
+  font-size: var(--font-size-16);
+}
+
+body {
+  margin: 0;
+  font: var(--text-body-lg-regular);
+}
+
 /* 공용 상호작용 상태 — 버튼·입력창은 인라인 스타일이라 :hover/:focus-visible 를 여기서 담당 */
 :root {
   /* 터치 최소 영역 (WCAG 2.5.5 / 모바일 가이드 44px) */

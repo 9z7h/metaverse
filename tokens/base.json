@@ -87,12 +87,6 @@
       }
     },
     "size": {
-      "13": {
-        "$value": "13px"
-      },
-      "14": {
-        "$value": "14px"
-      },
       "16": {
         "$value": "16px"
       },
@@ -112,12 +106,6 @@
   },
   "line": {
     "height": {
-      "20": {
-        "$value": "20px"
-      },
-      "21": {
-        "$value": "21px"
-      },
       "24": {
         "$value": "24px"
       },
@@ -158,30 +146,36 @@
         },
         "bold": {
           "$value": "{font.weight.bold} {font.size.16} / {line.height.24} {font.family.base}",
-          "comment": "body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24)"
+          "comment": "body/lg/bold — 강조 본문 (Pretendard Bold 16/24)"
         }
       },
       "sm": {
         "bold": {
-          "$value": "{font.weight.bold} {font.size.14} / {line.height.21} {font.family.base}",
-          "comment": "body/sm/bold — Chip 라벨 (Pretendard Bold 14/21)"
+          "$value": "{font.weight.bold} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "body/sm/bold — 보조 강조 문구 (Pretendard Bold 16/24)"
         },
         "regular": {
-          "$value": "{font.weight.regular} {font.size.14} / {line.height.21} {font.family.base}",
-          "comment": "body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21)"
+          "$value": "{font.weight.regular} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "body/sm/regular — 보조 본문 (Pretendard Regular 16/24)"
         }
       }
     },
     "caption": {
       "lg": {
         "medium": {
-          "$value": "{font.weight.medium} {font.size.13} / {line.height.20} {font.family.base}",
-          "comment": "caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20)"
+          "$value": "{font.weight.medium} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 16/24)"
         },
         "bold": {
-          "$value": "{font.weight.bold} {font.size.13} / {line.height.20} {font.family.base}",
-          "comment": "caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20)"
+          "$value": "{font.weight.bold} {font.size.16} / {line.height.24} {font.family.base}",
+          "comment": "caption/lg/bold — 보조 강조 문구 (Pretendard Bold 16/24)"
         }
+      }
+    },
+    "button": {
+      "primary": {
+        "$value": "{font.weight.bold} {font.size.18} / {line.height.27} {font.family.base}",
+        "comment": "button/primary — 주요 버튼 라벨 (Pretendard Bold 18/27)"
       }
     },
     "display": {

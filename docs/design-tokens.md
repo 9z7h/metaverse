@@ -157,7 +157,7 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 
 ## 타이포그래피
 
-> Postcard 섹션(node 781-5287)에서 사용. 폰트: Pretendard.
+> 폰트: Pretendard. 기본 크기와 최소 본문 크기는 16px(12pt), 주요 버튼 라벨은 18px로 둡니다.
 > 시맨틱 토큰은 CSS `font` 단축 속성 형태 → 컴포넌트에서 `font: var(--text-*)`.
 
 ### Primitive
@@ -166,17 +166,19 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 | ----------- | --------------------------------------- | ---------------------- |
 | font-family | --font-family-base                      | "Pretendard", ... sans |
 | weight      | --font-weight-regular / -medium / -bold | 400 / 500 / 700        |
-| size        | --font-size-13 / -14 / -16 / -18        | 13 / 14 / 16 / 18px    |
-| line-height | --line-height-20 / -21 / -24 / -27      | 20 / 21 / 24 / 27px    |
+| size        | --font-size-16 / -18 / -20 / -24 / -32  | 16 / 18 / 20 / 24 / 32px |
+| line-height | --line-height-24 / -27 / -30 / -36 / -48 | 24 / 27 / 30 / 36 / 48px |
 
 ### Semantic (font shorthand)
 
-| Figma 스타일      | CSS Property             | 값 (weight size/lh family) | 용도            |
-| ----------------- | ------------------------ | -------------------------- | --------------- |
-| title/sm/bold     | --text-title-sm-bold     | Bold 18/27 Pretendard      | 제목            |
-| body/lg/regular   | --text-body-lg-regular   | Regular 16/24 Pretendard   | 본문            |
-| body/sm/bold      | --text-body-sm-bold      | Bold 14/21 Pretendard      | Chip 라벨       |
-| caption/lg/medium | --text-caption-lg-medium | Medium 13/20 Pretendard    | 통계·타임스탬프 |
+| 스타일            | CSS Property             | 값 (weight size/lh family) | 용도             |
+| ----------------- | ------------------------ | -------------------------- | ---------------- |
+| title/sm/bold     | --text-title-sm-bold     | Bold 18/27 Pretendard      | 제목             |
+| body/lg/regular   | --text-body-lg-regular   | Regular 16/24 Pretendard   | 기본 본문         |
+| body/sm/bold      | --text-body-sm-bold      | Bold 16/24 Pretendard      | 보조 강조 문구    |
+| body/sm/regular   | --text-body-sm-regular   | Regular 16/24 Pretendard   | 보조 본문         |
+| caption/lg/medium | --text-caption-lg-medium | Medium 16/24 Pretendard    | 통계·타임스탬프   |
+| button/primary   | --text-button-primary   | Bold 18/27 Pretendard      | 주요 버튼 라벨    |
 
 ## Claude용 규칙
 

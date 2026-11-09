@@ -79,7 +79,7 @@ export interface SizeConfig {
 
 export const LARGE: SizeConfig = {
   box: 56,
-  paddingBlock: "var(--spacing-16)",
+  paddingBlock: "var(--spacing-12)",
   // ⚠️ 토큰 외 값(20px): spacing 스케일이 16→24로 건너뛰어 대응 토큰이 없음.
   // 사용자 승인하에 Figma 원본과 1:1 일치를 위해 직접 지정.
   paddingInline: "20px",
@@ -91,7 +91,7 @@ export const LARGE: SizeConfig = {
 
 export const MEDIUM: SizeConfig = {
   box: 44,
-  paddingBlock: "var(--spacing-12)",
+  paddingBlock: "var(--spacing-8)",
   paddingInline: "var(--spacing-16)",
   gap: "var(--spacing-8)",
   font: "var(--text-body-sm-bold)",
@@ -101,7 +101,7 @@ export const MEDIUM: SizeConfig = {
 
 export const SMALL: SizeConfig = {
   box: 32,
-  paddingBlock: "var(--spacing-8)",
+  paddingBlock: "var(--spacing-4)",
   paddingInline: "var(--spacing-12)",
   gap: "var(--spacing-4)",
   font: "var(--text-caption-lg-bold)",
@@ -146,6 +146,10 @@ export function getButtonRootStyle(
   disabled: boolean,
 ): CSSProperties {
   const tokens = STYLE_TOKENS[style];
+  const labelFont =
+    config === LARGE && (style === "core" || style === "warning")
+      ? "var(--text-button-primary)"
+      : config.font;
   const base: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -156,7 +160,7 @@ export function getButtonRootStyle(
     background: tokens.background,
     color: tokens.color,
     border: tokens.border ? `1px solid ${tokens.border}` : "none",
-    font: config.font,
+    font: labelFont,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.3 : 1,
     padding: 0,

@@ -158,9 +158,7 @@ export function Input({
           id={`${inputId}-error`}
           role="alert"
           style={{
-            // ⚠️ 누락된 토큰: caption/lg/regular에 대응하는 --text-caption-lg-regular가
-            // typography.css에 없음(caption-lg-medium만 정의됨). Figma 값 미확인 상태라 추측해서 만들지 않음.
-            font: "var(--caption-lg-regular)",
+            font: "var(--text-body-sm-regular)",
             color: "var(--color-text-Danger)",
           }}
         >

@@ -29,15 +29,11 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 700;
-  --font-size-13: 13px;
-  --font-size-14: 14px;
   --font-size-16: 16px;
   --font-size-18: 18px;
   --font-size-20: 20px;
   --font-size-24: 24px;
   --font-size-32: 32px;
-  --line-height-20: 20px;
-  --line-height-21: 21px;
   --line-height-24: 24px;
   --line-height-27: 27px;
   --line-height-30: 30px;
@@ -139,11 +135,12 @@
   --text-title-sm-bold: var(--font-weight-bold) var(--font-size-18) / var(--line-height-27) var(--font-family-base); /** title/sm/bold — 제목 (Pretendard Bold 18/27) */
   --text-title-lg-regular: var(--font-weight-regular) var(--font-size-20) / var(--line-height-30) var(--font-family-base); /** title/lg/regular — PostWriteHeader 서브타이틀, TitleInputBox (Pretendard Regular 20/30) */
   --text-body-lg-regular: var(--font-weight-regular) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/lg/regular — 본문 (Pretendard Regular 16/24) */
-  --text-body-lg-bold: var(--font-weight-bold) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/lg/bold — ButtonLarge 라벨 (Pretendard Bold 16/24) */
-  --text-body-sm-bold: var(--font-weight-bold) var(--font-size-14) / var(--line-height-21) var(--font-family-base); /** body/sm/bold — Chip 라벨 (Pretendard Bold 14/21) */
-  --text-body-sm-regular: var(--font-weight-regular) var(--font-size-14) / var(--line-height-21) var(--font-family-base); /** body/sm/regular — SortTabItem 미선택, DateText (Pretendard Regular 14/21) */
-  --text-caption-lg-medium: var(--font-weight-medium) var(--font-size-13) / var(--line-height-20) var(--font-family-base); /** caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 13/20) */
-  --text-caption-lg-bold: var(--font-weight-bold) var(--font-size-13) / var(--line-height-20) var(--font-family-base); /** caption/lg/bold — ButtonSmall 라벨 (Pretendard Bold 13/20) */
+  --text-body-lg-bold: var(--font-weight-bold) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/lg/bold — 강조 본문 (Pretendard Bold 16/24) */
+  --text-body-sm-bold: var(--font-weight-bold) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/sm/bold — 보조 강조 문구 (Pretendard Bold 16/24) */
+  --text-body-sm-regular: var(--font-weight-regular) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** body/sm/regular — 보조 본문 (Pretendard Regular 16/24) */
+  --text-caption-lg-medium: var(--font-weight-medium) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** caption/lg/medium — 통계·타임스탬프 (Pretendard Medium 16/24) */
+  --text-caption-lg-bold: var(--font-weight-bold) var(--font-size-16) / var(--line-height-24) var(--font-family-base); /** caption/lg/bold — 보조 강조 문구 (Pretendard Bold 16/24) */
+  --text-button-primary: var(--font-weight-bold) var(--font-size-18) / var(--line-height-27) var(--font-family-base); /** button/primary — 주요 버튼 라벨 (Pretendard Bold 18/27) */
   --text-display-sm-bold: var(--font-weight-bold) var(--font-size-24) / var(--line-height-36) var(--font-family-base); /** display/sm/bold — Category 선택 탭 (Pretendard Bold 24/36) */
   --text-display-lg-bold: var(--font-weight-bold) var(--font-size-32) / var(--line-height-48) var(--font-family-base); /** display/lg/bold — PostFilterHeader/PostWriteHeader 타이틀 (Pretendard Bold 32/48) */
   --color-text-primary: var(--color-gray-1000);
