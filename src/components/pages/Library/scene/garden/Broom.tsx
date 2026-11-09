@@ -1,24 +1,9 @@
-/**
- * 몽당 싸리비와 그것을 타는 학생 — 숨돌림 뜰에서 걷다가 빗자루를 타고 하늘을 난다.
- *
- * 설정(⚠ [보강]): 오래 쓴 몽당 싸리비가 도깨비 기운으로 떠올라 학생을 태워 준다.
- * 급가속·급선회 없이 천천히 움직여 머리를 식히는 용도에 맞춘다 (stepFlight).
- */
+/** 구름 탈것과 학생 — 숨돌림 뜰에서 걷다가 한국 전통 구름을 타고 하늘을 난다. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useTexture } from "@react-three/drei";
-import {
-  CatmullRomCurve3,
-  CylinderGeometry,
-  InstancedMesh,
-  MeshStandardMaterial,
-  Color,
-  Object3D,
-  SRGBColorSpace,
-  Vector3,
-} from "three";
-import type { BufferAttribute, Group, Points } from "three";
+import { Vector3 } from "three";
+import type { BufferAttribute, Group, Mesh, Points, ShaderMaterial } from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
 import { FOLLOW_RATE, IDLE_SEND_MS, MOVE_SEND_MS } from "../Characters";
@@ -42,115 +27,94 @@ import {
 import type { FlightState } from "./gardenLayout";
 
 const WALK_SPEED = 4.0;
-/** 아바타를 빗자루 위에 앉히는 높이 — sit 자세가 몸을 0.22 낮추므로 치맛자락 밑으로 손잡이가 지난다 */
+/** 아바타를 구름 위에 앉히는 높이 */
 const SIT_Y = 0.12;
 const TRAIL = 16;
-const BRISTLES = 320;
 
-/* ── 몽당 싸리비 모델 ───────────────────────────────────────── */
+/* ── 한국 전통 구름 탈것 ────────────────────────────────────── */
 
-export function BroomModel({ colors }: { colors: SceneColors }) {
-  const wood = useTexture(
-    `${import.meta.env.BASE_URL}textures/antique-walnut.jpg`,
-    (texture) => {
-      texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 8;
-    },
+function cloudRimShader(shader: { fragmentShader: string }) {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <emissivemap_fragment>",
+    `#include <emissivemap_fragment>
+     float cloudRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.5);
+     totalEmissiveRadiance += diffuse * cloudRim * 0.28;`,
   );
-  const twigs = useMemo(() => {
-    const mesh = new InstancedMesh(
-      new CylinderGeometry(0.5, 1, 1, 5),
-      new MeshStandardMaterial({ map: wood, roughness: 1 }),
-      BRISTLES * 2,
-    );
-    const obj = new Object3D();
-    const start = new Vector3();
-    const end = new Vector3();
-    const direction = new Vector3();
-    const up = new Vector3(0, 1, 0);
-    const shade = new Color();
-    for (let i = 0; i < BRISTLES; i++) {
-      const a = i * 2.399963;
-      const fraction = Math.sqrt((i + 0.5) / BRISTLES);
-      const wobble = Math.sin(i * 13.7);
-      const tip = -1.65 - 0.12 * Math.sin(i * 5.3);
-      const points = [
-        new Vector3(
-          Math.cos(a) * fraction * 0.045,
-          Math.sin(a) * fraction * 0.045,
-          -0.72,
-        ),
-        new Vector3(
-          Math.cos(a) * fraction * (0.17 + 0.02 * wobble),
-          Math.sin(a) * fraction * (0.14 + 0.02 * wobble),
-          -1.13,
-        ),
-        new Vector3(
-          Math.cos(a) * fraction * 0.075,
-          Math.sin(a) * fraction * 0.07,
-          tip,
-        ),
-      ];
-      for (let part = 0; part < 2; part++) {
-        start.copy(points[part]);
-        end.copy(points[part + 1]);
-        direction.subVectors(end, start);
-        obj.position.copy(start).add(end).multiplyScalar(0.5);
-        obj.quaternion.setFromUnitVectors(up, direction.clone().normalize());
-        const thickness = (0.009 + (i % 4) * 0.0014) * (part ? 0.7 : 1);
-        obj.scale.set(thickness, direction.length(), thickness);
-        obj.updateMatrix();
-        mesh.setMatrixAt(i * 2 + part, obj.matrix);
-        mesh.setColorAt(i * 2 + part, shade.setScalar(0.8 + (i % 9) * 0.075));
-      }
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    return mesh;
-  }, [wood]);
-  useEffect(
-    () => () => {
-      twigs.geometry.dispose();
-      (twigs.material as MeshStandardMaterial).dispose();
-    },
-    [twigs],
-  );
-  const handleCurve = useMemo(
-    () =>
-      new CatmullRomCurve3([
-        new Vector3(0, 0, -0.85),
-        new Vector3(0, 0, -0.1),
-        new Vector3(0, 0.06, 0.5),
-        new Vector3(0, 0.14, 0.85),
-        new Vector3(0, 0.16, 1.35),
-      ]),
-    [],
-  );
+}
+
+/** 바닥에 부드러운 그림자를 투영하고 높이에 따라 크기와 농도를 조절한다. */
+function CloudShadow({ target, visible }: { target: React.RefObject<Group | null>; visible: boolean }) {
+  const mesh = useRef<Mesh>(null);
+  const uniforms = useMemo(() => ({ strength: { value: 0 } }), []);
+  useFrame(() => {
+    if (!mesh.current || !target.current) return;
+    const pos = target.current.position;
+    const height = Math.max(0, pos.y);
+    mesh.current.visible = visible && target.current.visible;
+    mesh.current.position.set(pos.x, 0.015, pos.z);
+    mesh.current.scale.setScalar(1 + Math.min(height * 0.13, 1.1));
+    (mesh.current.material as ShaderMaterial).uniforms.strength.value = 0.32 / (1 + height * 0.22);
+  });
   return (
-    <group>
-      {/* 닳은 나무 자루와 여러 가닥으로 나뉜 싸리 */}
-      <mesh>
-        <tubeGeometry args={[handleCurve, 40, 0.04, 12, false]} />
-        <meshStandardMaterial
-          map={wood}
-          color={new Color().setScalar(1.4)}
-          roughness={0.76}
-          bumpMap={wood}
-          bumpScale={0.002}
-        />
-      </mesh>
-      <primitive object={twigs} />
-      {/* 싸리를 단단하게 묶은 두 줄의 끈 */}
-      {[-0.75, -0.82].map((z) => (
-        <mesh key={z} position={[0, 0, z]}>
-          <torusGeometry args={[0.07, 0.014, 6, 20]} />
+    <mesh ref={mesh} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+      <planeGeometry args={[2.5, 2.5]} />
+      <shaderMaterial transparent depthWrite={false} uniforms={uniforms}
+        vertexShader="varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }"
+        fragmentShader="varying vec2 vUv; uniform float strength; void main() { float d = length((vUv - 0.5) * 2.0); float a = (1.0 - smoothstep(0.05, 1.0, d)); gl_FragColor = vec4(0.025, 0.03, 0.04, strength * a * a); }" />
+    </mesh>
+  );
+}
+
+function CloudMist({ colors, reducedMotion }: { colors: SceneColors; reducedMotion: boolean }) {
+  const points = useRef<Points>(null);
+  const positions = useMemo(() => new Float32Array(24 * 3), []);
+  useFrame(({ clock }) => {
+    const t = reducedMotion ? 0 : clock.elapsedTime;
+    for (let i = 0; i < 24; i++) {
+      const angle = i * 2.39996;
+      const phase = (t * 0.16 + i * 0.173) % 1;
+      const radius = 0.34 + phase * 0.36;
+      positions[i * 3] = Math.cos(angle + t * 0.06) * radius;
+      positions[i * 3 + 1] = -0.13 + phase * 0.26;
+      positions[i * 3 + 2] = Math.sin(angle + t * 0.06) * radius;
+    }
+    if (points.current) {
+      (points.current.geometry.getAttribute("position") as BufferAttribute).needsUpdate = true;
+    }
+  });
+  return (
+    <points ref={points} frustumCulled={false}>
+      <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
+      <pointsMaterial color={colors["--color-scene-collar"]} size={0.55} transparent opacity={0.2} depthWrite={false} onBeforeCompile={roundGlowShader} customProgramCacheKey={roundGlowKey} />
+    </points>
+  );
+}
+
+export function BroomModel({ colors, reducedMotion = false }: { colors: SceneColors; reducedMotion?: boolean }) {
+  return (
+    <group scale={[1.12, 1.04, 1.12]}>
+      {[
+        { position: [0, 0.1, 0], scale: [0.42, 0.34, 0.48] },
+        { position: [-0.31, 0.08, -0.2], scale: [0.31, 0.29, 0.32] },
+        { position: [0.31, 0.08, -0.2], scale: [0.31, 0.29, 0.32] },
+        { position: [-0.3, 0.1, 0.27], scale: [0.32, 0.3, 0.34] },
+        { position: [0.3, 0.1, 0.27], scale: [0.32, 0.3, 0.34] },
+        { position: [0, 0.11, 0.4], scale: [0.34, 0.31, 0.3] },
+        { position: [0, 0.1, -0.38], scale: [0.34, 0.3, 0.3] },
+      ].map((puff, index) => (
+        <mesh key={index} position={puff.position as [number, number, number]} scale={puff.scale as [number, number, number]}>
+          <sphereGeometry args={[1, 32, 24]} />
           <meshStandardMaterial
-            color={colors["--color-scene-brass"]}
-            metalness={0.45}
-            roughness={0.55}
+            color={colors["--color-scene-collar"]}
+            emissive={colors["--color-scene-collar"]}
+            emissiveIntensity={0.12}
+            roughness={1}
+            onBeforeCompile={cloudRimShader}
+            customProgramCacheKey={() => "cloud-soft-rim"}
           />
         </mesh>
       ))}
+      <CloudMist colors={colors} reducedMotion={reducedMotion} />
     </group>
   );
 }
@@ -160,7 +124,7 @@ export function BroomModel({ colors }: { colors: SceneColors }) {
 export interface BroomRiderProps {
   colors: SceneColors;
   house: HouseId;
-  /** 빗자루를 타고 있는지 (false면 걸어 다닌다) */
+  /** 구름 탈것을 타고 있는지 (false면 걸어 다닌다) */
   riding: boolean;
   /** 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음. 움직이면 탭 목표는 취소 */
   input: MutableRefObject<{ x: number; y: number }>;
@@ -315,7 +279,7 @@ export function BroomRider({
       onMovingChange(moving);
     }
 
-    // ── 자세·빗자루 표시
+    // ── 자세·구름 탈것 표시
     const flying = cur.y > 0.04 || riding;
     if (flying !== showBroom) setShowBroom(flying);
     const nextPose: AvatarPose = flying
@@ -368,7 +332,7 @@ export function BroomRider({
       }
     }
 
-    // ── 반딧불 자취: 날아가는 동안 뒤에 남는 빛
+    // ── 이동한 자리에 옅은 구름 자취를 남긴다.
     if (trail.current) {
       if (
         flying &&
@@ -383,16 +347,18 @@ export function BroomRider({
           cur.z - Math.cos(cur.heading) * 1.1,
         );
         history.current.length = Math.min(history.current.length, TRAIL * 3);
-      } else if (history.current.length > 0 && (cur.speed <= 1 || !flying)) {
-        // 멈추면 자취가 뒤에서부터 하나씩 사라진다
+      } else if (reducedMotion) {
+        history.current.length = 0;
+      } else if (history.current.length > 0 && (cur.speed <= 1 || !flying) && t - lastTrail.current > 0.07) {
+        lastTrail.current = t;
         history.current.length = Math.max(0, history.current.length - 3);
       }
       for (let i = 0; i < TRAIL; i++) {
         const h = history.current;
         // 기록이 없는 칸은 눈에 보이지 않는 먼 곳에 둔다
-        trailPositions[i * 3] = h[i * 3] ?? 0;
-        trailPositions[i * 3 + 1] = h[i * 3 + 1] ?? -50;
-        trailPositions[i * 3 + 2] = h[i * 3 + 2] ?? 0;
+        trailPositions[i * 3] = (h[i * 3] ?? 0) + Math.sin(i * 2.4) * i * 0.012;
+        trailPositions[i * 3 + 1] = (h[i * 3 + 1] ?? -50) + i * 0.012;
+        trailPositions[i * 3 + 2] = (h[i * 3 + 2] ?? 0) + Math.cos(i * 2.4) * i * 0.012;
       }
       (
         trail.current.geometry.getAttribute("position") as BufferAttribute
@@ -433,9 +399,10 @@ export function BroomRider({
     <>
       <group ref={root}>
         <group ref={tilt}>
-          {showBroom ? <BroomModel colors={colors} /> : null}
+          {showBroom ? <BroomModel colors={colors} reducedMotion={reducedMotion} /> : null}
           <Avatar
             ref={avatar}
+            house={house}
             robe={colors[houseToken(house, "primary")]}
             band={colors[houseToken(house, "accent")]}
             collar={colors["--color-scene-collar"]}
@@ -448,7 +415,8 @@ export function BroomRider({
           />
         </group>
       </group>
-      {/* 날아간 자리에 남는 도깨비불 */}
+      <CloudShadow target={root} visible={showBroom} />
+      {/* 날아간 자리에 남는 안개 */}
       <points ref={trail} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute
@@ -457,11 +425,11 @@ export function BroomRider({
           />
         </bufferGeometry>
         <pointsMaterial
-          color={colors[houseToken(house, "accent")]}
-          size={0.45}
+          color={colors["--color-scene-collar"]}
+          size={0.9}
           sizeAttenuation
           transparent
-          opacity={0.7}
+          opacity={0.26}
           depthWrite={false}
           toneMapped={false}
           onBeforeCompile={roundGlowShader}
@@ -486,8 +454,8 @@ export interface RemoteRiderProps {
 }
 
 /**
- * 정원에서 걷거나 싸리비를 타고 나는 다른 접속자.
- * 받은 위치(300ms 간격)를 따라가며 보간하고, 날 때는 내 `BroomRider`와 같은 모습(빗자루·기울임)으로 그린다.
+ * 정원에서 걷거나 구름 탈것을 타고 나는 다른 접속자.
+ * 받은 위치(300ms 간격)를 따라가며 보간하고, 날 때는 내 `BroomRider`와 같은 모습(구름·기울임)으로 그린다.
  */
 export function RemoteRider({
   walker,
@@ -561,11 +529,13 @@ export function RemoteRider({
   });
 
   return (
+    <>
     <group ref={root}>
       <group ref={tilt}>
-        {showBroom ? <BroomModel colors={colors} /> : null}
+        {showBroom ? <BroomModel colors={colors} reducedMotion={reducedMotion} /> : null}
         <Avatar
           ref={avatar}
+          house={walker.house}
           robe={colors[houseToken(walker.house, "primary")]}
           band={colors[houseToken(walker.house, "accent")]}
           collar={colors["--color-scene-collar"]}
@@ -579,5 +549,7 @@ export function RemoteRider({
         />
       </group>
     </group>
+    <CloudShadow target={root} visible={showBroom} />
+    </>
   );
 }

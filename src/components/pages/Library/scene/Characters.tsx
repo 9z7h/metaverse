@@ -301,6 +301,7 @@ export function Player({
   return (
     <Avatar
       ref={ref}
+      house={house}
       robe={colors[houseToken(house, "primary")]}
       band={colors[houseToken(house, "accent")]}
       collar={colors["--color-scene-collar"]}
@@ -409,6 +410,7 @@ export function Bot({
     <>
       <Avatar
         ref={ref}
+        house={student.house}
         robe={colors[houseToken(student.house, "primary")]}
         band={colors[houseToken(student.house, "accent")]}
         collar={colors["--color-scene-collar"]}
@@ -496,6 +498,7 @@ export function RemoteWalker({
   return (
     <Avatar
       ref={ref}
+      house={walker.house}
       robe={colors[houseToken(walker.house, "primary")]}
       band={colors[houseToken(walker.house, "accent")]}
       collar={colors["--color-scene-collar"]}
@@ -579,6 +582,7 @@ export function LeavingBot({
     <>
       <Avatar
         ref={ref}
+        house={student.house}
         robe={colors[houseToken(student.house, "primary")]}
         band={colors[houseToken(student.house, "accent")]}
         collar={colors["--color-scene-collar"]}

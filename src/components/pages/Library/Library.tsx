@@ -173,7 +173,7 @@ function HouseCard({
       >
         <div style={{ display: "flex", gap: "var(--spacing-8)" }}>
           {HOUSE_IDS.map((id) => (
-            <HouseCrest key={id} house={id} size={32} aria-hidden />
+            <HouseCrest key={id} house={id} size={36} aria-hidden />
           ))}
         </div>
         <p
@@ -213,7 +213,7 @@ function HouseCard({
           gap: "var(--spacing-16)",
         }}
       >
-        <HouseCrest house={house} size={64} />
+        <HouseCrest house={house} size={72} />
         <div
           style={{
             display: "flex",

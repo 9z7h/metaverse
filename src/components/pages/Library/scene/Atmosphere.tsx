@@ -19,7 +19,7 @@ import {
   SRGBColorSpace,
 } from "three";
 import type { InstancedMesh, Points, Texture } from "three";
-import { CREST_SHAPES } from "../HouseCrest";
+import { houseCrestUrl } from "../HouseCrest";
 import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
 import { FRONT_WALL_Z, HALL, ROOM, SIDE_SHELF_Z } from "./sceneLayout";
@@ -416,6 +416,7 @@ function DancheongBand({ colors }: { colors: SceneColors }) {
 /* ── 기숙사 깃발: Canvas에 문장 + 세로 현판 글씨를 그려 텍스처로 ── */
 
 function useBannerTexture(house: HouseId, colors: SceneColors) {
+  const crest = useTexture(houseCrestUrl(house));
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -450,24 +451,7 @@ function useBannerTexture(house: HouseId, colors: SceneColors) {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 6;
       ctx.strokeRect(14, 14, W - 28, H - 120);
-      // 문장 (64 좌표계 → 160px)
-      ctx.save();
-      ctx.translate(W / 2 - 80, 40);
-      ctx.scale(2.5, 2.5);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      for (const s of CREST_SHAPES[house]) {
-        const path = new Path2D(s.d);
-        if (s.stroke) {
-          ctx.strokeStyle = accent;
-          ctx.lineWidth = s.stroke;
-          ctx.stroke(path);
-        } else {
-          ctx.fillStyle = accent;
-          ctx.fill(path, s.evenodd ? "evenodd" : "nonzero");
-        }
-      }
-      ctx.restore();
+      ctx.drawImage(crest.image as CanvasImageSource, W / 2 - 100, 22, 200, 200);
       // 세로 현판 글씨 (한 글자씩)
       const family = getComputedStyle(document.body).fontFamily;
       ctx.fillStyle = accent;
@@ -485,7 +469,7 @@ function useBannerTexture(house: HouseId, colors: SceneColors) {
     return () => {
       cancelled = true;
     };
-  }, [house, colors, texture]);
+  }, [house, colors, texture, crest]);
 
   useEffect(() => () => texture.dispose(), [texture]);
   return texture;

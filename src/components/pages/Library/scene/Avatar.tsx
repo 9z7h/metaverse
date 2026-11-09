@@ -23,6 +23,8 @@ import {
 } from "three";
 import type { Group } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
+import { houseCrestUrl } from "../HouseCrest";
+import type { HouseId } from "../houses";
 
 const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(-0.028, 0.002, 0),
@@ -41,6 +43,7 @@ export const LabelPortalContext =
   createContext<RefObject<HTMLElement | null> | null>(null);
 
 export interface AvatarProps {
+  house: HouseId;
   /** 깃 안감·매듭의 기숙사 primary */
   robe: string;
   /** 고름·세조대 색 (기숙사 accent) */
@@ -69,6 +72,25 @@ export interface AvatarProps {
   wand?: { wood: string; glow: string };
   /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
   bubble?: string;
+}
+
+function HousePatch({ house }: { house: HouseId }) {
+  const crest = useTexture(houseCrestUrl(house), (texture) => {
+    texture.colorSpace = SRGBColorSpace;
+  });
+  return (
+    <mesh position={[-0.152, 0.81, 0.185]} rotation={[0, -0.58, 0]}>
+      <planeGeometry args={[0.13, 0.13]} />
+      <meshStandardMaterial
+        map={crest}
+        transparent
+        alphaTest={0.08}
+        depthWrite={false}
+        roughness={0.9}
+        side={DoubleSide}
+      />
+    </mesh>
+  );
 }
 
 /**
@@ -117,6 +139,7 @@ const tagStyle = (highlight: boolean): CSSProperties => ({
  */
 export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   {
+    house,
     robe,
     band,
     collar,
@@ -314,6 +337,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             side={DoubleSide}
           />
         </mesh>
+        <HousePatch house={house} />
         {/* 앞섶의 겹침과 자락 끝의 가는 선 */}
         <mesh position={[0.045, 0.46, 0.275]} rotation={[-0.16, 0, -0.06]}>
           <boxGeometry args={[0.11, 0.55, 0.018]} />

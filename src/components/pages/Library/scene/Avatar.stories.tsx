@@ -49,6 +49,7 @@ function AvatarPreview({
             color={colors["--color-scene-moonlight"]}
           />
           <Avatar
+            house={house}
             robe={colors[houseToken(house, "primary")]}
             band={colors[houseToken(house, "accent")]}
             collar={colors["--color-scene-collar"]}

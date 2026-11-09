@@ -747,7 +747,7 @@ export function LibraryWorld({
                 font: "var(--text-caption-lg-bold)",
               }}
             >
-              <HouseCrest house={house} size={24} aria-hidden />
+              <HouseCrest house={house} size={28} aria-hidden />
               {HOUSES[house].name} 수련생
             </span>
             <ButtonSmall

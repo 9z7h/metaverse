@@ -94,7 +94,7 @@ export function WorldIntro({ initialOpen = false }: WorldIntroProps) {
                 gap: "var(--spacing-4)",
               }}
             >
-              <HouseCrest house={id} size={40} aria-hidden />
+              <HouseCrest house={id} size={44} aria-hidden />
               <span style={captionStyle}>{HOUSES[id].name}</span>
             </div>
           ))}

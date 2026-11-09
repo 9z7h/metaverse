@@ -201,7 +201,7 @@ describe("tapIntent — 탭한 곳으로", () => {
   });
 });
 
-describe("stepFlight — 빗자루 비행", () => {
+describe("stepFlight — 구름 비행", () => {
   it("가만히 있으면 제자리에서 떠 있는다 (hoverY)", () => {
     const s = run(at({ y: 0 }), 4, { dir: null, speedFrac: 0 });
     expect(s.speed).toBe(0);

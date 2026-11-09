@@ -18,7 +18,7 @@ function BroomPreview() {
       {colors && (
         <Canvas
           camera={{ position: [2, 1.6, 2.5], fov: 40 }}
-          aria-label="싸리비 미리보기"
+          aria-label="전통 구름 탈것 미리보기"
         >
           <color attach="background" args={[colors["--color-scene-fog"]]} />
           <ambientLight intensity={1.4} />
@@ -33,16 +33,16 @@ function BroomPreview() {
   );
 }
 const meta = {
-  title: "Pages/Library/Broom",
+  title: "Pages/Garden/Cloud Ride",
   component: BroomPreview,
   tags: ["autodocs"],
 } satisfies Meta<typeof BroomPreview>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const Broom: Story = {
+export const KoreanCloudRide: Story = {
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByLabelText("싸리비 미리보기"),
+      within(canvasElement).getByLabelText("전통 구름 탈것 미리보기"),
     ).toBeInTheDocument();
   },
 };

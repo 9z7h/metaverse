@@ -21,7 +21,7 @@ import {
   Vector2,
 } from "three";
 import type { Group, Mesh, MeshBasicMaterial, Texture } from "three";
-import { CREST_SHAPES } from "../HouseCrest";
+import { houseCrestUrl } from "../HouseCrest";
 import { HOUSES, houseToken } from "../houses";
 import type { HouseId } from "../houses";
 import { flagLength, formatTotal } from "../houseRankingLogic";
@@ -313,6 +313,7 @@ function Scroll({
   timber,
   fabric,
 }: ScrollProps) {
+  const crest = useTexture(houseCrestUrl(house));
   const root = useRef<Group>(null);
   const cloth = useRef<Mesh>(null);
   const bottomRod = useRef<Group>(null);
@@ -378,8 +379,6 @@ function Scroll({
     if (!ctx) return;
     const { w, h } = CARD_PX;
     const fg = colors[houseToken(house, "on")];
-    const accent = colors[houseToken(house, "accent")];
-    const subtle = colors[houseToken(house, "subtle")];
     const gold = new Color(colors["--color-scene-brass"])
       .lerp(new Color(colors["--color-scene-collar"]), 0.22)
       .getStyle();
@@ -391,34 +390,7 @@ function Scroll({
     ctx.font = `500 26px ${family}`;
     ctx.fillText("수련 순위", w / 2, 38);
 
-    // 문장은 기숙사색 원판 위에 크게, 금테는 가늘게 그린다.
-    ctx.fillStyle = subtle;
-    ctx.beginPath();
-    ctx.arc(w / 2, 145, 68, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = gold;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(w / 2, 145, 75, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.save();
-    ctx.translate(w / 2 - 48, 145 - 48);
-    ctx.scale(1.5, 1.5);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const crestColor = accent;
-    for (const shape of CREST_SHAPES[house]) {
-      const path = new Path2D(shape.d);
-      if (shape.stroke) {
-        ctx.strokeStyle = crestColor;
-        ctx.lineWidth = shape.stroke;
-        ctx.stroke(path);
-      } else {
-        ctx.fillStyle = crestColor;
-        ctx.fill(path, shape.evenodd ? "evenodd" : "nonzero");
-      }
-    }
-    ctx.restore();
+    ctx.drawImage(crest.image as CanvasImageSource, w / 2 - 96, 45, 192, 192);
 
     ctx.fillStyle = fg;
     ctx.font = `700 120px ${family}`;
@@ -449,7 +421,7 @@ function Scroll({
       ctx.restore();
     }
     texture.needsUpdate = true;
-  }, [colors, house, entry.rank, timeText, mine, texture]);
+  }, [colors, house, entry.rank, timeText, mine, texture, crest]);
 
   const gold = new Color(colors["--color-scene-brass"]).lerp(
     new Color(colors["--color-scene-collar"]),

@@ -47,7 +47,7 @@ export interface GardenWorldProps {
   onBack: () => void;
 }
 
-/** 움직이거나 빗자루를 탄 동안은 부드럽게, 가만히 있으면 아낀다 */
+/** 움직이거나 구름을 탄 동안은 부드럽게, 가만히 있으면 아낀다 */
 const FPS_ACTIVE = 60;
 const FPS_IDLE = 24;
 
@@ -102,8 +102,8 @@ const pillStyle: CSSProperties = {
 const auto: CSSProperties = { pointerEvents: "auto" };
 
 /**
- * 숨돌림 뜰 — 서고 밖 달밤의 후원. 걷다가 도깨비 몽당 싸리비를 타고 천천히 날며 머리를 식힌다.
- * 같은 정원에 있는 다른 수련생이 걷거나 싸리비를 타는 모습이 보인다. 대화·타이머는 없다(타이머는 상위가 멈춰 둔다).
+ * 숨돌림 뜰 — 서고 밖 달밤의 후원. 걷다가 전통 구름을 타고 천천히 날며 머리를 식힌다.
+ * 같은 정원에 있는 다른 수련생이 걷거나 구름을 타는 모습이 보인다. 대화·타이머는 없다(타이머는 상위가 멈춰 둔다).
  */
 export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -543,14 +543,14 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
           >
             {riding
               ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD · Shift 가속"
-              : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 빗자루를 타 볼까요?"}
+              : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
           </p>
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
             {nearDoor ? (
               <ButtonLarge onClick={onBack}>서고로 돌아가기</ButtonLarge>
             ) : null}
             <ButtonLarge style="monolight" onClick={toggleRide}>
-              {riding ? "빗자루에서 내리기" : "빗자루 타기"}
+              {riding ? "구름에서 내리기" : "구름 타기"}
             </ButtonLarge>
           </div>
         </div>

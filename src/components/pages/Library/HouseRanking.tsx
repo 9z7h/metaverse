@@ -117,7 +117,7 @@ export function HouseRanking({
               >
                 {e.rank}
               </span>
-              <HouseCrest house={e.house} size={32} aria-hidden />
+              <HouseCrest house={e.house} size={36} aria-hidden />
               <div
                 aria-hidden
                 style={{

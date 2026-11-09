@@ -274,7 +274,7 @@ export function SortingReveal({
             opacity: done ? 1 : 0,
           }}
         >
-          <HouseCrest house={house} size={160} />
+          <HouseCrest house={house} size={176} />
         </div>
       </div>
 
