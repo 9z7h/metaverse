@@ -571,14 +571,14 @@ export function LibraryWorld({
               {/* 긴 서고의 안쪽이 안개 속으로 깊어지게 — 넓어진 홀(약 31m)에 맞춤 */}
               <fog attach="fog" args={[colors["--color-scene-fog"], 22, 72]} />
               <ambientLight
-                intensity={0.72}
+                intensity={0.62}
                 color={colors["--color-scene-collar"]}
               />
               <hemisphereLight
                 args={[
                   colors["--color-scene-moonlight"],
                   colors["--color-scene-floor"],
-                  0.58,
+                  0.52,
                 ]}
               />
               <FollowLights

@@ -823,7 +823,7 @@ export function Atmosphere({ colors }: { colors: SceneColors }) {
       {/* 창으로 들어오는 푸른 달빛 — 촛불의 따뜻한 색과 대비 */}
       <directionalLight
         position={[6, 9, -4]}
-        intensity={0.85}
+        intensity={0.62}
         color={colors["--color-scene-moonlight"]}
       />
       <Lanterns colors={colors} />

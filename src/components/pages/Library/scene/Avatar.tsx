@@ -592,11 +592,48 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                   rotation={[Math.PI / 2, 0, 0]}
                 >
                   <mesh position={[0, 0.12, 0]}>
-                    <cylinderGeometry args={[0.013, 0.02, 0.36, 8]} />
-                    <meshStandardMaterial color={wand.wood} roughness={0.7} />
+                    <cylinderGeometry args={[0.007, 0.021, 0.42, 16]} />
+                    <meshStandardMaterial color={wand.wood} roughness={0.48} metalness={0.08} />
                   </mesh>
+                  {/* 대나무 마디와 손잡이를 감싼 천 */}
+                  {[0.035, 0.13, 0.225].map((y) => (
+                    <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                      <torusGeometry args={[0.016 - y * 0.02, 0.0025, 6, 16]} />
+                      <meshStandardMaterial color={wand.wood} roughness={0.8} />
+                    </mesh>
+                  ))}
+                  <mesh position={[0, -0.035, 0]}>
+                    <cylinderGeometry args={[0.023, 0.024, 0.105, 16]} />
+                    <meshStandardMaterial color={robe} roughness={0.95} />
+                  </mesh>
+                  <mesh position={[0, -0.035, 0]}>
+                    <cylinderGeometry args={[0.024, 0.024, 0.028, 16]} />
+                    <meshStandardMaterial color={collar} roughness={0.9} />
+                  </mesh>
+                  {/* 북두칠성 금점 */}
+                  {[[0, 0.055], [0.007, 0.075], [0.002, 0.097], [0.009, 0.115], [0.003, 0.136], [0.009, 0.155], [0.004, 0.175]].map(([x, y], i) => (
+                    <mesh key={i} position={[x, y, 0.018]}>
+                      <sphereGeometry args={[0.0025, 6, 6]} />
+                      <meshBasicMaterial color={band} toneMapped={false} />
+                    </mesh>
+                  ))}
+                  {/* 옥 구슬과 수술이 달린 노리개 */}
+                  <group position={[0.035, -0.11, 0]} rotation={[0, 0, 0.18]}>
+                    <mesh position={[0, 0.025, 0]}>
+                      <cylinderGeometry args={[0.002, 0.002, 0.07, 6]} />
+                      <meshStandardMaterial color={collar} />
+                    </mesh>
+                    <mesh position={[0, -0.02, 0]}>
+                      <sphereGeometry args={[0.013, 12, 10]} />
+                      <meshStandardMaterial color={band} roughness={0.25} />
+                    </mesh>
+                    <mesh position={[0, -0.075, 0]}>
+                      <cylinderGeometry args={[0.012, 0.018, 0.09, 10]} />
+                      <meshStandardMaterial color={robe} roughness={0.95} />
+                    </mesh>
+                  </group>
                   <mesh position={[0, 0.31, 0]}>
-                    <sphereGeometry args={[0.03, 8, 8]} />
+                    <sphereGeometry args={[0.015, 8, 8]} />
                     <meshBasicMaterial color={wand.glow} toneMapped={false} />
                   </mesh>
                 </group>

@@ -356,9 +356,12 @@ function DeskSet({
     // 등잔: 좌석 사이마다 테이블 한가운데에 하나 (양쪽 면이 함께 쓴다)
     for (const c of TABLE_CANDLES) {
       dark.push({ p: [c.x, 0.81, c.z], s: [0.24, 0.035, 0.24] });
-      light.push({ p: [c.x, 0.9, c.z], s: [0.1, 0.22, 0.1] });
-      flame.push({ p: [c.x, 1.07, c.z], s: [0.12, 0.12, 0.12] });
-      glowAt.push(c.x, 1.1, c.z);
+      light.push({ p: [c.x, 1.0, c.z], s: [0.18, 0.34, 0.18] });
+      dark.push({ p: [c.x, 1.18, c.z], s: [0.23, 0.035, 0.23] });
+      for (const sx of [-1, 1]) for (const sz of [-1, 1])
+        dark.push({ p: [c.x + sx * 0.105, 1.0, c.z + sz * 0.105], s: [0.022, 0.36, 0.022] });
+      flame.push({ p: [c.x, 1.0, c.z], s: [0.14, 0.28, 0.14] });
+      glowAt.push(c.x, 1.02, c.z);
     }
     return { top, dark, light, page, flame, glowAt: new Float32Array(glowAt) };
   }, [layouts]);
@@ -381,7 +384,6 @@ function DeskSet({
 
   const wood = colors["--color-scene-wood"];
   const woodDark = colors["--color-scene-wood-dark"];
-  const woodLight = colors["--color-scene-wood-light"];
   const flame = colors["--color-scene-flame"];
   return (
     <group>
@@ -407,7 +409,7 @@ function DeskSet({
         args={[undefined, undefined, parts.light.length]}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={woodLight} roughness={1} />
+        <meshStandardMaterial color={flame} emissive={flame} emissiveIntensity={0.85} roughness={1} />
       </instancedMesh>
       <instancedMesh
         ref={pages}
@@ -427,7 +429,7 @@ function DeskSet({
         ref={flames}
         args={[undefined, undefined, parts.flame.length]}
       >
-        <sphereGeometry args={[0.5, 10, 10]} />
+        <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
           ref={flameMat}
           color={flame}
