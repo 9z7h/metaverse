@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, Object3D, RepeatWrapping, SRGBColorSpace } from "three";
+import {
+  BoxGeometry,
+  Color,
+  Object3D,
+  RepeatWrapping,
+  SRGBColorSpace,
+} from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useTexture } from "@react-three/drei";
 import {
   BOOK_ATLAS_URL,
@@ -290,7 +297,7 @@ function DeskSet({
     `${import.meta.env.BASE_URL}textures/open-study-book.jpg`,
     (texture) => {
       texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 8;
+      texture.anisotropy = 4;
     },
   );
   const paperFiber = useSurfaceTexture("plaster", 2, 3);
@@ -524,6 +531,87 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
   );
 }
 
+/** 같은 재질의 상자 여러 개를 한 덩어리로 합쳐 draw call 하나로 그린다 */
+export interface TrimBox {
+  at: [number, number, number];
+  size: [number, number, number];
+}
+export function MergedBoxes({
+  boxes,
+  color,
+  roughness = 0.7,
+}: {
+  boxes: ReadonlyArray<TrimBox>;
+  color: string;
+  roughness?: number;
+}) {
+  const geometry = useMemo(() => {
+    const parts = boxes.map((b) =>
+      new BoxGeometry(...b.size).translate(...b.at),
+    );
+    const merged = mergeGeometries(parts);
+    parts.forEach((g) => g.dispose());
+    return merged;
+  }, [boxes]);
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  if (!geometry) return null;
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial color={color} roughness={roughness} />
+    </mesh>
+  );
+}
+
+/** 벽 마감 — 걸레받이, 벽 윗부분의 도리, 천장 아래를 가로지르는 보 (전부 한 덩어리) */
+function RoomTrim({
+  w,
+  d,
+  cz,
+  H,
+  innerX,
+  backZ,
+  frontZ,
+  wood,
+}: {
+  w: number;
+  d: number;
+  cz: number;
+  H: number;
+  innerX: number;
+  backZ: number;
+  frontZ: number;
+  wood: string;
+}) {
+  const boxes = useMemo(() => {
+    const out: TrimBox[] = [];
+    for (const s of [-1, 1]) {
+      out.push({
+        at: [s * (innerX - 0.04), 0.1, cz],
+        size: [0.08, 0.2, d - 0.3],
+      });
+      out.push({
+        at: [s * (innerX - 0.1), H - 0.28, cz],
+        size: [0.2, 0.28, d - 0.3],
+      });
+    }
+    out.push({ at: [0, 0.1, backZ + 0.04], size: [w - 0.3, 0.2, 0.08] });
+    out.push({ at: [0, H - 0.28, backZ + 0.1], size: [w - 0.3, 0.28, 0.2] });
+    out.push({ at: [0, H - 0.28, frontZ - 0.1], size: [w - 0.3, 0.28, 0.2] });
+    const n = Math.max(2, Math.round(d / 5));
+    for (let i = 0; i < n; i++) {
+      const z = backZ + ((i + 0.5) * d) / n;
+      out.push({ at: [0, H - 0.2, z], size: [w - 0.3, 0.3, 0.3] });
+      for (const s of [-1, 1])
+        out.push({
+          at: [s * (innerX - 0.6), H - 0.5, z],
+          size: [0.8, 0.22, 0.2],
+        });
+    }
+    return out;
+  }, [w, d, cz, H, innerX, backZ, frontZ]);
+  return <MergedBoxes boxes={boxes} color={wood} />;
+}
+
 /* ── 방 ─────────────────────────────────────────────── */
 
 export function LibraryRoom({ colors, desks }: RoomProps) {
@@ -550,7 +638,7 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       texture.colorSpace = SRGBColorSpace;
       texture.wrapS = texture.wrapT = RepeatWrapping;
       texture.repeat.set(1, (d - 2) / 2.8);
-      texture.anisotropy = 8;
+      texture.anisotropy = 4;
     },
   );
 
@@ -592,6 +680,16 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
         <boxGeometry args={[w, H, 0.2]} />
         <meshStandardMaterial color={wall} map={plaster} roughness={0.94} />
       </mesh>
+      <RoomTrim
+        w={w}
+        d={d}
+        cz={cz}
+        H={H}
+        innerX={ROOM.maxX + 0.7}
+        backZ={ROOM.minZ - 0.7}
+        frontZ={frontZ - 0.1}
+        wood={colors["--color-scene-wood-dark"]}
+      />
       {/* 서고 안쪽에서 바라보는 한옥 창호문 */}
       <group position={[0, 0, FRONT_WALL_Z - 0.02]} rotation={[0, Math.PI, 0]}>
         <HanokDoor colors={colors} />

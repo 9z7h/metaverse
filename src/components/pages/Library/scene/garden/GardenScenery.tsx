@@ -19,9 +19,11 @@ import {
   AdditiveBlending,
   BackSide,
   BufferAttribute,
+  BufferGeometry,
   Color,
   ConeGeometry,
   DoubleSide,
+  Float32BufferAttribute,
   Object3D,
   RepeatWrapping,
   SRGBColorSpace,
@@ -30,8 +32,8 @@ import type { Group, InstancedMesh, PointLight, Points, Texture } from "three";
 import { gardenDaylight } from "./gardenTime";
 import { HanokDoor } from "../HanokDoor";
 import { useSurfaceTexture } from "../surfaceTexture";
-import { fillBoxes } from "../LibraryRoom";
-import type { Box } from "../LibraryRoom";
+import { MergedBoxes, fillBoxes } from "../LibraryRoom";
+import type { Box, TrimBox } from "../LibraryRoom";
 import { roundGlowKey, roundGlowShader } from "../MagicEffect";
 import type { SceneColors } from "../sceneLayout";
 import {
@@ -313,33 +315,102 @@ function Pond({ colors }: { colors: SceneColors }) {
 }
 
 /** 꽃담: 뜰을 둘러싼 낮은 담과 기와 지붕돌 */
-function FlowerWall({ colors }: { colors: SceneColors }) {
-  const plaster = useSurfaceTexture("plaster", 2, 2);
-  const tile = useSurfaceTexture("tile", 2, 1);
-  const { bodies, caps } = useMemo(() => {
-    const bodies: Box[] = [];
-    const caps: Box[] = [];
-    const edge = GARDEN_HALF + 0.4;
-    const step = 2;
-    for (let c = -GARDEN_HALF - 1; c <= GARDEN_HALF + 1; c += step) {
-      for (const side of [-1, 1]) {
-        // 남·북 (x 방향으로 긴 담)
-        bodies.push({ p: [c, 0.85, side * edge], s: [step, 1.7, 0.4] });
-        caps.push({ p: [c, 1.8, side * edge], s: [step + 0.15, 0.22, 0.62] });
-        // 동·서 (z 방향으로 긴 담)
-        bodies.push({
-          p: [side * edge, 0.85, c],
-          s: [step, 1.7, 0.4],
-          ry: Math.PI / 2,
-        });
-        caps.push({
-          p: [side * edge, 1.8, c],
-          s: [step + 0.15, 0.22, 0.62],
-          ry: Math.PI / 2,
-        });
+/** 기와 지붕 단면 — 용마루가 위, 양쪽 처마가 아래인 삼각기둥. 길이 1, 폭 1, 높이 1 단위 */
+function usePrism() {
+  const geometry = useMemo(() => {
+    const g = new BufferGeometry();
+    const P = (x: number, y: number, z: number) => [x, y, z];
+    const quads: number[][][] = [
+      // 앞쪽 경사 (UV: u=길이, v=경사 방향)
+      [P(-0.5, 0, 0.5), P(0.5, 0, 0.5), P(0.5, 1, 0), P(-0.5, 1, 0)],
+      // 뒤쪽 경사
+      [P(0.5, 0, -0.5), P(-0.5, 0, -0.5), P(-0.5, 1, 0), P(0.5, 1, 0)],
+    ];
+    const pos: number[] = [];
+    const uv: number[] = [];
+    for (const q of quads) {
+      const t = [0, 1, 2, 0, 2, 3];
+      const uvs = [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+      ];
+      for (const i of t) {
+        pos.push(...q[i]);
+        uv.push(...uvs[i]);
       }
     }
-    return { bodies, caps };
+    // 양 끝 삼각형
+    for (const sx of [-1, 1]) {
+      const tri =
+        sx < 0
+          ? [P(-0.5, 0, -0.5), P(-0.5, 0, 0.5), P(-0.5, 1, 0)]
+          : [P(0.5, 0, 0.5), P(0.5, 0, -0.5), P(0.5, 1, 0)];
+      for (const v of tri) {
+        pos.push(...v);
+        uv.push(0.5, v[1]);
+      }
+    }
+    g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+    g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    return g;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return geometry;
+}
+
+/**
+ * 뜰을 두른 한옥 기와 담장 — 베이지 회벽 몸체 위에 기와 지붕·용마루.
+ * 모서리는 동서(x 방향) 담이 바깥 모서리까지 덮고, 남북 담은 그 중심선에서 멈춰
+ * 용마루끼리 만나게 해서 끊김·튀어나옴 없이 이어진다.
+ */
+function FlowerWall({ colors }: { colors: SceneColors }) {
+  const plaster = useSurfaceTexture("plaster", 2, 2);
+  const tile = useSurfaceTexture("tile", 1.35, 0.5);
+  const wood = useSurfaceTexture("wood", 1, 2);
+  const prism = usePrism();
+  // 밤에도 기와의 이랑이 읽히도록 기와색에 석재색을 살짝 섞는다 (둘 다 토큰)
+  const roofColor = useMemo(
+    () =>
+      new Color(colors["--color-scene-roof-tile"]).lerp(
+        new Color(colors["--color-scene-stone"]),
+        0.4,
+      ),
+    [colors],
+  );
+  const { bodies, roofs, trims } = useMemo(() => {
+    const bodies: Box[] = [];
+    const roofs: Box[] = [];
+    const trims: Box[] = [];
+    const edge = GARDEN_HALF + 0.4;
+    const wallH = 1.7;
+    const baseY = 1.78;
+    const roofH = 0.62;
+    const segments = 35;
+    const run = (half: number, ry: number, side: number) => {
+      const len = (half * 2) / segments;
+      for (let i = 0; i < segments; i++) {
+        const c = -half + len * (i + 0.5);
+        const at = (y: number): [number, number, number] =>
+          ry === 0 ? [c, y, side * edge] : [side * edge, y, c];
+        const r = ry === 0 ? undefined : ry;
+        bodies.push({ p: at(wallH / 2), s: [len + 0.01, wallH, 0.4], ry: r });
+        trims.push({ p: at(1.74), s: [len + 0.01, 0.1, 0.78], ry: r });
+        trims.push({
+          p: at(baseY + roofH + 0.03),
+          s: [len + 0.01, 0.1, 0.16],
+          ry: r,
+        });
+        roofs.push({ p: at(baseY), s: [len + 0.01, roofH, 0.98], ry: r });
+      }
+    };
+    for (const side of [-1, 1]) {
+      run(edge + 0.5, 0, side); // 남·북: 바깥 모서리까지
+      run(edge, Math.PI / 2, side); // 동·서: 남북 담의 중심선에서 멈춤
+    }
+    return { bodies, roofs, trims };
   }, []);
   return (
     <group>
@@ -351,8 +422,16 @@ function FlowerWall({ colors }: { colors: SceneColors }) {
       >
         {box()}
       </Inst>
-      <Inst boxes={caps} map={tile} color={colors["--color-scene-roof-tile"]}>
+      <Inst
+        boxes={trims}
+        map={wood}
+        color={colors["--color-scene-wood-dark"]}
+        roughness={0.8}
+      >
         {box()}
+      </Inst>
+      <Inst boxes={roofs} map={tile} color={roofColor} roughness={0.5}>
+        <primitive object={prism} attach="geometry" />
       </Inst>
     </group>
   );
@@ -547,6 +626,79 @@ function Block({
   );
 }
 
+function gateStuds(cx: number, z: number): TrimBox[] {
+  const out: TrimBox[] = [];
+  for (const sx of [-1, 1])
+    for (const y of [0.9, 1.4, 1.9])
+      for (const dx of [-0.35, 0.35])
+        out.push({ at: [cx + sx * 0.75 + dx, y, z], size: [0.12, 0.12, 0.06] });
+  return out;
+}
+
+function dormTrim(
+  cx: number,
+  cz: number,
+  halfW: number,
+  halfD: number,
+  frontZ: number,
+  step2: number,
+  wallH: number,
+): TrimBox[] {
+  const out: TrimBox[] = [
+    {
+      at: [cx, step2 + wallH - 0.03, cz + 0.2],
+      size: [(halfW + 1.5) * 2 - 0.4, 0.14, (halfD + 1.5) * 2 - 0.4],
+    },
+  ];
+  for (const sx of [-1, 1]) {
+    out.push({
+      at: [cx + sx * 0.5, step2 + 1.3, frontZ + 0.12],
+      size: [0.05, 2.6, 0.04],
+    });
+    for (const y of [0.6, 1.3, 2.0])
+      out.push({
+        at: [cx + sx * 0.5, step2 + y, frontZ + 0.12],
+        size: [0.96, 0.05, 0.04],
+      });
+    const wx = cx + sx * halfW * 0.55;
+    out.push({ at: [wx, step2 + 1.9, frontZ + 0.08], size: [0.05, 1.2, 0.04] });
+    out.push({ at: [wx, step2 + 1.9, frontZ + 0.08], size: [1.2, 0.05, 0.04] });
+  }
+  return out;
+}
+
+function tierTrim(
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  d: number,
+  wallH: number,
+  windows: boolean,
+): TrimBox[] {
+  const out: TrimBox[] = [
+    { at: [x, y + wallH - 0.02, z], size: [w * 2 + 0.7, 0.14, d * 2 + 0.7] },
+  ];
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      out.push({
+        at: [x + sx * (w - 0.28), y + wallH / 2, z + sz * (d - 0.28)],
+        size: [0.24, wallH, 0.24],
+      });
+  if (windows) {
+    const wz = z + d - 0.3 + 0.07;
+    out.push({
+      at: [x, y + wallH * 0.55, wz],
+      size: [0.05, wallH * 0.45, 0.04],
+    });
+    out.push({
+      at: [x, y + wallH * 0.55, wz],
+      size: [Math.min(1.4, w), 0.05, 0.04],
+    });
+  }
+  return out;
+}
+
 /** 층층이 올라가는 누각 몸체 + 처마. 층마다 `shrink`배로 줄어든다. */
 function Tiers({
   pyramid,
@@ -594,6 +746,12 @@ function Tiers({
             <meshBasicMaterial color={colors["--color-scene-flame"]} />
           </mesh>
         ) : null}
+        {/* 창살·네 귀퉁이 기둥·처마 밑 서까래 판 — 한 덩어리 */}
+        <MergedBoxes
+          boxes={tierTrim(x, y, z, w, d, wallH, windows)}
+          color={colors["--color-scene-wood-dark"]}
+          roughness={0.8}
+        />
         {/* 처마 밑 단청 띠 */}
         <Block
           at={[x, y + wallH - 0.12, z + d - 0.3 + 0.12]}
@@ -698,6 +856,12 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
             color={wood}
           />
         ))}
+        {/* 문의 놋쇠 징 */}
+        <MergedBoxes
+          boxes={gateStuds(b.x, b.z + b.halfD + 0.17)}
+          color={colors["--color-scene-brass"]}
+          roughness={0.4}
+        />
         <Tiers
           pyramid={pyramid}
           colors={colors}
@@ -881,6 +1045,11 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
         size={[bodyW, 0.32, 0.2]}
         color={bandColor}
       />
+      {/* 문살·창살·처마 밑 서까래 판 — 한 덩어리 */}
+      <MergedBoxes
+        boxes={dormTrim(b.x, b.z, b.halfW, b.halfD, frontZ, step2, wallH)}
+        color={dark}
+      />
       {/* 겹처마: 아래 처마 → 낮은 윗몸 → 위 지붕 */}
       <Roof
         pyramid={pyramid}
@@ -993,7 +1162,7 @@ function Landscape({ daylight }: { daylight: number }) {
   );
   return (
     <mesh>
-      <sphereGeometry args={[150, 64, 32]} />
+      <sphereGeometry args={[150, 32, 16]} />
       <meshBasicMaterial
         map={map}
         color={new Color().setScalar(0.045 + daylight * 0.955)}
@@ -1032,7 +1201,7 @@ function Clouds({ daylight }: { daylight: number }) {
   return (
     <group ref={group}>
       <mesh>
-        <sphereGeometry args={[140, 64, 32, 0, Math.PI * 2, 0, Math.PI / 3]} />
+        <sphereGeometry args={[140, 32, 16, 0, Math.PI * 2, 0, Math.PI / 3]} />
         <meshBasicMaterial
           map={map}
           side={BackSide}

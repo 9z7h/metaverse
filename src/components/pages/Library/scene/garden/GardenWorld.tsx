@@ -418,7 +418,8 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         {colors ? (
           <Canvas
             frameloop="demand"
-            dpr={[1, 1.5]}
+            dpr={[1, 1.25]}
+            gl={{ powerPreference: "high-performance" }}
             camera={{
               fov: CAMERA_FOV,
               position: [0, 6, -14],

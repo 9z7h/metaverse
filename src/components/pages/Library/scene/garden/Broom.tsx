@@ -2,7 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Color, Vector3 } from "three";
+import {
+  Color,
+  DoubleSide,
+  IcosahedronGeometry,
+  PerspectiveCamera,
+  Vector3,
+} from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type {
   BufferAttribute,
   Group,
@@ -36,7 +43,6 @@ import type { FlightState } from "./gardenLayout";
 const WALK_SPEED = 4.0;
 /** 아바타를 구름 위에 앉히는 높이 */
 const SIT_Y = 0.12;
-const TRAIL = 16;
 
 /* ── 한국 전통 구름 탈것 ────────────────────────────────────── */
 
@@ -128,18 +134,57 @@ function CloudMist({
 
 /**
  * 구름 덩어리 — [x, y, z, 가로, 세로, 깊이, 밝기].
- * 납작한 가운데 덩어리를 크기가 비슷한 덩어리들이 둥글게 감싸 윤곽이 완만하다.
- * 아래쪽 덩어리일수록 살짝 어둡다.
+ * 납작한 바닥층 위에 솟은 윗층·앞머리·불룩한 아랫배를 겹쳐 뭉게구름의 층을 만든다.
+ * 아래쪽 덩어리일수록 어둡고 윗층일수록 밝다.
  */
 const CLOUD_PUFFS: ReadonlyArray<readonly number[]> = [
-  [0, 0.12, 0, 0.5, 0.26, 0.54, 1],
-  [-0.36, 0.09, -0.04, 0.33, 0.22, 0.38, 0.97],
-  [0.36, 0.09, -0.04, 0.33, 0.22, 0.38, 0.97],
-  [-0.2, 0.08, 0.3, 0.32, 0.22, 0.32, 0.99],
-  [0.2, 0.08, 0.3, 0.32, 0.22, 0.32, 0.99],
-  [-0.2, 0.08, -0.32, 0.32, 0.22, 0.32, 0.96],
-  [0.2, 0.08, -0.32, 0.32, 0.22, 0.32, 0.96],
+  // 아랫배 (그늘)
+  [0, 0.0, 0, 0.46, 0.12, 0.5, 0.86],
+  // 바닥층
+  [0, 0.11, 0, 0.56, 0.22, 0.6, 1],
+  [-0.4, 0.09, -0.02, 0.36, 0.2, 0.4, 0.97],
+  [0.4, 0.09, -0.02, 0.36, 0.2, 0.4, 0.97],
+  [-0.22, 0.08, 0.34, 0.34, 0.2, 0.34, 0.99],
+  [0.22, 0.08, 0.34, 0.34, 0.2, 0.34, 0.99],
+  [-0.24, 0.08, -0.36, 0.34, 0.2, 0.34, 0.95],
+  [0.24, 0.08, -0.36, 0.34, 0.2, 0.34, 0.95],
+  // 윗층 (밝다)
+  [0, 0.2, 0.18, 0.34, 0.17, 0.3, 1.04],
+  [-0.26, 0.19, -0.08, 0.26, 0.15, 0.26, 1.02],
+  [0.26, 0.19, -0.08, 0.26, 0.15, 0.26, 1.02],
+  [0, 0.2, -0.25, 0.28, 0.15, 0.26, 1.0],
+  // 앞머리
+  [-0.06, 0.06, 0.5, 0.2, 0.12, 0.18, 0.98],
+  [0.12, 0.06, 0.48, 0.16, 0.1, 0.16, 0.98],
 ];
+
+/** 울퉁불퉁한 구 — 모든 덩어리가 공유한다 (정점을 합쳐 부드러운 법선을 얻는다) */
+function useCloudGeometry() {
+  const geometry = useMemo(() => {
+    const raw = new IcosahedronGeometry(1, 3);
+    raw.deleteAttribute("normal");
+    raw.deleteAttribute("uv");
+    const g = mergeVertices(raw);
+    raw.dispose();
+    const pos = g.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const n =
+        (Math.sin(x * 4.9 + y * 3.1) +
+          Math.sin(y * 5.7 + z * 4.3) +
+          Math.sin(z * 5.1 + x * 3.3)) /
+        3;
+      const k = 1 + n * 0.11;
+      pos.setXYZ(i, x * k, y * k, z * k);
+    }
+    g.computeVertexNormals();
+    return g;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return geometry;
+}
 
 export function BroomModel({
   colors,
@@ -148,6 +193,7 @@ export function BroomModel({
   colors: SceneColors;
   reducedMotion?: boolean;
 }) {
+  const geometry = useCloudGeometry();
   const puffRefs = useRef<Array<Mesh | null>>([]);
   const tints = useMemo(
     () =>
@@ -168,6 +214,16 @@ export function BroomModel({
       m.position.y = p[1] + Math.sin(t * 0.7 + i * 2.3) * 0.012;
     });
   });
+  const material = (color: Color) => (
+    <meshStandardMaterial
+      color={color}
+      emissive={color}
+      emissiveIntensity={0.14}
+      roughness={1}
+      onBeforeCompile={cloudRimShader}
+      customProgramCacheKey={() => "cloud-soft-rim"}
+    />
+  );
   return (
     <group scale={[1.12, 1.04, 1.12]}>
       {CLOUD_PUFFS.map((puff, index) => (
@@ -176,22 +232,161 @@ export function BroomModel({
           ref={(m) => {
             puffRefs.current[index] = m;
           }}
+          geometry={geometry}
           position={[puff[0], puff[1], puff[2]]}
+          rotation={[0, index * 1.3, 0]}
           scale={[puff[3], puff[4], puff[5]]}
         >
-          <sphereGeometry args={[1, 24, 16]} />
-          <meshStandardMaterial
-            color={tints[index]}
-            emissive={tints[index]}
-            emissiveIntensity={0.12}
-            roughness={1}
-            onBeforeCompile={cloudRimShader}
-            customProgramCacheKey={() => "cloud-soft-rim"}
-          />
+          {material(tints[index])}
         </mesh>
       ))}
       <CloudMist colors={colors} reducedMotion={reducedMotion} />
     </group>
+  );
+}
+
+/* ── 구름이 지나간 자리에 남는 자취 ───────────────────────────── */
+
+const TRAIL_N = 40;
+const TRAIL_LIFE = 1.9;
+
+const TRAIL_VERT = `
+attribute float aAge;
+attribute float aSeed;
+uniform float uPx;
+varying float vAge;
+varying float vSeed;
+void main() {
+  vAge = aAge;
+  vSeed = aSeed;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  float size = (0.5 + aAge * 1.6) * (0.7 + aSeed * 0.6);
+  gl_PointSize = aAge >= 1.0 ? 0.0 : size * uPx / -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`;
+
+const TRAIL_FRAG = `
+uniform vec3 uColor;
+varying float vAge;
+varying float vSeed;
+float hsh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vnoise(vec2 p){
+  vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(hsh(i),hsh(i+vec2(1.0,0.0)),f.x),mix(hsh(i+vec2(0.0,1.0)),hsh(i+vec2(1.0,1.0)),f.x),f.y);
+}
+float fbm(vec2 p){return vnoise(p)*0.5+vnoise(p*2.03)*0.25+vnoise(p*4.1)*0.125;}
+void main() {
+  vec2 pp = (gl_PointCoord - 0.5) * 2.0;
+  float r = length(pp);
+  float n = fbm(pp * 1.7 + vSeed * 13.0 + vAge * 0.8);
+  float edge = 1.0 - smoothstep(0.3, 0.95, r + (n - 0.5) * 0.8);
+  float shade = mix(0.78, 1.05, clamp(0.5 - pp.y * 0.5 + (n - 0.5) * 0.5, 0.0, 1.0));
+  float life = 1.0 - vAge;
+  float a = edge * edge * life * life * smoothstep(0.0, 0.08, vAge + 0.02) * 0.78;
+  gl_FragColor = vec4(uColor * shade, a);
+  #include <colorspace_fragment>
+}`;
+
+/**
+ * 구름 뒤로 흩어지는 자취 — 입자마다 나이를 먹으며 커지고 옅어지고 위로 떠오른다.
+ * 월드 좌표에 남기 때문에 구름이 움직인 궤적이 그대로 그려진다.
+ */
+function CloudTrail({
+  root,
+  speedRef,
+  active,
+  colors,
+  reducedMotion,
+}: {
+  root: React.RefObject<Group | null>;
+  speedRef: MutableRefObject<number>;
+  active: boolean;
+  colors: SceneColors;
+  reducedMotion: boolean;
+}) {
+  const points = useRef<Points>(null);
+  const data = useMemo(
+    () => ({
+      pos: new Float32Array(TRAIL_N * 3),
+      age: new Float32Array(TRAIL_N).fill(1),
+      seed: Float32Array.from({ length: TRAIL_N }, (_, i) => {
+        const v = Math.sin(i * 91.7 + 3.1) * 43758.5453;
+        return v - Math.floor(v);
+      }),
+      vel: new Float32Array(TRAIL_N * 3),
+      head: 0,
+      acc: 0,
+    }),
+    [],
+  );
+  const uniforms = useMemo(
+    () => ({
+      uPx: { value: 400 },
+      uColor: { value: new Color(colors["--color-scene-collar"]) },
+    }),
+    [colors],
+  );
+  const gl = useThree((s) => s.gl);
+  const height = useThree((s) => s.size.height);
+  useFrame((_, rawDt) => {
+    const g = root.current;
+    const dt = Math.min(rawDt, 0.1);
+    uniforms.uPx.value = height * gl.getPixelRatio() * 0.5;
+    const sp = speedRef.current;
+    if (g && active && !reducedMotion && sp > 0.8) {
+      // 속도가 빠를수록 촘촘히 내보낸다
+      data.acc += dt * (4 + sp * 2.2);
+      while (data.acc >= 1) {
+        data.acc -= 1;
+        const i = data.head;
+        data.head = (data.head + 1) % TRAIL_N;
+        const r1 = Math.random();
+        const r2 = Math.random();
+        const back = 0.6 + r1 * 0.5;
+        const side = (r2 - 0.5) * 0.7;
+        const hx = Math.sin(g.rotation.y);
+        const hz = Math.cos(g.rotation.y);
+        data.pos[i * 3] = g.position.x - hx * back + hz * side;
+        data.pos[i * 3 + 1] = g.position.y + 0.02 + r1 * 0.14;
+        data.pos[i * 3 + 2] = g.position.z - hz * back - hx * side;
+        data.vel[i * 3] = -hx * sp * 0.1 + (r2 - 0.5) * 0.3;
+        data.vel[i * 3 + 1] = 0.1 + r1 * 0.14;
+        data.vel[i * 3 + 2] = -hz * sp * 0.1 + (r1 - 0.5) * 0.3;
+        data.age[i] = 0;
+      }
+    }
+    for (let i = 0; i < TRAIL_N; i++) {
+      if (data.age[i] >= 1) continue;
+      data.age[i] = Math.min(1, data.age[i] + dt / TRAIL_LIFE);
+      const damp = Math.max(0, 1 - 1.4 * dt);
+      data.vel[i * 3] *= damp;
+      data.vel[i * 3 + 2] *= damp;
+      data.pos[i * 3] += data.vel[i * 3] * dt;
+      data.pos[i * 3 + 1] += data.vel[i * 3 + 1] * dt;
+      data.pos[i * 3 + 2] += data.vel[i * 3 + 2] * dt;
+    }
+    const geo = points.current?.geometry;
+    if (geo) {
+      (geo.getAttribute("position") as BufferAttribute).needsUpdate = true;
+      (geo.getAttribute("aAge") as BufferAttribute).needsUpdate = true;
+    }
+  });
+  return (
+    <points ref={points} frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[data.pos, 3]} />
+        <bufferAttribute attach="attributes-aAge" args={[data.age, 1]} />
+        <bufferAttribute attach="attributes-aSeed" args={[data.seed, 1]} />
+      </bufferGeometry>
+      <shaderMaterial
+        vertexShader={TRAIL_VERT}
+        fragmentShader={TRAIL_FRAG}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        side={DoubleSide}
+      />
+    </points>
   );
 }
 
@@ -266,7 +461,10 @@ export function BroomRider({
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
   const avatar = useRef<Group>(null);
-  const trail = useRef<Points>(null);
+  const speedRef = useRef(0);
+  const baseFov = useRef<number | null>(null);
+  const pitch = useRef(0);
+  const prevY = useRef(0);
   const state = useRef<FlightState>({
     x: GARDEN_SPAWN.x,
     z: GARDEN_SPAWN.z,
@@ -280,9 +478,6 @@ export function BroomRider({
   const nearRef = useRef<boolean | null>(null);
   const nearBuildingRef = useRef<string | null>(null);
   const movingRef = useRef<boolean | null>(null);
-  const history = useRef<number[]>([]);
-  const lastTrail = useRef(0);
-  const trailPositions = useMemo(() => new Float32Array(TRAIL * 3), []);
   const [pose, setPose] = useState<AvatarPose>("stand");
   const [showBroom, setShowBroom] = useState(false);
   const camera = useThree((s) => s.camera);
@@ -390,6 +585,7 @@ export function BroomRider({
     const visualY = Math.max(cur.y, groundHeight) + bob;
     g.position.set(cur.x, visualY, cur.z);
     g.rotation.y = cur.heading;
+    speedRef.current = cur.speed;
     if (positionRef) positionRef.current = { x: cur.x, z: cur.z };
     if (facingRef) facingRef.current = cur.heading;
     if (heightRef) heightRef.current = cur.y;
@@ -407,10 +603,20 @@ export function BroomRider({
           );
       bank.current += (wantBank - bank.current) * Math.min(1, dt * 4);
       tilt.current.rotation.z = bank.current;
-      // 가속 중엔 앞코가 살짝 들리고 멈추면 수평으로
-      tilt.current.rotation.x = reducedMotion
+      // 가속하면 앞코가 숙고, 오르내림에 따라 코를 들거나 내린다. 부드럽게 따라간다
+      const vy = (cur.y - prevY.current) / Math.max(dt, 1e-6);
+      prevY.current = cur.y;
+      const wantPitch = reducedMotion
         ? 0
-        : -Math.min(0.14, cur.speed * 0.02);
+        : -Math.min(0.16, cur.speed * 0.022) -
+          Math.max(-0.12, Math.min(0.12, vy * 0.05));
+      pitch.current += (wantPitch - pitch.current) * Math.min(1, dt * 3.5);
+      tilt.current.rotation.x = pitch.current;
+      // 바람에 흔들리듯 옆으로 아주 천천히 흔들린다
+      if (!reducedMotion && flying) {
+        tilt.current.rotation.z +=
+          Math.sin(t * 1.15) * 0.022 * (1 + Math.min(cur.speed, 8) * 0.08);
+      }
     }
     if (avatar.current) avatar.current.position.y = flying ? SIT_Y : 0;
 
@@ -424,44 +630,6 @@ export function BroomRider({
         lastSent.current = { at: now, moving };
         onMove(cur.x, cur.z, cur.heading, moving, cur.y, flying);
       }
-    }
-
-    // ── 이동한 자리에 옅은 구름 자취를 남긴다.
-    if (trail.current) {
-      if (
-        flying &&
-        !reducedMotion &&
-        cur.speed > 1 &&
-        t - lastTrail.current > 0.05
-      ) {
-        lastTrail.current = t;
-        history.current.unshift(
-          cur.x - Math.sin(cur.heading) * 1.1,
-          cur.y + 0.1,
-          cur.z - Math.cos(cur.heading) * 1.1,
-        );
-        history.current.length = Math.min(history.current.length, TRAIL * 3);
-      } else if (reducedMotion) {
-        history.current.length = 0;
-      } else if (
-        history.current.length > 0 &&
-        (cur.speed <= 1 || !flying) &&
-        t - lastTrail.current > 0.07
-      ) {
-        lastTrail.current = t;
-        history.current.length = Math.max(0, history.current.length - 3);
-      }
-      for (let i = 0; i < TRAIL; i++) {
-        const h = history.current;
-        // 기록이 없는 칸은 눈에 보이지 않는 먼 곳에 둔다
-        trailPositions[i * 3] = (h[i * 3] ?? 0) + Math.sin(i * 2.4) * i * 0.012;
-        trailPositions[i * 3 + 1] = (h[i * 3 + 1] ?? -50) + i * 0.012;
-        trailPositions[i * 3 + 2] =
-          (h[i * 3 + 2] ?? 0) + Math.cos(i * 2.4) * i * 0.012;
-      }
-      (
-        trail.current.geometry.getAttribute("position") as BufferAttribute
-      ).needsUpdate = true;
     }
 
     // ── 서고 문 가까이 (돌아가기 버튼)
@@ -492,6 +660,16 @@ export function BroomRider({
     camera.position.lerp(camTarget.current, k);
     look.current.lerp(lookTarget.current, k);
     camera.lookAt(look.current);
+    // 속도감: 빠를수록 시야가 살짝 넓어진다
+    if (camera instanceof PerspectiveCamera) {
+      if (baseFov.current === null) baseFov.current = camera.fov;
+      const wantFov =
+        baseFov.current + (reducedMotion ? 0 : Math.min(cur.speed * 0.5, 6));
+      if (Math.abs(camera.fov - wantFov) > 0.01) {
+        camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3);
+        camera.updateProjectionMatrix();
+      }
+    }
   });
 
   return (
@@ -510,6 +688,7 @@ export function BroomRider({
             skin={colors["--color-scene-skin"]}
             hat={colors["--color-scene-hat"]}
             pose={pose}
+            footstep="grass"
             castAt={castAt}
             wandLightAt={wandLightAt}
             wand={{
@@ -523,26 +702,14 @@ export function BroomRider({
         </group>
       </group>
       <CloudShadow target={root} visible={showBroom} />
-      {/* 날아간 자리에 남는 안개 */}
-      <points ref={trail} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[trailPositions, 3]}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          color={colors["--color-scene-collar"]}
-          size={0.9}
-          sizeAttenuation
-          transparent
-          opacity={0.26}
-          depthWrite={false}
-          toneMapped={false}
-          onBeforeCompile={roundGlowShader}
-          customProgramCacheKey={roundGlowKey}
-        />
-      </points>
+      {/* 날아간 자리에 남는 구름 자취 */}
+      <CloudTrail
+        root={root}
+        speedRef={speedRef}
+        active={showBroom}
+        colors={colors}
+        reducedMotion={reducedMotion}
+      />
     </>
   );
 }
@@ -587,6 +754,7 @@ export function RemoteRider({
   } | null>(null);
   const prevHeading = useRef(0);
   const bank = useRef(0);
+  const speedRef = useRef(0);
   const [pose, setPose] = useState<AvatarPose>("stand");
   const [showBroom, setShowBroom] = useState(false);
 
@@ -614,6 +782,9 @@ export function RemoteRider({
     c.z += dz * k;
     c.y += (move.y - c.y) * k;
     c.heading += wrapAngle(move.ry - c.heading) * k;
+    // 따라가는 속도로 구름 꼬리·자취의 세기를 정한다
+    const est = Math.hypot(dx * k, dz * k) / Math.max(dt, 1e-6);
+    speedRef.current += (est - speedRef.current) * Math.min(1, dt * 4);
 
     const flying = c.y > 0.04 || move.riding;
     if (flying !== showBroom) setShowBroom(flying);
@@ -670,6 +841,13 @@ export function RemoteRider({
         </group>
       </group>
       <CloudShadow target={root} visible={showBroom} />
+      <CloudTrail
+        root={root}
+        speedRef={speedRef}
+        active={showBroom}
+        colors={colors}
+        reducedMotion={reducedMotion}
+      />
     </>
   );
 }

@@ -12,6 +12,7 @@ import { useFrame } from "@react-three/fiber";
 import { Html, useTexture } from "@react-three/drei";
 import {
   BufferGeometry,
+  CatmullRomCurve3,
   Color,
   DoubleSide,
   Float32BufferAttribute,
@@ -19,9 +20,11 @@ import {
   QuadraticBezierCurve3,
   SRGBColorSpace,
   SphereGeometry,
+  TubeGeometry,
   Vector2,
   Vector3,
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Group, PointLight } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
@@ -118,6 +121,151 @@ const mouthCurve = new QuadraticBezierCurve3(
   new Vector3(0.028, 0.002, 0),
 );
 
+/* ── 발소리: 에셋 없이 WebAudio로 짧게 합성한다 ─────────────────── */
+
+export type FootstepKind = "wood" | "grass";
+
+let audioCtx: AudioContext | null = null;
+let noiseBuffer: AudioBuffer | null = null;
+
+/** 샘플을 쓸 수 없을 때의 대체 합성음 — 또각. 잡음(챱챱) 대신 굽이 딱 닿는 짧은 점 소리 + 나무가 울리는 음정으로 만든다.
+ * 마루는 높고 맑게, 풀밭은 낮고 둔하게 같은 소리를 작게 낸다. 매번 높낮이·세기를 조금씩 달리한다.
+ */
+function synthFootstep(kind: FootstepKind, running: boolean) {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx ??= new Ctx();
+    const ctx = audioCtx;
+    if (ctx.state === "suspended") void ctx.resume();
+    const t = ctx.currentTime;
+    const wood = kind === "wood";
+    const vol =
+      (running ? 1.2 : 1) * (wood ? 1 : 0.55) * (0.88 + Math.random() * 0.24);
+    const tone = (wood ? 1 : 0.62) * (0.94 + Math.random() * 0.12);
+    const out = ctx.createGain();
+    out.gain.value = 1;
+    out.connect(ctx.destination);
+    const ring = (
+      type: OscillatorType,
+      from: number,
+      to: number,
+      peak: number,
+      decay: number,
+    ) => {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.setValueAtTime(from * tone, t);
+      osc.frequency.exponentialRampToValueAtTime(to * tone, t + decay);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(peak * vol, t + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      osc.connect(g).connect(out);
+      osc.start(t);
+      osc.stop(t + decay + 0.02);
+    };
+    // 굽이 닿는 단단한 몸통 소리와 그 위의 맑은 울림
+    ring("triangle", 1250, 760, 0.07, 0.07);
+    ring("sine", 2500, 2100, 0.022, 0.035);
+    // 닿는 순간의 아주 짧은 딱 소리 (잡음은 5ms만, 높은 소리만 통과)
+    if (!noiseBuffer) {
+      noiseBuffer = ctx.createBuffer(
+        1,
+        Math.floor(ctx.sampleRate * 0.006),
+        ctx.sampleRate,
+      );
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++)
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+    const click = ctx.createBufferSource();
+    click.buffer = noiseBuffer;
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 3200;
+    const cg = ctx.createGain();
+    cg.gain.value = 0.03 * vol;
+    click.connect(hp).connect(cg).connect(out);
+    click.start(t);
+  } catch {
+    // 소리를 낼 수 없는 환경이면 조용히 넘어간다
+  }
+}
+
+const FOOTSTEP_FILES = [0, 1, 2, 3, 4].map(
+  (i) => `${import.meta.env.BASE_URL}sounds/footstep/wood-00${i}.ogg`,
+);
+let footstepBuffers: AudioBuffer[] | null = null;
+let footstepLoading = false;
+let lastFootstep = -1;
+
+/** 발소리 샘플(Kenney, CC0)을 한 번만 불러와 디코딩한다 */
+function loadFootsteps(ctx: AudioContext) {
+  if (footstepLoading) return;
+  footstepLoading = true;
+  void Promise.all(
+    FOOTSTEP_FILES.map((url) =>
+      fetch(url)
+        .then((r) => r.arrayBuffer())
+        .then((data) => ctx.decodeAudioData(data)),
+    ),
+  )
+    .then((buffers) => {
+      footstepBuffers = buffers;
+    })
+    .catch(() => {
+      // 못 불러오면 합성음으로 계속 간다
+    });
+}
+
+/**
+ * 걸음 소리. 실제 나무 바닥 발소리 샘플 5종을 돌려 가며 틀고(같은 것이 연달아 나오지 않게),
+ * 매번 속도·세기를 조금씩 달리한다. 풀밭은 같은 샘플을 낮고 둔하게 작게 튼다.
+ * 샘플이 아직 없으면 합성음으로 대신한다.
+ */
+export function playFootstep(kind: FootstepKind, running: boolean) {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx ??= new Ctx();
+    const ctx = audioCtx;
+    if (ctx.state === "suspended") void ctx.resume();
+    if (!footstepBuffers) {
+      loadFootsteps(ctx);
+      synthFootstep(kind, running);
+      return;
+    }
+    let pick = Math.floor(Math.random() * footstepBuffers.length);
+    if (pick === lastFootstep) pick = (pick + 1) % footstepBuffers.length;
+    lastFootstep = pick;
+    const wood = kind === "wood";
+    const src = ctx.createBufferSource();
+    src.buffer = footstepBuffers[pick];
+    src.playbackRate.value = (wood ? 1 : 0.8) * (0.94 + Math.random() * 0.12);
+    const gain = ctx.createGain();
+    gain.gain.value =
+      (wood ? 0.5 : 0.3) * (running ? 1.2 : 1) * (0.85 + Math.random() * 0.3);
+    if (wood) {
+      src.connect(gain).connect(ctx.destination);
+    } else {
+      const soften = ctx.createBiquadFilter();
+      soften.type = "lowpass";
+      soften.frequency.value = 1800;
+      src.connect(soften).connect(gain).connect(ctx.destination);
+    }
+    src.start();
+  } catch {
+    // 소리를 낼 수 없는 환경이면 조용히 넘어간다
+  }
+}
+
 export type AvatarPose = "stand" | "walk" | "run" | "sit" | "ride";
 
 /**
@@ -161,6 +309,8 @@ export interface AvatarProps {
   wandLightAt?: number | null;
   /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
   bubble?: string;
+  /** 걸을 때 발소리를 낸다 (내 아바타만) — 바닥 종류에 따라 소리가 다르다 */
+  footstep?: FootstepKind;
 }
 
 function HousePatch({ house }: { house: HouseId }) {
@@ -253,6 +403,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     castAt = null,
     wandLightAt = null,
     bubble,
+    footstep,
   },
   ref,
 ) {
@@ -260,7 +411,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     `${import.meta.env.BASE_URL}textures/hanbok-fabric.jpg`,
     (texture) => {
       texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 8;
+      texture.anisotropy = 4;
     },
   );
   const body = useRef<Group>(null);
@@ -334,7 +485,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   );
   // 피부 자체에 홍조를 섞어 별도의 원판 테두리가 드러나지 않게 한다.
   const faceGeometry = useMemo(() => {
-    const geometry = new SphereGeometry(0.295, 40, 28);
+    const geometry = new SphereGeometry(0.295, 32, 22);
     const positions = geometry.getAttribute("position");
     const vertexColors = new Float32Array(positions.count * 3);
     const shade = new Color();
@@ -358,11 +509,36 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   }, [face, cheek]);
   useEffect(() => () => faceGeometry.dispose(), [faceGeometry]);
   const trim = band ?? robe;
+  // 갓끈: 대우 양쪽에서 뺨을 따라 내려와 턱 밑에서 묶인다
+  const strapGeometry = useMemo(
+    () =>
+      mergeGeometries(
+        ([-1, 1] as const).map(
+          (side) =>
+            new TubeGeometry(
+              new CatmullRomCurve3([
+                new Vector3(side * 0.15, 0.42, 0.1),
+                new Vector3(side * 0.262, 0.28, 0.12),
+                new Vector3(side * 0.272, 0.1, 0.14),
+                new Vector3(side * 0.17, -0.03, 0.17),
+                new Vector3(side * 0.04, -0.09, 0.19),
+              ]),
+              20,
+              0.0035,
+              4,
+              false,
+            ),
+        ),
+      ),
+    [],
+  );
+  useEffect(() => () => strapGeometry?.dispose(), [strapGeometry]);
   const portal = useContext(LabelPortalContext);
 
   // 걸음·앉음 상태 — 위상(phase)을 누적해 박자가 바뀌어도 발이 튀지 않게 하고,
   // 걷기/달리기/앉기 가중치는 부드럽게 따라가게 해서 출발·정지·착석 때 동작이 뚝 끊기지 않게 한다
   const gait = useRef({ phase: 0, move: 0, run: 0, sit: 0, ride: 0 });
+  const lastStep = useRef<number | null>(null);
 
   useFrame(({ clock }, rawDt) => {
     const t = clock.elapsedTime;
@@ -384,6 +560,13 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     const sw = Math.sin(g.phase);
     const co = Math.cos(g.phase);
     const gm = g.move * (1 - g.sit);
+    // 발이 바닥에 닿는 순간(위상이 π/2 + kπ)마다 한 번씩 소리를 낸다
+    const stepIndex = Math.floor((g.phase - Math.PI / 2) / Math.PI);
+    if (lastStep.current === null) lastStep.current = stepIndex;
+    else if (stepIndex !== lastStep.current) {
+      lastStep.current = stepIndex;
+      if (footstep && gm > 0.5) playFootstep(footstep, g.run > 0.5);
+    }
 
     for (const [foot, side] of [
       [leftFoot.current, -1],
@@ -802,6 +985,16 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             <tubeGeometry args={[mouthCurve, 14, 0.003, 5, false]} />
             <meshStandardMaterial color={lip} roughness={1} />
           </mesh>
+          {/* 갓끈과 턱 밑 매듭 */}
+          {strapGeometry ? (
+            <mesh geometry={strapGeometry}>
+              <meshStandardMaterial color={trim} roughness={0.7} />
+            </mesh>
+          ) : null}
+          <mesh position={[0, -0.095, 0.195]}>
+            <sphereGeometry args={[0.012, 10, 8]} />
+            <meshStandardMaterial color={trim} roughness={0.35} />
+          </mesh>
           {/* 갓의 얇은 챙과 원통형 대우 */}
           <mesh position={[0, 0.425, 0]}>
             <cylinderGeometry args={[0.375, 0.385, 0.016, 32]} />
@@ -814,6 +1007,17 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           <mesh position={[0, 0.438, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.153, 0.008, 4, 24]} />
             <meshStandardMaterial color={trim} roughness={0.8} />
+          </mesh>
+          {/* 챙의 가장자리 테와 대우의 둥근 윗면 */}
+          <mesh position={[0, 0.425, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.38, 0.007, 5, 40]} />
+            <meshStandardMaterial color={hat} roughness={0.55} />
+          </mesh>
+          <mesh position={[0, 0.668, 0]} scale={[1, 0.18, 1]}>
+            <sphereGeometry
+              args={[0.133, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2]}
+            />
+            <meshStandardMaterial color={hat} roughness={0.8} />
           </mesh>
         </group>
       </group>

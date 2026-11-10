@@ -580,7 +580,8 @@ export function LibraryWorld({
         {colors ? (
           <Canvas
             frameloop="demand"
-            dpr={[1, 1.5]}
+            dpr={[1, 1.25]}
+            gl={{ powerPreference: "high-performance" }}
             camera={{
               fov: CAMERA_FOV,
               position: [0, 5.2, 13],

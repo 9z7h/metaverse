@@ -65,14 +65,14 @@ export const COOLDOWN_MS: Record<SpellId, number> = {
 /** 한 장면에 동시에 남는 주문 효과 수 (넘으면 가장 오래된 것부터 지운다) */
 export const MAX_ACTIVE = 6;
 /** 주문 효과 하나가 쓰는 파티클 수 상한 */
-export const MAX_PARTICLES = 24;
+export const MAX_PARTICLES = 28;
 
 /** 주문별 파티클 수 — 각각 MAX_PARTICLES 이하 (SpellEffects가 이 수만큼 그린다) */
 export const PARTICLE_COUNTS: Record<SpellId, number> = {
   myeonggyeong: 11,
-  mukryeong: 14,
-  hwaryong: 18,
-  buun: 8,
+  mukryeong: 20,
+  hwaryong: 28,
+  buun: 12,
 };
 
 /** 지팡이를 휘두르는 연출 길이 ms */

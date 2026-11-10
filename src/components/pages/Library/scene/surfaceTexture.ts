@@ -12,6 +12,10 @@ export function useSurfaceTexture(
   seams = false,
 ) {
   const texture = useMemo(() => {
+    const cellRandom = (a: number, b: number) => {
+      const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 256;
     const ctx = canvas.getContext("2d");
@@ -41,9 +45,17 @@ export function useSurfaceTexture(
           } else if (kind === "stone") {
             value = 196 + random() * 46 + Math.sin(x * 0.07 + y * 0.1) * 9;
           } else if (kind === "tile") {
-            value =
-              175 + Math.sin(((x % 32) / 32) * Math.PI) * 65 + random() * 12;
-            if (y % 64 < 3) value *= 0.6;
+            // 기와: 수키와 둥근 이랑 + 암키와 겹침의 그림자, 장마다 다른 색과 이끼 얼룩
+            const col = Math.floor(x / 32);
+            const row = Math.floor(y / 64);
+            const cell = cellRandom(col, row);
+            const ridge = Math.sin(((x % 32) / 32) * Math.PI);
+            const fall = (y % 64) / 64;
+            value = 150 + ridge * 88 + (cell - 0.5) * 34 + random() * 10;
+            value *= 0.74 + 0.26 * (1 - fall * fall);
+            if (y % 64 < 3) value *= 0.55;
+            if (cellRandom(col + 9, row + 4) > 0.86 && random() > 0.55)
+              value *= 0.78;
           } else if (kind === "paper") {
             if (y > 28 && y < 230 && y % 15 < 2 && x > 16 && x < 238)
               value = 120 + random() * 35;

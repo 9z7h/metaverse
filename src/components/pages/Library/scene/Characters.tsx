@@ -317,6 +317,7 @@ export function Player({
       skin={colors["--color-scene-skin"]}
       hat={colors["--color-scene-hat"]}
       pose={pose}
+      footstep="wood"
       focusing={focusing}
       practicing={practicing}
       castAt={castAt}

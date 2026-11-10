@@ -88,7 +88,7 @@ describe("파티클 예산", () => {
 
   it("동시에 남는 최대 효과의 파티클 합이 작게 유지된다", () => {
     const worst = Math.max(...SPELL_ORDER.map((id) => PARTICLE_COUNTS[id]));
-    expect(worst * MAX_ACTIVE).toBeLessThanOrEqual(150);
+    expect(worst * MAX_ACTIVE).toBeLessThanOrEqual(180);
   });
 });
 
