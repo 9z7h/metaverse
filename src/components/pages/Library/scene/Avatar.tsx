@@ -26,6 +26,7 @@ import type { Group } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
 import type { HouseId } from "../houses";
+import { swingPose } from "./spellLogic";
 
 /** 도포 윤곽 [높이 y, 반지름 r] — 몸통(Lathe)과 깃이 같은 곡선을 따른다 */
 const COAT_PROFILE: ReadonlyArray<readonly [number, number]> = [
@@ -152,8 +153,10 @@ export interface AvatarProps {
   showLabel?: boolean;
   /** 실습(마법) 중 — 지팡이를 들고 휘두르며, 이름표에 "실습 중" 표시 */
   practicing?: boolean;
-  /** 지팡이 색 (나무) / 지팡이 끝 빛 — practicing일 때만 사용 */
+  /** 지팡이 색 (나무) / 지팡이 끝 빛 — 실습 중이거나 주문을 시전할 때만 보인다 */
   wand?: { wood: string; glow: string };
+  /** 주문을 시전한 시각(performance.now ms). 이 시각부터 잠깐 지팡이를 들어 휘두른다 */
+  castAt?: number | null;
   /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
   bubble?: string;
 }
@@ -199,21 +202,27 @@ export const bubbleStyle: CSSProperties = {
   userSelect: "none",
 };
 
-const tagStyle = (highlight: boolean): CSSProperties => ({
+/** 이름표는 알약 3개가 세로로 쌓인다 — 이름 / 공부명 / 시간 */
+const tagStackStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-4) var(--spacing-8)",
-  borderRadius: "var(--radius-md)",
+  pointerEvents: "none",
+  userSelect: "none",
+};
+
+const tagPillStyle = (highlight: boolean): CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-4)",
+  padding: "var(--spacing-2) var(--spacing-8)",
+  borderRadius: "var(--radius-circle)",
   background: highlight
     ? "var(--color-background-brand)"
     : "var(--color-background-Subtle)",
   color: highlight ? "var(--color-text-onbrand)" : "var(--color-text-primary)",
-  font: "var(--text-caption-lg-bold)",
   whiteSpace: "nowrap",
-  pointerEvents: "none",
-  userSelect: "none",
 });
 
 /**
@@ -239,6 +248,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     showLabel = true,
     practicing = false,
     wand,
+    castAt = null,
     bubble,
   },
   ref,
@@ -254,6 +264,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   const head = useRef<Group>(null);
   const arm = useRef<Group>(null);
   const leftArm = useRef<Group>(null);
+  const wandGroup = useRef<Group>(null);
   const leftFoot = useRef<Group>(null);
   const rightFoot = useRef<Group>(null);
   const coat = useMemo(
@@ -415,14 +426,24 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     // 구름 위: 팔을 몸 옆으로 내리고 구름 흔들림에 맞춰 미세하게 흔든다
     const rideArm = -0.08 + Math.sin(t * 1.6) * 0.03;
     const armDown = (sat: number) => sat + (rideArm - sat) * g.ride;
+    // 주문 시전: 평소 팔 자세에서 지팡이를 앞으로 든 자세로 섞는다
+    const cast = castAt === null ? null : swingPose(performance.now() - castAt);
+    if (wandGroup.current) {
+      wandGroup.current.visible =
+        practicing || (cast !== null && cast.weight > 0);
+    }
     if (arm.current) {
-      arm.current.rotation.x = practicing
+      const baseX = practicing
         ? -1.15 + Math.sin(t * 4) * 0.12
         : seat(
             armSwing,
             armDown(sitArm + (focusing ? Math.sin(t * 2.6) * 0.03 : 0)),
           );
-      arm.current.rotation.z = practicing ? -0.25 + Math.cos(t * 4) * 0.15 : 0;
+      const baseZ = practicing ? -0.25 + Math.cos(t * 4) * 0.15 : 0;
+      const w = cast?.weight ?? 0;
+      arm.current.rotation.x =
+        baseX + (-1.3 + (cast?.flick ?? 0) * 0.45 - baseX) * w;
+      arm.current.rotation.z = baseZ + (-0.2 - baseZ) * w;
     }
     if (leftArm.current) {
       leftArm.current.rotation.x = seat(-armSwing, armDown(sitArm + 0.05));
@@ -586,18 +607,28 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                 <sphereGeometry args={[0.066, 12, 10]} />
                 <meshStandardMaterial color={face} roughness={0.85} />
               </mesh>
-              {side === 1 && practicing && wand ? (
+              {side === 1 && wand ? (
                 <group
+                  ref={wandGroup}
+                  visible={practicing}
                   position={[0.034, -0.42, 0.09]}
                   rotation={[Math.PI / 2, 0, 0]}
                 >
                   <mesh position={[0, 0.12, 0]}>
                     <cylinderGeometry args={[0.007, 0.021, 0.42, 16]} />
-                    <meshStandardMaterial color={wand.wood} roughness={0.48} metalness={0.08} />
+                    <meshStandardMaterial
+                      color={wand.wood}
+                      roughness={0.48}
+                      metalness={0.08}
+                    />
                   </mesh>
                   {/* 대나무 마디와 손잡이를 감싼 천 */}
                   {[0.035, 0.13, 0.225].map((y) => (
-                    <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <mesh
+                      key={y}
+                      position={[0, y, 0]}
+                      rotation={[Math.PI / 2, 0, 0]}
+                    >
                       <torusGeometry args={[0.016 - y * 0.02, 0.0025, 6, 16]} />
                       <meshStandardMaterial color={wand.wood} roughness={0.8} />
                     </mesh>
@@ -611,7 +642,15 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                     <meshStandardMaterial color={collar} roughness={0.9} />
                   </mesh>
                   {/* 북두칠성 금점 */}
-                  {[[0, 0.055], [0.007, 0.075], [0.002, 0.097], [0.009, 0.115], [0.003, 0.136], [0.009, 0.155], [0.004, 0.175]].map(([x, y], i) => (
+                  {[
+                    [0, 0.055],
+                    [0.007, 0.075],
+                    [0.002, 0.097],
+                    [0.009, 0.115],
+                    [0.003, 0.136],
+                    [0.009, 0.155],
+                    [0.004, 0.175],
+                  ].map(([x, y], i) => (
                     <mesh key={i} position={[x, y, 0.018]}>
                       <sphereGeometry args={[0.0025, 6, 6]} />
                       <meshBasicMaterial color={band} toneMapped={false} />
@@ -736,12 +775,11 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
           // drei 타입은 non-null ref를 요구하지만 마운트 전 null은 drei 내부에서 처리된다
           portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
         >
-          <div style={tagStyle(highlight)} aria-hidden>
+          <div style={tagStackStyle} aria-hidden>
             <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--spacing-4)",
+                ...tagPillStyle(highlight),
+                font: "var(--text-caption-lg-bold)",
               }}
             >
               {houseDot ? (
@@ -757,7 +795,12 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
               {name}
             </span>
             {subject ? (
-              <span style={{ font: "var(--text-caption-lg-medium)" }}>
+              <span
+                style={{
+                  ...tagPillStyle(highlight),
+                  font: "var(--text-caption-lg-medium)",
+                }}
+              >
                 {subject}
                 {pose === "sit"
                   ? practicing
@@ -771,6 +814,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
             {focusSeconds !== undefined ? (
               <span
                 style={{
+                  ...tagPillStyle(highlight),
                   font: "var(--text-caption-lg-medium)",
                   fontVariantNumeric: "tabular-nums",
                 }}

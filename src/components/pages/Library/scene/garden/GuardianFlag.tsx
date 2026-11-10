@@ -12,24 +12,20 @@ import {
   SRGBColorSpace,
 } from "three";
 import type { Group } from "three";
-import { HOUSES } from "../../houses";
 import { houseCrestUrl } from "../../HouseCrest";
 import type { HouseId } from "../../houses";
 import type { SceneColors } from "../sceneLayout";
 
-export const FLAG_CLOTH = { w: 0.8, h: 2.1 } as const;
+export const FLAG_CLOTH = { w: 0.8, h: 2.5 } as const;
 const POLE_H = 2.9;
 const TEX_W = 256;
-const TEX_H = Math.round((TEX_W * FLAG_CLOTH.h) / FLAG_CLOTH.w);
+const TEX_H = 768;
 
 function drawFlag(
   canvas: HTMLCanvasElement,
-  house: HouseId,
   ground: string,
-  on: string,
   brass: string,
   fabric: CanvasImageSource,
-  brocade: CanvasImageSource,
   crest: CanvasImageSource,
 ) {
   const ctx = canvas.getContext("2d");
@@ -40,23 +36,28 @@ function drawFlag(
   ctx.globalCompositeOperation = "multiply";
   ctx.drawImage(fabric, 0, 0, TEX_W, TEX_H);
   ctx.globalCompositeOperation = "source-over";
-  for (const [x, y, w, h] of [
-    [0, 0, TEX_W, 34],
-    [0, TEX_H - 34, TEX_W, 34],
-    [0, 34, 16, TEX_H - 68],
-    [TEX_W - 16, 34, 16, TEX_H - 68],
-  ]) {
-    ctx.drawImage(brocade, x, y, w, h);
-    ctx.strokeStyle = brass;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
-  }
-  ctx.drawImage(crest, 30, 150, TEX_W - 60, TEX_W - 60);
-  ctx.fillStyle = on;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 42px ${getComputedStyle(document.body).fontFamily}`;
-  ctx.fillText(HOUSES[house].guardian, TEX_W / 2, TEX_H - 90);
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(TEX_W, 0);
+  ctx.lineTo(TEX_W, TEX_H - 100);
+  ctx.lineTo(TEX_W / 2, TEX_H);
+  ctx.lineTo(0, TEX_H - 100);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.strokeStyle = brass;
+  ctx.lineWidth = 8;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(6, 6);
+  ctx.lineTo(TEX_W - 6, 6);
+  ctx.lineTo(TEX_W - 6, TEX_H - 103);
+  ctx.lineTo(TEX_W / 2, TEX_H - 8);
+  ctx.lineTo(6, TEX_H - 103);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.drawImage(crest, TEX_W / 2 - 110, 55, 220, 220);
 }
 
 /* ── 깃대와 천 ───────────────────────────────────────── */
@@ -77,15 +78,11 @@ export function GuardianFlag({
   poleSide?: -1 | 1;
 }) {
   const ground = colors[`--color-house-${house}-primary`];
-  const on = colors[`--color-house-${house}-on`];
   const brass = colors["--color-scene-brass"];
   const dark = colors["--color-scene-wood-dark"];
   const crest = useTexture(houseCrestUrl(house));
   const fabric = useTexture(
     `${import.meta.env.BASE_URL}textures/scroll-silk.jpg`,
-  );
-  const brocade = useTexture(
-    `${import.meta.env.BASE_URL}textures/scroll-brocade.jpg`,
   );
   const bump = useTexture(
     `${import.meta.env.BASE_URL}textures/scroll-silk-bump.jpg`,
@@ -120,22 +117,18 @@ export function GuardianFlag({
       if (cancelled) return;
       drawFlag(
         canvas,
-        house,
         ground,
-        on,
         brass,
         fabric.image as CanvasImageSource,
-        brocade.image as CanvasImageSource,
         crest.image as CanvasImageSource,
       );
       texture.needsUpdate = true;
     };
     run();
-    document.fonts?.ready.then(run).catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [canvas, texture, house, ground, on, brass, fabric, brocade, crest]);
+  }, [canvas, texture, ground, brass, fabric, crest]);
   useEffect(() => () => texture.dispose(), [texture]);
 
   useFrame(({ clock }) => {
@@ -172,14 +165,18 @@ export function GuardianFlag({
       <group ref={swing} position={[0, topY - 0.03, 0]}>
         <mesh position={[0, -FLAG_CLOTH.h / 2, 0.02]}>
           <planeGeometry args={[FLAG_CLOTH.w, FLAG_CLOTH.h]} />
-          <meshStandardMaterial
+          <meshPhysicalMaterial
             map={texture}
             bumpMap={bump}
-            bumpScale={0.003}
+            bumpScale={1.4}
             emissiveMap={texture}
             emissive="white"
-            emissiveIntensity={0.3}
-            roughness={0.8}
+            emissiveIntensity={0.34}
+            roughness={0.52}
+            sheen={1}
+            sheenRoughness={0.4}
+            sheenColor={colors[`--color-house-${house}-accent`]}
+            transparent
             side={DoubleSide}
           />
         </mesh>

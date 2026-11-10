@@ -82,6 +82,10 @@ export interface PlayerProps {
   dragging: MutableRefObject<boolean>;
   /** 내 현재 위치를 매 프레임 기록 — 광원이 나를 따라가는 데 쓴다 */
   positionRef?: MutableRefObject<Vec2>;
+  /** 내가 바라보는 방향(rad)을 매 프레임 기록 — 주문이 앞쪽 구역에 닿는 데 쓴다 */
+  facingRef?: MutableRefObject<number>;
+  /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
+  castAt?: number | null;
   /** true면 카메라가 순위판 앞으로 날아가 순위판을 크게 보여 준다 (매 프레임 읽음) */
   boardView?: MutableRefObject<boolean>;
   /** 내 머리 위 말풍선 글 */
@@ -132,6 +136,8 @@ export function Player({
   orbit,
   dragging,
   positionRef,
+  facingRef,
+  castAt,
   boardView,
   bubble,
   onMove,
@@ -282,6 +288,7 @@ export function Player({
     }
 
     if (positionRef) positionRef.current = { x: g.position.x, z: g.position.z };
+    if (facingRef) facingRef.current = facing.current;
 
     // 순위판 보기: 어디에 있든 순위판 앞으로 날아가 크게 보여 준다 (카메라는 아래에서 부드럽게 따라감)
     if (boardView?.current) {
@@ -310,6 +317,7 @@ export function Player({
       pose={pose}
       focusing={focusing}
       practicing={practicing}
+      castAt={castAt}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],
@@ -453,6 +461,8 @@ export interface RemoteWalkerProps {
   moves: MutableRefObject<Map<string, RemoteMove>>;
   /** 머리 위 말풍선 글 */
   bubble?: string;
+  /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
+  castAt?: number | null;
 }
 
 export function RemoteWalker({
@@ -461,6 +471,7 @@ export function RemoteWalker({
   colors,
   moves,
   bubble,
+  castAt = null,
 }: RemoteWalkerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2 | null>(null);
@@ -508,6 +519,7 @@ export function RemoteWalker({
       pose={pose}
       focusing={false}
       practicing={false}
+      castAt={castAt}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],

@@ -30,11 +30,14 @@ import type {
   MyPresence,
   PresenceStudent,
   PresencePlace,
+  RemoteCast,
   RemoteMove,
   StudyMode,
   Walker,
 } from "./libraryPresence";
 import { GARDEN_HALF } from "./scene/garden/gardenLayout";
+import { isSpellId } from "./scene/spellLogic";
+import type { SpellId } from "./scene/spellLogic";
 import type { AcademyApi } from "./academyApi";
 
 const CHANNEL = "academy:library";
@@ -42,6 +45,8 @@ const CHANNEL = "academy:library";
 const LOBBY_CHANNEL = "academy:lobby";
 /** 같은 사람이 보낸 위치를 이보다 자주 받으면 버린다 (보내는 쪽은 약 300ms 간격) */
 const MIN_MOVE_GAP_MS = 120;
+/** 같은 사람의 주문 방송을 이보다 촘촘히 받지 않는다 (시전 쿨다운보다 조금 짧게) */
+const MIN_CAST_GAP_MS = 800;
 /** 정원이 서고보다 넓으므로 정원 크기로 붙인다 — 이 범위를 벗어난 값은 모양이 이상한 것 */
 const MAX_COORD = GARDEN_HALF;
 const MAX_HEIGHT = 40;
@@ -145,6 +150,30 @@ export function parseMove(
   };
 }
 
+/** 상대가 방송한 주문 시전을 검증한다. 모르는 주문이나 이상한 값이면 null */
+export function parseCast(
+  raw: unknown,
+): (RemoteCast & { place: PresencePlace }) | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== "string" || r.id.length === 0 || r.id.length > 64) {
+    return null;
+  }
+  if (!isSpellId(r.spell)) return null;
+  const x = Number(r.x);
+  const z = Number(r.z);
+  const ry = Number(r.ry);
+  if (![x, z, ry].every(Number.isFinite)) return null;
+  return {
+    senderId: r.id,
+    spell: r.spell,
+    x: clamp(x, -MAX_COORD, MAX_COORD),
+    z: clamp(z, -MAX_COORD, MAX_COORD),
+    ry: clamp(ry, -Math.PI * 4, Math.PI * 4),
+    place: isPlace(r.place) ? r.place : "library",
+  };
+}
+
 /** 로비 presence 상태에서 앉지 않은 접속자 — 나·이미 앉은 사람·다른 곳에 있는 사람은 뺀다 */
 export function parseWalkers(
   state: Record<string, unknown[]>,
@@ -227,6 +256,10 @@ export function useRemotePresence({
   const [lobbyReady, setLobbyReady] = useState(false);
   const moves = useRef(new Map<string, RemoteMove>());
   const lastMoveAt = useRef(new Map<string, number>());
+  const lastCastFrom = useRef(new Map<string, number>());
+  const castListeners = useRef(new Set<(cast: RemoteCast) => void>());
+  const placeRef = useRef(place);
+  placeRef.current = place;
   const lobbyRef = useRef<ReturnType<SupabaseClient["channel"]> | null>(null);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const receiveLimiter = useRef(createReceiveLimiter());
@@ -287,6 +320,7 @@ export function useRemotePresence({
         if (!(id in state)) {
           moves.current.delete(id);
           lastMoveAt.current.delete(id);
+          lastCastFrom.current.delete(id);
         }
       }
     });
@@ -300,6 +334,18 @@ export function useRemotePresence({
       const { senderId, ...rest } = move;
       moves.current.set(senderId, { ...rest, at: now });
     });
+    // 주문 시전 — 시각 전용. 같은 곳에 있는 사람의 것만, 사람마다 속도를 제한해서 받는다
+    lobby.on("broadcast", { event: "cast" }, ({ payload }) => {
+      const cast = parseCast(payload);
+      if (!cast || cast.senderId === userId) return;
+      if (cast.place !== placeRef.current) return;
+      const now = Date.now();
+      const last = lastCastFrom.current.get(cast.senderId) ?? 0;
+      if (now - last < MIN_CAST_GAP_MS) return;
+      lastCastFrom.current.set(cast.senderId, now);
+      const { place: _place, ...rest } = cast;
+      castListeners.current.forEach((listener) => listener(rest));
+    });
     lobby.subscribe((status) => {
       if (status === "SUBSCRIBED") setLobbyReady(true);
     });
@@ -308,6 +354,7 @@ export function useRemotePresence({
       lobbyRef.current = null;
       moves.current.clear();
       lastMoveAt.current.clear();
+      lastCastFrom.current.clear();
       void client.removeChannel(lobby);
     };
   }, [client, userId]);
@@ -438,6 +485,33 @@ export function useRemotePresence({
     [lobbyReady, userId, place],
   );
 
+  const sendCast = useCallback(
+    (spell: SpellId, x: number, z: number, ry: number) => {
+      const lobby = lobbyRef.current;
+      if (!lobby || !lobbyReady || !userId) return;
+      const round = (v: number) => Math.round(v * 100) / 100;
+      void lobby.send({
+        type: "broadcast",
+        event: "cast",
+        payload: {
+          id: userId,
+          spell,
+          x: round(x),
+          z: round(z),
+          ry: round(ry),
+          place,
+        },
+      });
+    },
+    [lobbyReady, userId, place],
+  );
+  const onRemoteCast = useCallback((listener: (cast: RemoteCast) => void) => {
+    castListeners.current.add(listener);
+    return () => {
+      castListeners.current.delete(listener);
+    };
+  }, []);
+
   return useMemo(
     () => ({
       seats: SEATS,
@@ -449,6 +523,8 @@ export function useRemotePresence({
       walkers,
       moves,
       sendMove,
+      sendCast,
+      onRemoteCast,
       me,
       join,
       update,
@@ -465,6 +541,8 @@ export function useRemotePresence({
       place,
       walkers,
       sendMove,
+      sendCast,
+      onRemoteCast,
       join,
       update,
       leave,

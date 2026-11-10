@@ -170,6 +170,14 @@
       "dancheong": {
         "$value": "{color.dancheong.500}",
         "comment": "3D — 단청 들보 바탕(뇌록)"
+      },
+      "spell-jade": {
+        "$value": "{color.teal.600}",
+        "comment": "3D — 명경(빛 주문)의 옥색 도깨비불"
+      },
+      "spell-ember": {
+        "$value": "{color.ember.600}",
+        "comment": "3D — 화룡(불 주문)의 붉은 불꽃. 금빛은 scene-flame을 섞어 쓴다"
       }
     },
     "house": {

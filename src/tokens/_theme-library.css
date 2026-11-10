@@ -50,6 +50,8 @@
   --color-scene-roof-tile: var(--color-roof-700); /** 3D — 기와 */
   --color-scene-leaf: var(--color-moss-600); /** 3D — 소나무·대나무 잎 (기존 moss 재사용) */
   --color-scene-dancheong: var(--color-dancheong-500); /** 3D — 단청 들보 바탕(뇌록) */
+  --color-scene-spell-jade: var(--color-teal-600); /** 3D — 명경(빛 주문)의 옥색 도깨비불 */
+  --color-scene-spell-ember: var(--color-ember-600); /** 3D — 화룡(불 주문)의 붉은 불꽃. 금빛은 scene-flame을 섞어 쓴다 */
   --color-house-baekho-primary: var(--color-ivory-200); /** 백호관 백색 — 로브, 깃발 (배경 대비 14.36:1) */
   --color-house-baekho-accent: var(--color-ivory-100); /** 어두운 배경 위 글자색 (15.24:1) */
   --color-house-baekho-subtle: var(--color-ink-800); /** 백호관 먹색 — 배지 배경 */

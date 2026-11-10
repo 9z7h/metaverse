@@ -163,14 +163,28 @@ export const SCHOOL_BUILDINGS: ReadonlyArray<SchoolBuilding> = [
 ];
 /** 기단과 계단의 크기를 풍경과 보행 높이 계산에서 함께 사용한다. */
 export const BUILDING_PLATFORMS = [
-  { x: LIBRARY_BUILDING.x, z: LIBRARY_BUILDING.z + 1, halfW: LIBRARY_BUILDING.halfW + 1.5, halfD: LIBRARY_BUILDING.halfD + 2, height: 0.6 },
+  {
+    x: LIBRARY_BUILDING.x,
+    z: LIBRARY_BUILDING.z + 1,
+    halfW: LIBRARY_BUILDING.halfW + 1.5,
+    halfD: LIBRARY_BUILDING.halfD + 2,
+    height: 0.6,
+  },
   // 정자 기단의 윗면과 앞 계단의 보행 높이를 맞춘다.
-  { x: PAVILION.x, z: PAVILION.z, halfW: PAVILION.half, halfD: PAVILION.half, height: 0.48 },
+  {
+    x: PAVILION.x,
+    z: PAVILION.z,
+    halfW: PAVILION.half,
+    halfD: PAVILION.half,
+    height: 0.48,
+  },
   ...SCHOOL_BUILDINGS.filter((b) => b.kind !== "gate").map((b) => ({
     x: b.x,
     z: b.z + (b.kind === "tower" ? 0.2 : b.kind === "workshop" ? 0.3 : 0.4),
-    halfW: b.halfW + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
-    halfD: b.halfD + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
+    halfW:
+      b.halfW + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
+    halfD:
+      b.halfD + (b.kind === "tower" ? 1 : b.kind === "workshop" ? 0.8 : 1.2),
     height: b.kind === "tower" ? 1.2 : b.kind === "workshop" ? 0.5 : 0.4,
   })),
 ] as const;
@@ -190,13 +204,25 @@ export function gardenWalkHeight(pos: Vec2): number {
     }
     if (dx <= STAIR_WIDTH / 2 && dz > 0 && dz <= STAIR_COUNT * STAIR_DEPTH) {
       const step = Math.min(STAIR_COUNT - 1, Math.floor(dz / STAIR_DEPTH));
-      height = Math.max(height, p.height * (STAIR_COUNT - step) / (STAIR_COUNT + 1));
+      height = Math.max(
+        height,
+        (p.height * (STAIR_COUNT - step)) / (STAIR_COUNT + 1),
+      );
     }
   }
   for (const b of SCHOOL_BUILDINGS) {
     if (b.kind !== "dorm") continue;
-    if (Math.abs(pos.x - b.x) <= STAIR_WIDTH / 2 && pos.z >= b.z + b.halfD + 0.8 && pos.z <= b.z + b.halfD + 1.6) height = Math.max(height, 0.7);
-    if (Math.abs(pos.x - b.x) <= b.halfW + 0.6 && Math.abs(pos.z - (b.z + 0.2)) <= b.halfD + 0.6) height = Math.max(height, 1);
+    if (
+      Math.abs(pos.x - b.x) <= STAIR_WIDTH / 2 &&
+      pos.z >= b.z + b.halfD + 0.8 &&
+      pos.z <= b.z + b.halfD + 1.6
+    )
+      height = Math.max(height, 0.7);
+    if (
+      Math.abs(pos.x - b.x) <= b.halfW + 0.6 &&
+      Math.abs(pos.z - (b.z + 0.2)) <= b.halfD + 0.6
+    )
+      height = Math.max(height, 1);
   }
   return height;
 }
@@ -305,14 +331,32 @@ export interface Bamboo {
   h: number;
 }
 
-/** 대나무: 숲 안에 흩뿌린다 */
+/** 기숙사 계단과 그 앞 접근로는 대나무와 숲 장애물에서 비운다. */
+function overlapsDormStairs(x: number, z: number, radius = 0): boolean {
+  return SCHOOL_BUILDINGS.some((b) => {
+    if (b.kind !== "dorm") return false;
+    const front = b.z + b.halfD + 1.6;
+    return (
+      Math.abs(x - b.x) <= STAIR_WIDTH / 2 + 0.6 + radius &&
+      z >= front - 0.7 - radius &&
+      z <= front + STAIR_COUNT * STAIR_DEPTH + 1 + radius
+    );
+  });
+}
+
+/** 대나무: 숲 안에 흩뿌리되 기숙사 계단은 비운다. */
 export const BAMBOO: ReadonlyArray<Bamboo> = (() => {
   const rand = seeded(77);
-  return Array.from({ length: 72 }, () => ({
-    x: BAMBOO_GROVE.minX + rand() * (BAMBOO_GROVE.maxX - BAMBOO_GROVE.minX),
-    z: BAMBOO_GROVE.minZ + rand() * (BAMBOO_GROVE.maxZ - BAMBOO_GROVE.minZ),
-    h: 6.5 + rand() * 3.5,
-  }));
+  const bamboo: Bamboo[] = [];
+  while (bamboo.length < 72) {
+    const item = {
+      x: BAMBOO_GROVE.minX + rand() * (BAMBOO_GROVE.maxX - BAMBOO_GROVE.minX),
+      z: BAMBOO_GROVE.minZ + rand() * (BAMBOO_GROVE.maxZ - BAMBOO_GROVE.minZ),
+      h: 6.5 + rand() * 3.5,
+    };
+    if (!overlapsDormStairs(item.x, item.z, 0.3)) bamboo.push(item);
+  }
+  return bamboo;
 })();
 
 export interface Circle {
@@ -338,7 +382,7 @@ export const GARDEN_OBSTACLES: ReadonlyArray<Circle> = [
   // 대나무 숲은 굵은 원 몇 개로 막는다
   ...[-20, -15, -10, -5].flatMap((z) =>
     [22, 26, 30].map((x) => ({ x, z, r: 2.6 })),
-  ),
+  ).filter((obstacle) => !overlapsDormStairs(obstacle.x, obstacle.z, obstacle.r)),
 ];
 
 /** 서고 건물 몸체 (사각형) */

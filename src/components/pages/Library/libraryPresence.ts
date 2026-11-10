@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { HouseId } from "./houses";
+import type { SpellId } from "./scene/spellLogic";
 import {
   appendChat,
   canSendChat,
@@ -51,6 +52,15 @@ export interface LibraryChat {
   messages: ChatMessage[];
   /** 내 글을 보낸다. 보냈으면 true, 막혔으면(빈 글·너무 빠름·연결 전) false */
   send: (text: string, house: HouseId) => boolean;
+}
+
+/** 다른 사람이 방송한 주문 시전 — 시각 전용이며 구역 중심 좌표와 방향만 담는다 */
+export interface RemoteCast {
+  senderId: string;
+  spell: SpellId;
+  x: number;
+  z: number;
+  ry: number;
 }
 
 /** 접속했지만 자리에 앉지 않고 서고를 걸어 다니는 다른 사람 */
@@ -109,6 +119,10 @@ export interface LibraryPresence {
     y?: number,
     riding?: boolean,
   ) => void;
+  /** 내 시전을 알린다 (구역 중심 좌표·방향). 받는 쪽은 효과만 그리고 아무것도 저장하지 않는다 */
+  sendCast: (spell: SpellId, x: number, z: number, ry: number) => void;
+  /** 같은 곳에 있는 다른 사람의 시전을 받는다. 돌려주는 함수로 구독을 푼다 */
+  onRemoteCast: (listener: (cast: RemoteCast) => void) => () => void;
   me: PresenceStudent | null;
   join: (presence: MyPresence) => void;
   update: (patch: Partial<MyPresence>) => void;
@@ -370,6 +384,9 @@ export function useLibraryPresence({
   const walkers = useMemo<Walker[]>(() => [], []);
   const moves = useRef(new Map<string, RemoteMove>());
   const sendMove = useCallback(() => {}, []);
+  // 데모에는 다른 접속자가 없어 시전을 주고받을 곳이 없다
+  const sendCast = useCallback(() => {}, []);
+  const onRemoteCast = useCallback(() => () => {}, []);
 
   const houseTotals = useMemo(() => {
     const totals = { ...banked };
@@ -389,6 +406,8 @@ export function useLibraryPresence({
       walkers,
       moves,
       sendMove,
+      sendCast,
+      onRemoteCast,
       me,
       join,
       update,
@@ -400,6 +419,8 @@ export function useLibraryPresence({
       houseTotals,
       walkers,
       sendMove,
+      sendCast,
+      onRemoteCast,
       me,
       join,
       update,

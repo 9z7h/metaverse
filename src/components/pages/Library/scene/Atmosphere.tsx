@@ -16,11 +16,12 @@ import {
   DoubleSide,
   Object3D,
   PlaneGeometry,
+  RepeatWrapping,
   SRGBColorSpace,
 } from "three";
 import type { InstancedMesh, Points, Texture } from "three";
 import { houseCrestUrl } from "../HouseCrest";
-import { HOUSES, HOUSE_IDS, houseToken } from "../houses";
+import { HOUSE_IDS, houseToken } from "../houses";
 import type { HouseId } from "../houses";
 import {
   FRONT_WALL_Z,
@@ -29,11 +30,10 @@ import {
   ROOM,
   SIDE_SHELF_Z,
 } from "./sceneLayout";
-import { fillBoxes } from "./LibraryRoom";
-import type { Box } from "./LibraryRoom";
 import { useSurfaceTexture } from "./surfaceTexture";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
+import { drawSilk } from "./RankingBoard";
 
 function seeded(seed: number) {
   let s = seed;
@@ -423,10 +423,11 @@ function DancheongBand({ colors }: { colors: SceneColors }) {
 
 function useBannerTexture(house: HouseId, colors: SceneColors) {
   const crest = useTexture(houseCrestUrl(house));
+  const fabric = useTexture(`${import.meta.env.BASE_URL}textures/scroll-silk.jpg`);
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
-    canvas.height = 640;
+    canvas.height = 768;
     const tex = new CanvasTexture(canvas);
     tex.colorSpace = SRGBColorSpace;
     return tex;
@@ -438,50 +439,46 @@ function useBannerTexture(house: HouseId, colors: SceneColors) {
       if (cancelled) return;
       const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
       if (!ctx) return;
-      const primary = colors[houseToken(house, "primary")];
-      const accent = colors[houseToken(house, "accent")];
       const W = 256;
-      const H = 640;
-      ctx.clearRect(0, 0, W, H);
-      // 깃발 몸통 + 아래 제비꼬리
-      ctx.fillStyle = primary;
+      const H = 768;
+      drawSilk(ctx, colors, house, fabric);
+      // 비단 깃발의 아래쪽을 삼각형으로 마무리한다.
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fillStyle = colors["--color-scene-collar"];
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(W, 0);
-      ctx.lineTo(W, H);
-      ctx.lineTo(W / 2, H - 70);
-      ctx.lineTo(0, H);
+      ctx.lineTo(W, H - 100);
+      ctx.lineTo(W / 2, H);
+      ctx.lineTo(0, H - 100);
       ctx.closePath();
       ctx.fill();
-      // 안쪽 테두리
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 6;
-      ctx.strokeRect(14, 14, W - 28, H - 120);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = colors["--color-scene-brass"];
+      ctx.lineWidth = 8;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(6, 6);
+      ctx.lineTo(W - 6, 6);
+      ctx.lineTo(W - 6, H - 103);
+      ctx.lineTo(W / 2, H - 8);
+      ctx.lineTo(6, H - 103);
+      ctx.closePath();
+      ctx.stroke();
       ctx.drawImage(
         crest.image as CanvasImageSource,
-        W / 2 - 100,
-        22,
-        200,
-        200,
+        W / 2 - 110,
+        55,
+        220,
+        220,
       );
-      // 세로 현판 글씨 (한 글자씩)
-      const family = getComputedStyle(document.body).fontFamily;
-      ctx.fillStyle = accent;
-      ctx.font = `700 64px ${family}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      [...HOUSES[house].name].forEach((ch, i) => {
-        ctx.fillText(ch, W / 2, 268 + i * 84);
-      });
       texture.needsUpdate = true;
     };
     draw();
-    // Pretendard 로딩이 늦으면 폰트 준비 후 한 번 더 그림
-    document.fonts?.ready.then(draw).catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [house, colors, texture, crest]);
+  }, [house, colors, texture, crest, fabric]);
 
   useEffect(() => () => texture.dispose(), [texture]);
   return texture;
@@ -497,15 +494,26 @@ function Banner({
   x: number;
 }) {
   const map = useBannerTexture(house, colors);
+  const bump = useTexture(`${import.meta.env.BASE_URL}textures/scroll-silk-bump.jpg`, (texture) => {
+    texture.wrapS = texture.wrapT = RepeatWrapping;
+    texture.repeat.set(5, 14);
+    texture.anisotropy = 4;
+  });
   return (
-    <mesh position={[x, 8.3, BACK_Z + 0.14]}>
-      <planeGeometry args={[0.85, 2.1]} />
-      <meshStandardMaterial
+    <mesh position={[x, HALL.wallH - 2.45, BACK_Z + 0.14]}>
+      <planeGeometry args={[1.55, 4]} />
+      <meshPhysicalMaterial
         map={map}
+        bumpMap={bump}
+        bumpScale={1.4}
+        roughness={0.52}
+        sheen={1}
+        sheenRoughness={0.4}
+        sheenColor={colors[houseToken(house, "accent")]}
         transparent
         emissiveMap={map}
-        emissive={colors["--color-scene-light"]}
-        emissiveIntensity={0.35}
+        emissive="white"
+        emissiveIntensity={0.34}
       />
     </mesh>
   );
@@ -609,11 +617,10 @@ function Scrolls({ colors }: { colors: SceneColors }) {
   );
 }
 
-/* ── 등 다발: 높은 천장에서 줄지어 내려오는 놋쇠 고리 등 ───────── */
+/* ── 천장 아래 떠 있는 촛불 ───────────────────────────── */
 
-const LAMP_RING_Y = 6.3;
-const LAMP_RING_R = 0.75;
-const CANDLES_PER_LAMP = 8;
+const CANDLE_LIGHT_Y = 8.8;
+const CANDLES_PER_CLUSTER = 22;
 /** [x, z] — 통로 양옆 두 줄 + 가운데 한 줄 */
 const LAMP_PITCH = 5.5;
 const lampRow = (front: number) =>
@@ -633,100 +640,78 @@ const LAMP_SPOTS: [number, number][] = [
 ];
 
 function HangingLamps({ colors }: { colors: SceneColors }) {
-  const chains = useRef<InstancedMesh>(null);
-  const rings = useRef<InstancedMesh>(null);
-  const candles = useRef<InstancedMesh>(null);
-  const top = HALL.wallH - 0.3;
-
-  const glow = useMemo(() => {
-    const arr = new Float32Array(LAMP_SPOTS.length * 3);
-    LAMP_SPOTS.forEach(([x, z], i) =>
-      arr.set([x, LAMP_RING_Y + 0.2, z], i * 3),
+  const bodies = useRef<InstancedMesh>(null);
+  const flames = useRef<InstancedMesh>(null);
+  const wicks = useRef<InstancedMesh>(null);
+  const glowRef = useRef<Points>(null);
+  const object = useMemo(() => new Object3D(), []);
+  const candles = useMemo(() => {
+    const rand = seeded(287);
+    return LAMP_SPOTS.flatMap(([x, z]) =>
+      Array.from({ length: CANDLES_PER_CLUSTER }, () => ({
+        x: Math.max(ROOM.minX + 0.4, Math.min(ROOM.maxX - 0.4, x + (rand() - 0.5) * 3.8)),
+        y: HALL.wallH - 1.8 - rand() * 2.8,
+        z: Math.max(ROOM.minZ + 0.4, Math.min(FRONT_WALL_Z - 0.4, z + (rand() - 0.5) * 5)),
+        length: 0.28 + rand() * 0.28,
+        phase: rand() * Math.PI * 2,
+      })),
     );
-    return arr;
   }, []);
+  const glow = useMemo(() => new Float32Array(candles.length * 3), [candles]);
 
-  useLayoutEffect(() => {
-    const chainBoxes: Box[] = LAMP_SPOTS.map(([x, z]) => ({
-      p: [x, (top + LAMP_RING_Y) / 2, z],
-      s: [0.03, top - LAMP_RING_Y, 0.03],
-    }));
-    fillBoxes(chains.current, chainBoxes);
-
-    const o = new Object3D();
-    LAMP_SPOTS.forEach(([x, z], i) => {
-      o.position.set(x, LAMP_RING_Y, z);
-      o.rotation.set(Math.PI / 2, 0, 0);
-      o.scale.set(LAMP_RING_R, LAMP_RING_R, LAMP_RING_R);
-      o.updateMatrix();
-      rings.current?.setMatrixAt(i, o.matrix);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    candles.forEach((c, i) => {
+      const y = c.y + Math.sin(t * 0.65 + c.phase) * 0.045;
+      object.position.set(c.x, y, c.z);
+      object.rotation.set(0, 0, Math.sin(t * 0.5 + c.phase) * 0.025);
+      object.scale.set(1, c.length, 1);
+      object.updateMatrix();
+      bodies.current?.setMatrixAt(i, object.matrix);
+      object.position.set(c.x, y + c.length / 2 + 0.018, c.z);
+      object.rotation.set(0, 0, 0);
+      object.scale.set(1, 1, 1);
+      object.updateMatrix();
+      wicks.current?.setMatrixAt(i, object.matrix);
+      object.position.set(c.x, y + c.length / 2 + 0.055, c.z);
+      object.rotation.set(0, 0, 0);
+      const flicker = 0.9 + Math.sin(t * 7 + c.phase) * 0.1;
+      object.scale.set(0.075, 0.14 * flicker, 0.075);
+      object.updateMatrix();
+      flames.current?.setMatrixAt(i, object.matrix);
+      glow.set([c.x, y + c.length / 2 + 0.055, c.z], i * 3);
     });
-    if (rings.current) rings.current.instanceMatrix.needsUpdate = true;
+    if (bodies.current) bodies.current.instanceMatrix.needsUpdate = true;
+    if (wicks.current) wicks.current.instanceMatrix.needsUpdate = true;
+    if (flames.current) flames.current.instanceMatrix.needsUpdate = true;
+    const positions = glowRef.current?.geometry.getAttribute("position");
+    if (positions) positions.needsUpdate = true;
+  });
 
-    let k = 0;
-    for (const [x, z] of LAMP_SPOTS)
-      for (let c = 0; c < CANDLES_PER_LAMP; c++) {
-        const a = (c / CANDLES_PER_LAMP) * Math.PI * 2;
-        o.position.set(
-          x + Math.cos(a) * LAMP_RING_R,
-          LAMP_RING_Y + 0.12,
-          z + Math.sin(a) * LAMP_RING_R,
-        );
-        o.rotation.set(0, 0, 0);
-        o.scale.set(0.1, 0.1, 0.1);
-        o.updateMatrix();
-        candles.current?.setMatrixAt(k++, o.matrix);
-      }
-    if (candles.current) candles.current.instanceMatrix.needsUpdate = true;
-  }, [top]);
-
-  const brass = colors["--color-scene-brass"];
-  const flame = colors["--color-scene-flame"];
+  const flame = useMemo(
+    () => new Color(colors["--color-scene-flame"]).lerp(new Color(colors["--color-scene-spell-ember"]), 0.22),
+    [colors],
+  );
   return (
     <group>
-      <instancedMesh
-        ref={chains}
-        args={[undefined, undefined, LAMP_SPOTS.length]}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={colors["--color-scene-wood-dark"]} />
+      <instancedMesh ref={bodies} args={[undefined, undefined, candles.length]} frustumCulled={false}>
+        <cylinderGeometry args={[0.06, 0.065, 1, 12]} />
+        <meshStandardMaterial color={colors["--color-scene-collar"]} emissive={flame} emissiveIntensity={0.22} roughness={0.82} />
       </instancedMesh>
-      <instancedMesh
-        ref={rings}
-        args={[undefined, undefined, LAMP_SPOTS.length]}
-      >
-        <torusGeometry args={[1, 0.05, 6, 28]} />
-        <meshStandardMaterial
-          color={brass}
-          emissive={brass}
-          emissiveIntensity={0.3}
-          metalness={0.6}
-          roughness={0.4}
-        />
+      <instancedMesh ref={wicks} args={[undefined, undefined, candles.length]} frustumCulled={false}>
+        <cylinderGeometry args={[0.011, 0.011, 0.045, 8]} />
+        <meshBasicMaterial color={colors["--color-scene-wood-dark"]} />
       </instancedMesh>
-      <instancedMesh
-        ref={candles}
-        args={[undefined, undefined, LAMP_SPOTS.length * CANDLES_PER_LAMP]}
-      >
+      <instancedMesh ref={flames} args={[undefined, undefined, candles.length]} frustumCulled={false}>
         <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color={flame} toneMapped={false} />
+        <meshBasicMaterial color={new Color(flame).multiplyScalar(1.35)} toneMapped={false} />
       </instancedMesh>
-      {/* 불빛 번짐 */}
-      <points>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[glow, 3]} />
-        </bufferGeometry>
-        <pointsMaterial
-          onBeforeCompile={roundGlowShader}
-          customProgramCacheKey={roundGlowKey}
-          color={flame}
-          size={2.6}
-          sizeAttenuation
-          transparent
-          opacity={0.4}
-          depthWrite={false}
-          toneMapped={false}
-        />
+      {LAMP_SPOTS.filter((_, i) => i % 3 === 1).map(([x, z], i) => (
+        <pointLight key={`ceiling-light-${i}`} position={[x, CANDLE_LIGHT_Y, z]} color={flame} intensity={20} distance={11} decay={1.6} />
+      ))}
+      <points ref={glowRef} frustumCulled={false}>
+        <bufferGeometry><bufferAttribute attach="attributes-position" args={[glow, 3]} /></bufferGeometry>
+        <pointsMaterial onBeforeCompile={roundGlowShader} customProgramCacheKey={roundGlowKey} color={flame} size={0.9} sizeAttenuation transparent opacity={0.7} depthWrite={false} toneMapped={false} />
       </points>
     </group>
   );
@@ -817,13 +802,13 @@ function MoonShafts({ colors }: { colors: SceneColors }) {
   );
 }
 
-export function Atmosphere({ colors }: { colors: SceneColors }) {
+export function Atmosphere({ colors, daylight = 1 }: { colors: SceneColors; daylight?: number }) {
   return (
     <group>
       {/* 창으로 들어오는 푸른 달빛 — 촛불의 따뜻한 색과 대비 */}
       <directionalLight
         position={[6, 9, -4]}
-        intensity={0.62}
+        intensity={0.22 + daylight * 0.2}
         color={colors["--color-scene-moonlight"]}
       />
       <Lanterns colors={colors} />

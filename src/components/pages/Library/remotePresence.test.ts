@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   countConnected,
   countResting,
+  parseCast,
   parseMember,
   parseMove,
   parseOthers,
@@ -365,5 +366,51 @@ describe("countResting", () => {
   });
   it("counts the current visitor while the connection is pending", () => {
     expect(countResting({}, null, "garden")).toBe(1);
+  });
+});
+
+describe("parseCast — 방송된 주문은 믿지 않는다", () => {
+  const ok = {
+    id: "u1",
+    spell: "hwaryong",
+    x: 1.5,
+    z: -2,
+    ry: 0.5,
+    place: "garden",
+  };
+
+  it("정상 시전은 그대로 통과한다", () => {
+    expect(parseCast(ok)).toEqual({
+      senderId: "u1",
+      spell: "hwaryong",
+      x: 1.5,
+      z: -2,
+      ry: 0.5,
+      place: "garden",
+    });
+  });
+
+  it("모르는 주문이나 프로토타입 키는 거른다", () => {
+    for (const spell of ["fireball", "", "toString", "__proto__", 3, null]) {
+      expect(parseCast({ ...ok, spell })).toBeNull();
+    }
+  });
+
+  it("id나 좌표가 이상하면 거른다", () => {
+    expect(parseCast(null)).toBeNull();
+    expect(parseCast({ ...ok, id: "" })).toBeNull();
+    expect(parseCast({ ...ok, id: "x".repeat(65) })).toBeNull();
+    expect(parseCast({ ...ok, x: "abc" })).toBeNull();
+    expect(parseCast({ ...ok, z: Infinity })).toBeNull();
+  });
+
+  it("뜰 밖으로 벗어난 좌표는 안으로 끌어온다", () => {
+    const c = parseCast({ ...ok, x: 9999, z: -9999 });
+    expect(Math.abs(c?.x ?? 0)).toBeLessThan(100);
+    expect(Math.abs(c?.z ?? 0)).toBeLessThan(100);
+  });
+
+  it("place가 없으면 서고로 본다", () => {
+    expect(parseCast({ ...ok, place: undefined })?.place).toBe("library");
   });
 });

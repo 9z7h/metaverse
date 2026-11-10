@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Object3D, RepeatWrapping, SRGBColorSpace } from "three";
+import { Color, Object3D, RepeatWrapping, SRGBColorSpace } from "three";
 import { useTexture } from "@react-three/drei";
 import {
   BOOK_ATLAS_URL,
@@ -358,8 +358,12 @@ function DeskSet({
       dark.push({ p: [c.x, 0.81, c.z], s: [0.24, 0.035, 0.24] });
       light.push({ p: [c.x, 1.0, c.z], s: [0.18, 0.34, 0.18] });
       dark.push({ p: [c.x, 1.18, c.z], s: [0.23, 0.035, 0.23] });
-      for (const sx of [-1, 1]) for (const sz of [-1, 1])
-        dark.push({ p: [c.x + sx * 0.105, 1.0, c.z + sz * 0.105], s: [0.022, 0.36, 0.022] });
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1])
+          dark.push({
+            p: [c.x + sx * 0.105, 1.0, c.z + sz * 0.105],
+            s: [0.022, 0.36, 0.022],
+          });
       flame.push({ p: [c.x, 1.0, c.z], s: [0.14, 0.28, 0.14] });
       glowAt.push(c.x, 1.02, c.z);
     }
@@ -379,12 +383,15 @@ function DeskSet({
     if (!flameMat.current) return;
     const t = clock.elapsedTime;
     flameMat.current.emissiveIntensity =
-      2.2 + Math.sin(t * 7) * 0.3 + Math.sin(t * 13) * 0.2;
+      1.4 + Math.sin(t * 7) * 0.2 + Math.sin(t * 13) * 0.12;
   });
 
   const wood = colors["--color-scene-wood"];
   const woodDark = colors["--color-scene-wood-dark"];
-  const flame = colors["--color-scene-flame"];
+  const flame = new Color(colors["--color-scene-flame"]).lerp(
+    new Color(colors["--color-scene-spell-ember"]),
+    0.22,
+  );
   return (
     <group>
       <instancedMesh ref={tops} args={[undefined, undefined, parts.top.length]}>
@@ -409,7 +416,12 @@ function DeskSet({
         args={[undefined, undefined, parts.light.length]}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={flame} emissive={flame} emissiveIntensity={0.85} roughness={1} />
+        <meshStandardMaterial
+          color={flame}
+          emissive={flame}
+          emissiveIntensity={0.7}
+          roughness={1}
+        />
       </instancedMesh>
       <instancedMesh
         ref={pages}
@@ -434,10 +446,21 @@ function DeskSet({
           ref={flameMat}
           color={flame}
           emissive={flame}
-          emissiveIntensity={2.2}
+          emissiveIntensity={1.4}
           toneMapped={false}
         />
       </instancedMesh>
+      {/* 각 등잔이 자리와 관계없이 주변을 비춘다. */}
+      {TABLE_CANDLES.map((lamp, i) => (
+        <pointLight
+          key={`desk-light-${i}`}
+          position={[lamp.x, 1.22, lamp.z]}
+          color={flame}
+          intensity={2}
+          distance={11}
+          decay={1.6}
+        />
+      ))}
       {/* 등잔 불빛 번짐 — 텍스처 없이 셰이더로 둥글게 */}
       <points frustumCulled={false}>
         <bufferGeometry>
@@ -448,10 +471,10 @@ function DeskSet({
         </bufferGeometry>
         <pointsMaterial
           color={flame}
-          size={1.1}
+          size={1.5}
           sizeAttenuation
           transparent
-          opacity={0.45}
+          opacity={0.28}
           depthWrite={false}
           toneMapped={false}
           onBeforeCompile={roundGlowShader}

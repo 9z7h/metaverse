@@ -289,12 +289,12 @@ function createScrollGeometry() {
   return geometry;
 }
 
-function drawSilk(
+export function drawSilk(
   ctx: CanvasRenderingContext2D,
   colors: SceneColors,
   house: HouseId,
   fabric: Texture,
-  brocade: Texture,
+  brocade?: Texture,
 ) {
   const primary = colors[houseToken(house, "primary")];
   const accent = colors[houseToken(house, "accent")];
@@ -307,6 +307,7 @@ function drawSilk(
   ctx.globalCompositeOperation = "multiply";
   ctx.drawImage(fabric.image as CanvasImageSource, 0, 0, W, H);
   ctx.globalCompositeOperation = "source-over";
+  if (!brocade) return;
   // 표구: 본폭 둘레를 금실 운문 비단(배접)으로 두르고 위아래는 조금 더 넓게 댄다
   const bro = brocade.image as HTMLImageElement;
   const band = (x: number, y: number, w: number, h: number) => {

@@ -369,7 +369,7 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
   const { x, z, halfW, halfD, frontZ } = LIBRARY_BUILDING;
   const dark = colors["--color-scene-wood-dark"];
   const baseTop = 0.6;
-  const wallH = 4.2;
+  const wallH = 5.9;
   const roofW = halfW + 2.4;
   const roofD = halfD + 2.6;
   const glow = useMemo(
@@ -1288,25 +1288,61 @@ function WhiteCloudClusters({ colors }: { colors: SceneColors }) {
 
 /* ── 석등 ──────────────────────────────────────────────────── */
 
-function StoneLanterns({ colors }: { colors: SceneColors }) {
+/** 화면 가까이의 등만 실제 광원을 사용하고, 먼 등은 발광으로 표시한다. */
+function NearbyLanternLights({
+  lamps,
+  color,
+  count,
+  intensity,
+  distance,
+  decay,
+}: {
+  lamps: ReadonlyArray<{ x: number; y: number; z: number }>;
+  color: string;
+  count: number;
+  intensity: number;
+  distance: number;
+  decay: number;
+}) {
   const lights = useRef<(PointLight | null)[]>([]);
   const lastUpdate = useRef(-1);
   useFrame(({ camera, clock }) => {
-    const now = clock.elapsedTime;
-    if (now - lastUpdate.current < 0.3) return;
-    lastUpdate.current = now;
-    const nearest = [...STONE_LANTERNS].sort((a, b) => {
-      const da =
-        (a.x - camera.position.x) ** 2 + (a.z - camera.position.z) ** 2;
-      const db =
-        (b.x - camera.position.x) ** 2 + (b.z - camera.position.z) ** 2;
-      return da - db;
-    });
+    if (clock.elapsedTime - lastUpdate.current < 0.4) return;
+    lastUpdate.current = clock.elapsedTime;
+    const distanceSquared = (lamp: { x: number; z: number }) =>
+      (lamp.x - camera.position.x) ** 2 + (lamp.z - camera.position.z) ** 2;
+    const nearest = [...lamps]
+      .filter((lamp) => distanceSquared(lamp) < 18 ** 2)
+      .sort((a, b) => distanceSquared(a) - distanceSquared(b));
     lights.current.forEach((light, i) => {
-      const lantern = nearest[i];
-      if (light && lantern) light.position.set(lantern.x, 1.45, lantern.z);
+      if (!light) return;
+      const lamp = nearest[i];
+      light.visible = Boolean(lamp);
+      if (lamp) light.position.set(lamp.x, lamp.y, lamp.z);
     });
   });
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <pointLight
+          key={i}
+          ref={(light) => { lights.current[i] = light; }}
+          visible={false}
+          color={color}
+          intensity={intensity}
+          distance={distance}
+          decay={decay}
+        />
+      ))}
+    </>
+  );
+}
+
+function StoneLanterns({ colors }: { colors: SceneColors }) {
+  const lampPositions = useMemo(
+    () => STONE_LANTERNS.map((lamp) => ({ ...lamp, y: 1.45 })),
+    [],
+  );
   const { stone, flame, caps, glow } = useMemo(() => {
     const stone: Box[] = [];
     const flame: Box[] = [];
@@ -1331,18 +1367,7 @@ function StoneLanterns({ colors }: { colors: SceneColors }) {
         {box()}
       </Inst>
       <InstancedPyramids boxes={caps} geometry={pyramid} colors={colors} />
-      {[0, 1, 2, 3].map((i) => (
-        <pointLight
-          key={i}
-          ref={(light) => {
-            lights.current[i] = light;
-          }}
-          color={colors["--color-scene-flame"]}
-          intensity={3}
-          distance={6}
-          decay={2}
-        />
-      ))}
+      <NearbyLanternLights lamps={lampPositions} color={colors["--color-scene-flame"]} count={4} intensity={1.6} distance={8} decay={1.7} />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}
@@ -1440,8 +1465,9 @@ function GardenLanterns({ colors }: { colors: SceneColors }) {
     <group>
       <instancedMesh ref={bodies} args={[undefined, undefined, LANTERN_COUNT]}>
         <cylinderGeometry args={[0.17, 0.2, 0.44, 12]} />
-        <meshBasicMaterial toneMapped={false} />
+        <meshStandardMaterial emissive={colors["--color-scene-flame"]} emissiveIntensity={0.18} roughness={0.9} />
       </instancedMesh>
+      <NearbyLanternLights lamps={items} color={colors["--color-scene-flame"]} count={3} intensity={0.7} distance={4.5} decay={1.8} />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}

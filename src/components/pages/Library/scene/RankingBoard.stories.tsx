@@ -33,7 +33,10 @@ function RankingPreview({
     <div ref={root} data-theme="library" style={{ height: "100dvh" }}>
       {colors ? (
         <Canvas
-          camera={{ position: [BOARD_CENTER_X + 0.4, 3.5, BOARD_STAND_Z - 7.3], fov: 35 }}
+          camera={{
+            position: [BOARD_CENTER_X + 0.4, 3.5, BOARD_STAND_Z - 7.3],
+            fov: 35,
+          }}
           aria-label="오늘의 사신제 순위판 미리보기"
         >
           <color attach="background" args={[colors["--color-scene-fog"]]} />

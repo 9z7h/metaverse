@@ -39,7 +39,7 @@ export function nearExit(pos: Vec2): boolean {
 /** 높은 한옥 서고의 수직 구성 (벽·회랑·천장) */
 export const HALL = {
   /** 벽 높이 = 천장(대들보) 높이 */
-  wallH: 10,
+  wallH: 12.3,
   /** 2층 회랑 바닥 높이 — 그 위로 윗단 서가 */
   galleryY: 3.55,
   /** 회랑이 벽에서 방 안쪽으로 튀어나온 폭 */
@@ -398,7 +398,7 @@ export const FRONT_WALL_Z = ROOM.maxZ + 1.5;
 
 /**
  * 카메라가 머물 수 있는 공간. 좌우·뒤 책장 앞면(벽에서 0.45m)보다 안쪽,
- * 앞벽에서 0.3m 안쪽, 천장(10m) 대들보보다 아래.
+ * 앞벽에서 0.3m 안쪽, 천장 대들보보다 아래.
  */
 export const CAMERA_BOUNDS = {
   minX: ROOM.minX - 0.2,
@@ -590,6 +590,8 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-roof-tile",
   "--color-scene-leaf",
   "--color-scene-dancheong",
+  "--color-scene-spell-jade",
+  "--color-scene-spell-ember",
   ...(["baekho", "jujak", "hyeonmu", "cheongryong"] as const).flatMap(
     (h) =>
       [

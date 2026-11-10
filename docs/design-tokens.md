@@ -162,23 +162,23 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 
 ### Primitive
 
-| 구분        | CSS Property                            | 값                     |
-| ----------- | --------------------------------------- | ---------------------- |
-| font-family | --font-family-base                      | "Pretendard", ... sans |
-| weight      | --font-weight-regular / -medium / -bold | 400 / 500 / 700        |
-| size        | --font-size-16 / -18 / -20 / -24 / -32  | 16 / 18 / 20 / 24 / 32px |
+| 구분        | CSS Property                             | 값                       |
+| ----------- | ---------------------------------------- | ------------------------ |
+| font-family | --font-family-base                       | "Pretendard", ... sans   |
+| weight      | --font-weight-regular / -medium / -bold  | 400 / 500 / 700          |
+| size        | --font-size-16 / -18 / -20 / -24 / -32   | 16 / 18 / 20 / 24 / 32px |
 | line-height | --line-height-24 / -27 / -30 / -36 / -48 | 24 / 27 / 30 / 36 / 48px |
 
 ### Semantic (font shorthand)
 
-| 스타일            | CSS Property             | 값 (weight size/lh family) | 용도             |
-| ----------------- | ------------------------ | -------------------------- | ---------------- |
-| title/sm/bold     | --text-title-sm-bold     | Bold 18/27 Pretendard      | 제목             |
-| body/lg/regular   | --text-body-lg-regular   | Regular 16/24 Pretendard   | 기본 본문         |
-| body/sm/bold      | --text-body-sm-bold      | Bold 16/24 Pretendard      | 보조 강조 문구    |
-| body/sm/regular   | --text-body-sm-regular   | Regular 16/24 Pretendard   | 보조 본문         |
-| caption/lg/medium | --text-caption-lg-medium | Medium 16/24 Pretendard    | 통계·타임스탬프   |
-| button/primary   | --text-button-primary   | Bold 18/27 Pretendard      | 주요 버튼 라벨    |
+| 스타일            | CSS Property             | 값 (weight size/lh family) | 용도            |
+| ----------------- | ------------------------ | -------------------------- | --------------- |
+| title/sm/bold     | --text-title-sm-bold     | Bold 18/27 Pretendard      | 제목            |
+| body/lg/regular   | --text-body-lg-regular   | Regular 16/24 Pretendard   | 기본 본문       |
+| body/sm/bold      | --text-body-sm-bold      | Bold 16/24 Pretendard      | 보조 강조 문구  |
+| body/sm/regular   | --text-body-sm-regular   | Regular 16/24 Pretendard   | 보조 본문       |
+| caption/lg/medium | --text-caption-lg-medium | Medium 16/24 Pretendard    | 통계·타임스탬프 |
+| button/primary    | --text-button-primary    | Bold 18/27 Pretendard      | 주요 버튼 라벨  |
 
 ## Claude용 규칙
 
@@ -265,7 +265,7 @@ Figma `/` → CSS `-` 변환. 예: `color/bg/primary` → `--color-bg-primary`
 
 사용: CSS는 `houseVar(id, "accent")` → `var(--color-house-<id>-accent)`, 3D는 `houseToken(id, part)`로 `readSceneColors()` 결과에서 조회.
 
-추가 장면 토큰: `--color-scene-moonlight`(moon-300, 창호 달빛), `--color-scene-dancheong`(dancheong-500, 단청 띠 바탕), `--color-scene-brass`(brass-500, 혼천의·등 다발 고리의 놋쇠), `--color-scene-collar`(ivory-100, 도포 깃의 흰 동정 — 모든 기숙사 공통).
+추가 장면 토큰: `--color-scene-moonlight`(moon-300, 창호 달빛), `--color-scene-dancheong`(dancheong-500, 단청 띠 바탕), `--color-scene-brass`(brass-500, 혼천의·등 다발 고리의 놋쇠), `--color-scene-collar`(ivory-100, 도포 깃의 흰 동정 — 모든 기숙사 공통). 주문 연출용 `--color-scene-spell-jade`(teal-600, 명경의 옥색 불빛)와 `--color-scene-spell-ember`(ember-600, 화룡의 붉은 불꽃). 금빛은 `--color-scene-flame`, 구름은 `--color-scene-collar`, 연기는 `--color-scene-stone`을 재사용한다.
 
 숨돌림 뜰 토큰: `--color-scene-water`(pond-600, 연못), `--color-scene-stone`(stone-500, 돌담·석등·징검돌), `--color-scene-roof-tile`(roof-700, 기와), `--color-scene-leaf`(moss-600, 소나무·대나무 잎). 원본 primitive는 `pond-600`·`stone-500`·`roof-700`이며 brass-500은 서고와 공용이다.
 

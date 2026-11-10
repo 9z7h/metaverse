@@ -20,6 +20,11 @@ import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
 import type { LibraryPresence } from "../../libraryPresence";
 import { FloorPicker, FrameDriver, TapMarker } from "../Characters";
+import { SpellEffects } from "../SpellEffects";
+import { SpellBar } from "../SpellBar";
+import { useSpellCaster } from "../useSpellCaster";
+import { SPELL_ORDER } from "../spellLogic";
+import type { SpellId } from "../spellLogic";
 import type { FloorPick } from "../Characters";
 import { LabelPortalContext } from "../Avatar";
 import {
@@ -32,12 +37,24 @@ import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { BroomRider, RemoteRider } from "./Broom";
 import { GardenScenery } from "./GardenScenery";
 import { SpaceSelect } from "../SpaceSelect";
-import { GARDEN_HALF, preparingText, resolveWalk } from "./gardenLayout";
+import {
+  GARDEN_HALF,
+  GARDEN_SPAWN,
+  preparingText,
+  resolveWalk,
+} from "./gardenLayout";
 
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
   LibraryPresence,
-  "walkers" | "moves" | "sendMove" | "chat" | "connectedCount" | "restingCount"
+  | "walkers"
+  | "moves"
+  | "sendMove"
+  | "sendCast"
+  | "onRemoteCast"
+  | "chat"
+  | "connectedCount"
+  | "restingCount"
 >;
 
 export interface GardenWorldProps {
@@ -172,6 +189,49 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
   }, []);
 
+  /* 주문: 걸어 다닐 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
+  const selfPos = useRef<Vec2>({ ...GARDEN_SPAWN });
+  const selfFacing = useRef(0);
+  const spells = useSpellCaster({
+    selfId: "me",
+    getPose: () => ({
+      x: selfPos.current.x,
+      z: selfPos.current.z,
+      ry: selfFacing.current,
+    }),
+    enabled: !riding,
+  });
+  const castLocal = spells.cast;
+  const addRemoteCast = spells.addRemote;
+  const { sendCast, onRemoteCast } = presence;
+  /** 시전하면 같은 곳의 다른 사람에게도 효과만 알린다 */
+  const castSpell = useCallback(
+    (id: SpellId) => {
+      const made = castLocal(id);
+      if (made) sendCast(made.spell, made.x, made.z, made.ry);
+    },
+    [castLocal, sendCast],
+  );
+  // 다른 사람이 시전하면 그 자리에 효과를 그리고 그 사람이 지팡이를 휘두르게 한다
+  const [remoteCastAt, setRemoteCastAt] = useState<Record<string, number>>({});
+  useEffect(
+    () =>
+      onRemoteCast((c) => {
+        const now = performance.now();
+        addRemoteCast({
+          id: `${c.senderId}-${now}`,
+          caster: c.senderId,
+          spell: c.spell,
+          x: c.x,
+          z: c.z,
+          ry: c.ry,
+          t0: now,
+        });
+        setRemoteCastAt((m) => ({ ...m, [c.senderId]: now }));
+      }),
+    [onRemoteCast, addRemoteCast],
+  );
+
   const toggleRide = useCallback(() => {
     ridingRef.current = !ridingRef.current;
     setRiding(ridingRef.current);
@@ -192,6 +252,13 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         keys.current.add(e.code);
         sync();
         e.preventDefault();
+      } else if (
+        /^Digit[1-4]$/.test(e.code) &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        castSpell(SPELL_ORDER[Number(e.code.slice(5)) - 1]);
       } else if (e.code === "KeyE" && nearDoorRef.current) {
         onBack();
       } else if (e.code === "Space" && !e.repeat) {
@@ -220,7 +287,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [sync, onBack, toggleRide]);
+  }, [sync, onBack, toggleRide, castSpell]);
 
   /* 시점: 드래그 = 회전, 핀치·휠 = 줌, 짧은 탭 = 그곳으로 이동/비행 */
   const orbit = useRef<Orbit>({ ...ORBIT_DEFAULT });
@@ -378,6 +445,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                   moves={presence.moves}
                   reducedMotion={reduced}
                   bubble={bubbles.get(w.id)?.text}
+                  castAt={remoteCastAt[w.id] ?? null}
                 />
               ))}
               <BroomRider
@@ -394,8 +462,12 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 onMovingChange={setMoving}
                 reducedMotion={reduced}
                 bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
+                positionRef={selfPos}
+                facingRef={selfFacing}
+                castAt={spells.castAt}
                 onMove={presence.sendMove}
               />
+              <SpellEffects colors={colors} casts={spells.casts} />
               <FloorPicker pickRef={pickFloor} />
               {marker ? (
                 <TapMarker
@@ -405,7 +477,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 />
               ) : null}
               <FrameDriver
-                fps={riding || moving || dragging ? FPS_ACTIVE : FPS_IDLE}
+                fps={
+                  riding || moving || dragging || spells.active
+                    ? FPS_ACTIVE
+                    : FPS_IDLE
+                }
               />
             </LabelPortalContext.Provider>
           </Canvas>
@@ -545,6 +621,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
               ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD · Shift 가속"
               : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
           </p>
+          {riding ? null : <SpellBar onCast={castSpell} />}
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
             {nearDoor ? (
               <ButtonLarge onClick={onBack}>서고로 돌아가기</ButtonLarge>

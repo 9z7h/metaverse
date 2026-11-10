@@ -7,8 +7,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import type { PointLight } from "three";
+import { Canvas } from "@react-three/fiber";
 import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
   FocusTimer,
@@ -22,6 +21,11 @@ import type {
   StudyMode,
 } from "../libraryPresence";
 import { MagicEffect } from "./MagicEffect";
+import { SpellEffects } from "./SpellEffects";
+import { SpellBar } from "./SpellBar";
+import { useSpellCaster } from "./useSpellCaster";
+import { SPELL_ORDER } from "./spellLogic";
+import type { SpellId } from "./spellLogic";
 import { SpaceSelect } from "./SpaceSelect";
 import { ChatPanel } from "../ChatPanel";
 import { ME_BUBBLE_KEY, activeBubbles, isTypingTarget } from "../chat";
@@ -43,6 +47,7 @@ import { LibraryRoom } from "./LibraryRoom";
 import { HallFrame } from "./HallFrame";
 import { Armillary } from "./Armillary";
 import { Atmosphere } from "./Atmosphere";
+import { gardenDaylight } from "./garden/gardenTime";
 import { HouseCrest } from "../HouseCrest";
 import type { RankEntry } from "../houseRankingLogic";
 import { RankingBoard } from "./RankingBoard";
@@ -56,7 +61,6 @@ import {
   deskLayout,
   readSceneColors,
   tapTarget,
-  ROOM,
   CAMERA_FOV,
   PLAYER_SPAWN,
 } from "./sceneLayout";
@@ -87,45 +91,6 @@ const MODE_LABEL: Record<StudyMode, string> = {
   theory: "이론",
   practice: "실습",
 };
-
-/**
- * 따뜻한 실제 광원 4개가 플레이어를 따라 움직인다. 서고가 길어서(약 41m) 고정해 두면
- * 광원이 몇 개나 더 필요하지만, 모바일에서는 광원 수가 곧 비용이라 개수는 그대로 두고
- * 내 주변(앞뒤 약 25m)만 밝힌다. 나머지 불빛은 발광·번짐으로 표현한다.
- */
-const LIGHT_OFFSETS = [-14, -5, 4, 13];
-function FollowLights({
-  target,
-  color,
-}: {
-  target: { current: Vec2 };
-  color: string;
-}) {
-  const refs = useRef<(PointLight | null)[]>([]);
-  useFrame(() => {
-    LIGHT_OFFSETS.forEach((dz, i) => {
-      const z = Math.min(ROOM.maxZ, Math.max(ROOM.minZ, target.current.z + dz));
-      refs.current[i]?.position.set(0, 3.2, z);
-    });
-  });
-  return (
-    <>
-      {LIGHT_OFFSETS.map((_, i) => (
-        <pointLight
-          key={i}
-          ref={(l) => {
-            refs.current[i] = l;
-          }}
-          position={[0, 3.2, 0]}
-          intensity={7}
-          distance={11}
-          decay={1.6}
-          color={color}
-        />
-      ))}
-    </>
-  );
-}
 
 /** "동작 줄이기" 설정이면 퇴장 연출 없이 바로 사라진다 */
 /** 걷다가 앉은 사람이 그 자리에서 이어 걸어가도록 마지막 위치를 출발점으로 넘긴다 */
@@ -244,6 +209,16 @@ export function LibraryWorld({
   const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<SceneColors | null>(null);
+  const [daylight, setDaylight] = useState(() => gardenDaylight(new Date()));
+  useEffect(() => {
+    const update = () => setDaylight(gardenDaylight(new Date()));
+    const timer = window.setInterval(update, 30_000);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
   useLayoutEffect(() => {
     if (rootRef.current) setColors(readSceneColors(rootRef.current));
   }, []);
@@ -317,6 +292,49 @@ export function LibraryWorld({
   const [nearSeat, setNearSeat] = useState<string | null>(null);
   const [atExit, setAtExit] = useState(false);
 
+  const playerPos = useRef<Vec2>({ ...PLAYER_SPAWN });
+  const playerFacing = useRef(Math.PI);
+  /* 주문: 서 있을 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
+  const spells = useSpellCaster({
+    selfId: "me",
+    getPose: () => ({
+      x: playerPos.current.x,
+      z: playerPos.current.z,
+      ry: playerFacing.current,
+    }),
+    enabled: !mySeatId && !viewingBoard,
+  });
+  const castLocal = spells.cast;
+  const addRemoteCast = spells.addRemote;
+  const { sendCast, onRemoteCast } = presence;
+  /** 시전하면 같은 곳의 다른 사람에게도 효과만 알린다 */
+  const castSpell = useCallback(
+    (id: SpellId) => {
+      const made = castLocal(id);
+      if (made) sendCast(made.spell, made.x, made.z, made.ry);
+    },
+    [castLocal, sendCast],
+  );
+  // 다른 사람이 시전하면 그 자리에 효과를 그리고 그 사람이 지팡이를 휘두르게 한다
+  const [remoteCastAt, setRemoteCastAt] = useState<Record<string, number>>({});
+  useEffect(
+    () =>
+      onRemoteCast((c) => {
+        const now = performance.now();
+        addRemoteCast({
+          id: `${c.senderId}-${now}`,
+          caster: c.senderId,
+          spell: c.spell,
+          x: c.x,
+          z: c.z,
+          ry: c.ry,
+          t0: now,
+        });
+        setRemoteCastAt((m) => ({ ...m, [c.senderId]: now }));
+      }),
+    [onRemoteCast, addRemoteCast],
+  );
+
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       // 대화창 같은 입력칸에서 글자를 치는 중이면 이동·앉기 키(W·A·S·D·E)를 가로채지 않는다
@@ -328,6 +346,13 @@ export function LibraryWorld({
         keys.current.add(e.code);
         sync();
         e.preventDefault();
+      } else if (
+        /^Digit[1-4]$/.test(e.code) &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        castSpell(SPELL_ORDER[Number(e.code.slice(5)) - 1]);
       } else if (e.code === "KeyE" && nearSeat && !mySeatId) {
         onSit(nearSeat);
       } else if (e.code === "KeyE" && atExit && !nearSeat && !mySeatId) {
@@ -352,13 +377,21 @@ export function LibraryWorld({
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [sync, nearSeat, atExit, mySeatId, onSit, onGoGarden, setBoardView]);
+  }, [
+    sync,
+    nearSeat,
+    atExit,
+    mySeatId,
+    onSit,
+    onGoGarden,
+    setBoardView,
+    castSpell,
+  ]);
 
   // 처음 화면에 있던 학생은 앉은 채로, 이후 들어온 학생만 걸어 들어온다
   const initialIds = useRef(new Set(presence.others.map((s) => s.id)));
 
   // 나간 학생은 바로 지우지 않고, 마법처럼 스르륵 사라지는 동안만 한 번 더 그린다
-  const playerPos = useRef<Vec2>({ ...PLAYER_SPAWN });
   const botRegistry = useRef(new Map<string, BotSnapshot>());
   const prevOthers = useRef(presence.others);
   const [leavers, setLeavers] = useState<Leaver[]>([]);
@@ -571,25 +604,21 @@ export function LibraryWorld({
               {/* 긴 서고의 안쪽이 안개 속으로 깊어지게 — 넓어진 홀(약 31m)에 맞춤 */}
               <fog attach="fog" args={[colors["--color-scene-fog"], 22, 72]} />
               <ambientLight
-                intensity={0.68}
+                intensity={0.45 + daylight * 0.2}
                 color={colors["--color-scene-collar"]}
               />
               <hemisphereLight
                 args={[
                   colors["--color-scene-moonlight"],
                   colors["--color-scene-floor"],
-                  0.56,
+                  0.35 + daylight * 0.2,
                 ]}
-              />
-              <FollowLights
-                target={playerPos}
-                color={colors["--color-scene-flame"]}
               />
 
               <LibraryRoom colors={colors} desks={desks} />
               <HallFrame colors={colors} />
               <Armillary colors={colors} />
-              <Atmosphere colors={colors} />
+              <Atmosphere colors={colors} daylight={daylight} />
               {/* 순위판 보기 중에는 순위판 앞을 가리지 않게 인물을 모두 숨긴다 */}
               <group visible={!viewingBoard}>
                 {presence.others.map((s) => (
@@ -611,6 +640,7 @@ export function LibraryWorld({
                     colors={colors}
                     moves={presence.moves}
                     bubble={bubbles.get(w.id)?.text}
+                    castAt={remoteCastAt[w.id] ?? null}
                   />
                 ))}
                 {leavers.map((l) => (
@@ -624,6 +654,8 @@ export function LibraryWorld({
                 ))}
                 <Player
                   positionRef={playerPos}
+                  facingRef={playerFacing}
+                  castAt={spells.castAt}
                   bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                   boardView={boardViewRef}
                   colors={colors}
@@ -655,6 +687,9 @@ export function LibraryWorld({
                   color={colors[houseToken(house, "accent")]}
                 />
               ) : null}
+              {viewingBoard ? null : (
+                <SpellEffects colors={colors} casts={spells.casts} />
+              )}
               {/* 내가 실습 중이면 내 책상 위로 기숙사 마법 */}
               {seat && focusing && mode === "practice" && !viewingBoard ? (
                 <MagicEffect colors={colors} house={house} at={seat.desk} />
@@ -664,6 +699,7 @@ export function LibraryWorld({
                   seated: Boolean(seat),
                   busy: dragging || leavers.length > 0 || viewingBoard,
                   magic:
+                    spells.active ||
                     (focusing && mode === "practice") ||
                     presence.others.some(
                       (s) => s.focusing && s.mode === "practice",
@@ -926,6 +962,7 @@ export function LibraryWorld({
               gap: "var(--spacing-16)",
             }}
           >
+            {seat || viewingBoard ? null : <SpellBar onCast={castSpell} />}
             {nearSeat ? (
               <div style={{ ...auto, display: "grid" }}>
                 <ButtonLarge onClick={() => onSit(nearSeat)}>

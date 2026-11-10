@@ -64,7 +64,9 @@ describe("뜰 배치", () => {
     const heights = [3.2, 2.5, 1.5, 0.5, -0.1].map((step) =>
       gardenWalkHeight({ x: p.x, z: front + step * STAIR_DEPTH }),
     );
-    [0, 0.15, 0.3, 0.45, 0.6].forEach((h, i) => expect(heights[i]).toBeCloseTo(h));
+    [0, 0.15, 0.3, 0.45, 0.6].forEach((h, i) =>
+      expect(heights[i]).toBeCloseTo(h),
+    );
   });
 
   it("정자 앞 계단을 따라가면 기단 높이까지 자연스럽게 올라간다", () => {
@@ -134,6 +136,21 @@ describe("뜰 배치", () => {
       expect(b.z).toBeGreaterThanOrEqual(BAMBOO_GROVE.minZ);
       expect(b.z).toBeLessThanOrEqual(BAMBOO_GROVE.maxZ);
       expect(b.h).toBeGreaterThan(5);
+    }
+  });
+
+  it("현무관 계단과 접근로에는 대나무와 보행 장애물이 없다", () => {
+    const dorm = SCHOOL_BUILDINGS.find((b) => b.id === "hyeonmu")!;
+    const front = dorm.z + dorm.halfD + 1.6;
+    for (const bamboo of BAMBOO) {
+      const inStairs = Math.abs(bamboo.x - dorm.x) <= 2.4 &&
+        bamboo.z >= front - 1 && bamboo.z <= front + 3 * STAIR_DEPTH + 1.3;
+      expect(inStairs).toBe(false);
+    }
+    for (const z of [front, front + STAIR_DEPTH, front + 2 * STAIR_DEPTH]) {
+      const resolved = resolveWalk({ x: dorm.x, z });
+      expect(resolved.x).toBeCloseTo(dorm.x);
+      expect(resolved.z).toBeCloseTo(z);
     }
   });
 

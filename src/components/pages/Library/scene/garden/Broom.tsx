@@ -220,6 +220,11 @@ export interface BroomRiderProps {
   reducedMotion: boolean;
   /** 내 머리 위에 잠깐 뜨는 말풍선 글 */
   bubble?: string;
+  /** 내 위치·바라보는 방향(rad)을 매 프레임 기록 — 주문이 앞쪽 구역에 닿는 데 쓴다 */
+  positionRef?: MutableRefObject<Vec2>;
+  facingRef?: MutableRefObject<number>;
+  /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
+  castAt?: number | null;
   /** 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
   onMove?: (
     x: number,
@@ -247,6 +252,9 @@ export function BroomRider({
   onMovingChange,
   reducedMotion,
   bubble,
+  positionRef,
+  facingRef,
+  castAt,
   onMove,
 }: BroomRiderProps) {
   const lastSent = useRef({ at: 0, moving: false });
@@ -377,6 +385,8 @@ export function BroomRider({
     const visualY = Math.max(cur.y, groundHeight) + bob;
     g.position.set(cur.x, visualY, cur.z);
     g.rotation.y = cur.heading;
+    if (positionRef) positionRef.current = { x: cur.x, z: cur.z };
+    if (facingRef) facingRef.current = cur.heading;
     if (tilt.current) {
       // 돌아가는 쪽으로 몸을 기울인다. 이 아바타는 +z를 보고 있어 +x가 왼쪽이므로
       // 왼쪽으로 돌 때(heading 증가) 왼쪽으로 기울이려면 z축 회전은 음수다
@@ -494,6 +504,11 @@ export function BroomRider({
             skin={colors["--color-scene-skin"]}
             hat={colors["--color-scene-hat"]}
             pose={pose}
+            castAt={castAt}
+            wand={{
+              wood: colors["--color-scene-wood-dark"],
+              glow: colors["--color-scene-flame"],
+            }}
             name="나"
             showLabel={false}
             bubble={bubble}
@@ -536,6 +551,8 @@ export interface RemoteRiderProps {
   reducedMotion: boolean;
   /** 머리 위 말풍선 글 */
   bubble?: string;
+  /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
+  castAt?: number | null;
 }
 
 /**
@@ -548,6 +565,7 @@ export function RemoteRider({
   moves,
   reducedMotion,
   bubble,
+  castAt = null,
 }: RemoteRiderProps) {
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
@@ -630,6 +648,11 @@ export function RemoteRider({
             skin={colors["--color-scene-skin"]}
             hat={colors["--color-scene-hat"]}
             pose={pose}
+            castAt={castAt}
+            wand={{
+              wood: colors["--color-scene-wood-dark"],
+              glow: colors["--color-scene-flame"],
+            }}
             name={walker.name}
             showLabel
             bubble={bubble}
