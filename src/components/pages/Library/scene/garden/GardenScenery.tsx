@@ -52,6 +52,8 @@ import {
   STAIR_WIDTH,
 } from "./gardenLayout";
 import type { SchoolBuilding } from "./gardenLayout";
+import { GuardianFlag } from "./GuardianFlag";
+import type { HouseId } from "../../houses";
 
 function seeded(seed: number) {
   let s = seed;
@@ -648,7 +650,6 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
   const bandColor = b.house
     ? colors[`--color-house-${b.house}-primary`]
     : colors["--color-scene-dancheong"];
-  const flagColor = b.house ? colors[`--color-house-${b.house}-accent`] : null;
   const frontZ = b.z + b.halfD - 0.3;
   const bodyW = b.halfW * 2 - 0.6;
   const bodyD = b.halfD * 2 - 0.6;
@@ -903,19 +904,19 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
         color={roofTile}
       />
       <Finial colors={colors} at={[b.x, step2 + wallH + 3, b.z]} h={0.9} />
-      {/* 기숙사 깃발 */}
-      {flagColor ? (
-        <group position={[b.x + b.halfW + 0.4, 0, b.z + b.halfD + 1.6]}>
-          <mesh position={[0, 2.4, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 4.8, 8]} />
-            <meshStandardMaterial color={dark} />
-          </mesh>
-          <mesh position={[0.45, 4, 0]}>
-            <boxGeometry args={[0.9, 1.3, 0.04]} />
-            <meshStandardMaterial color={flagColor} />
-          </mesh>
-        </group>
-      ) : null}
+      {/* 입구 좌우의 사신수 깃발 — 계단 폭 바깥, 기단 윗면에 선다 */}
+      {b.house
+        ? [-1, 1].map((sx) => (
+            <GuardianFlag
+              key={sx}
+              house={b.house as HouseId}
+              colors={colors}
+              position={[b.x + sx * 3.1, step2 + 0.2, b.z + b.halfD + 0.5]}
+              phase={sx * 1.3}
+              poleSide={sx < 0 ? -1 : 1}
+            />
+          ))
+        : null}
     </group>
   );
 }
@@ -943,11 +944,24 @@ function BuildingSteps({ colors }: { colors: SceneColors }) {
     <group>
       {BUILDING_PLATFORMS.flatMap((p, building) =>
         Array.from({ length: STAIR_COUNT }, (_, i) => {
-          const height = p.height * (STAIR_COUNT - i) / (STAIR_COUNT + 1);
+          const height = (p.height * (STAIR_COUNT - i)) / (STAIR_COUNT + 1);
           return (
-            <mesh key={`${building}-${i}`} position={[p.x, height / 2, p.z + p.halfD + STAIR_DEPTH * (i + 0.5)]}>
+            <mesh
+              key={`${building}-${i}`}
+              position={[
+                p.x,
+                height / 2,
+                p.z + p.halfD + STAIR_DEPTH * (i + 0.5),
+              ]}
+            >
               <boxGeometry args={[STAIR_WIDTH, height, STAIR_DEPTH]} />
-              <meshStandardMaterial color={colors["--color-scene-stone"]} map={stone} bumpMap={stone} bumpScale={0.02} roughness={0.9} />
+              <meshStandardMaterial
+                color={colors["--color-scene-stone"]}
+                map={stone}
+                bumpMap={stone}
+                bumpScale={0.02}
+                roughness={0.9}
+              />
             </mesh>
           );
         }),
@@ -955,7 +969,13 @@ function BuildingSteps({ colors }: { colors: SceneColors }) {
       {SCHOOL_BUILDINGS.filter((b) => b.kind === "dorm").map((b) => (
         <mesh key={`upper-${b.id}`} position={[b.x, 0.35, b.z + b.halfD + 1.2]}>
           <boxGeometry args={[STAIR_WIDTH, 0.7, 0.8]} />
-          <meshStandardMaterial color={colors["--color-scene-stone"]} map={stone} bumpMap={stone} bumpScale={0.02} roughness={0.9} />
+          <meshStandardMaterial
+            color={colors["--color-scene-stone"]}
+            map={stone}
+            bumpMap={stone}
+            bumpScale={0.02}
+            roughness={0.9}
+          />
         </mesh>
       ))}
     </group>
