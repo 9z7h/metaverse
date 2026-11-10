@@ -60,6 +60,8 @@ export interface RemoteCast {
   spell: SpellId;
   x: number;
   z: number;
+  /** 구름 위 시전 높이 (없으면 땅) */
+  y?: number;
   ry: number;
 }
 
@@ -120,7 +122,13 @@ export interface LibraryPresence {
     riding?: boolean,
   ) => void;
   /** 내 시전을 알린다 (구역 중심 좌표·방향). 받는 쪽은 효과만 그리고 아무것도 저장하지 않는다 */
-  sendCast: (spell: SpellId, x: number, z: number, ry: number) => void;
+  sendCast: (
+    spell: SpellId,
+    x: number,
+    z: number,
+    ry: number,
+    y?: number,
+  ) => void;
   /** 같은 곳에 있는 다른 사람의 시전을 받는다. 돌려주는 함수로 구독을 푼다 */
   onRemoteCast: (listener: (cast: RemoteCast) => void) => () => void;
   me: PresenceStudent | null;

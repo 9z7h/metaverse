@@ -1,23 +1,22 @@
 /**
  * 기본 주문 4종의 연출. 시전 하나가 구역 하나(반지름 CAST_RADIUS)만 쓰고 파티클은 MAX_PARTICLES 이하다.
- * 화려하게 번지지 않고 작게 떠올랐다 사라진다. 새 pointLight는 쓰지 않고 가산 광점으로 흉내 낸다.
+ * 명경의 빛은 아바타 지팡이에 붙고, 나머지 효과는 시전자 앞 구역에 나타난다.
  */
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { AdditiveBlending, Color, DoubleSide, NormalBlending } from "three";
+import { AdditiveBlending, Color, NormalBlending } from "three";
 import type {
   BufferAttribute,
   Group,
   Mesh,
-  MeshBasicMaterial,
   Points,
   PointsMaterial,
+  PointLight,
 } from "three";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 import {
   CAST_DISTANCE,
-  CAST_RADIUS,
   PARTICLE_COUNTS,
   SPELLS,
   castProgress,
@@ -50,6 +49,7 @@ function Glow({
   color,
   size,
   additive = true,
+  flameShape = false,
 }: {
   pointsRef: React.RefObject<Points | null>;
   matRef: React.RefObject<PointsMaterial | null>;
@@ -57,7 +57,37 @@ function Glow({
   color: string | Color;
   size: number;
   additive?: boolean;
+  flameShape?: boolean;
 }) {
+  const flameTime = useMemo(() => ({ value: 0 }), []);
+  const flameShader = useCallback(
+    (shader: {
+      fragmentShader: string;
+      uniforms: Record<string, { value: unknown }>;
+    }) => {
+      shader.uniforms.uFlameTime = flameTime;
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", "uniform float uFlameTime;\nvoid main() {")
+        .replace(
+          "#include <map_particle_fragment>",
+          `float h = 1.0 - gl_PointCoord.y;
+       float x = (gl_PointCoord.x - 0.5) * 2.0;
+       float phase = gl_FragCoord.x * 0.015 + gl_FragCoord.y * 0.009;
+       float bend = (sin(h * 9.0 - uFlameTime * 7.0 + phase) * 0.18
+         + sin(h * 17.0 + uFlameTime * 5.0 + phase) * 0.08) * h;
+       float width = 0.72 * pow(max(0.0, 1.0 - h), 0.65) * smoothstep(0.0, 0.16, h) + 0.025;
+       float edge = 1.0 - smoothstep(width * 0.55, width, abs(x - bend));
+       float tip = (1.0 - smoothstep(0.78, 1.0, h)) * smoothstep(0.0, 0.08, h);
+       float core = (1.0 - smoothstep(width * 0.1, width * 0.6, abs(x - bend))) * (1.0 - smoothstep(0.25, 0.8, h));
+       diffuseColor.rgb *= mix(0.7, 1.8, core);
+       diffuseColor.a *= edge * tip;`,
+        );
+    },
+    [flameTime],
+  );
+  useFrame(({ clock }) => {
+    if (flameShape) flameTime.value = clock.elapsedTime;
+  });
   return (
     <points ref={pointsRef} frustumCulled={false}>
       <bufferGeometry>
@@ -73,8 +103,10 @@ function Glow({
         blending={additive ? AdditiveBlending : NormalBlending}
         depthWrite={false}
         toneMapped={false}
-        onBeforeCompile={roundGlowShader}
-        customProgramCacheKey={roundGlowKey}
+        onBeforeCompile={flameShape ? flameShader : roundGlowShader}
+        customProgramCacheKey={
+          flameShape ? () => "flame-particle-v1" : roundGlowKey
+        }
       />
     </points>
   );
@@ -90,88 +122,6 @@ function touch(points: Points | null) {
 interface EffectProps {
   cast: SpellCast;
   colors: SceneColors;
-}
-
-/* ── 명경: 옥색 도깨비불 하나가 떠올라 작은 구역을 밝힌다 ───────── */
-
-const JADE_MOTES = PARTICLE_COUNTS.myeonggyeong - 1;
-
-function Myeonggyeong({ cast, colors }: EffectProps) {
-  const root = useRef<Group>(null);
-  const orb = useRef<Points>(null);
-  const orbMat = useRef<PointsMaterial>(null);
-  const motes = useRef<Points>(null);
-  const moteMat = useRef<PointsMaterial>(null);
-  const ring = useRef<Mesh>(null);
-  const ringMat = useRef<MeshBasicMaterial>(null);
-  const orbPos = useMemo(() => new Float32Array(3), []);
-  const motePos = useMemo(() => new Float32Array(JADE_MOTES * 3), []);
-  const total = SPELLS.myeonggyeong.durationMs;
-  // 가산 합성에서 어두운 옥색이 묻히지 않게 밝기 배율을 곱한다
-  const jade = useMemo(
-    () => new Color(colors["--color-scene-spell-jade"]).multiplyScalar(2.4),
-    [colors],
-  );
-
-  useFrame(() => {
-    const now = performance.now();
-    const p = castProgress(cast, now);
-    if (root.current) root.current.visible = p !== null;
-    if (p === null) return;
-    const t = (now - cast.t0) / 1000;
-    const a = fade(p, total, 900, 1500);
-    const rise = smooth(t / 0.8);
-    const y = 0.7 + rise * 0.6 + Math.sin(t * 1.6) * 0.04;
-    orbPos[0] = 0;
-    orbPos[1] = y;
-    orbPos[2] = 0;
-    for (let i = 0; i < JADE_MOTES; i++) {
-      const ang = t * 0.9 + (i / JADE_MOTES) * Math.PI * 2;
-      const r = 0.14 + hash(i) * 0.16;
-      motePos[i * 3] = Math.cos(ang) * r;
-      motePos[i * 3 + 1] = y + Math.sin(t * 1.3 + i) * 0.22;
-      motePos[i * 3 + 2] = Math.sin(ang) * r;
-    }
-    touch(orb.current);
-    touch(motes.current);
-    if (orbMat.current) orbMat.current.opacity = a;
-    if (moteMat.current) moteMat.current.opacity = a * 0.9;
-    if (ring.current) ring.current.scale.setScalar(0.6 + rise * 0.4);
-    if (ringMat.current) ringMat.current.opacity = a * 0.35;
-  });
-
-  return (
-    <group ref={root} position={[cast.x, 0, cast.z]}>
-      <Glow
-        pointsRef={orb}
-        matRef={orbMat}
-        positions={orbPos}
-        color={jade}
-        size={0.7}
-      />
-      <Glow
-        pointsRef={motes}
-        matRef={moteMat}
-        positions={motePos}
-        color={jade}
-        size={0.12}
-      />
-      {/* 밝아진 바닥 — 빛을 흉내 내는 옅은 고리 */}
-      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
-        <ringGeometry args={[CAST_RADIUS * 0.5, CAST_RADIUS * 0.6, 40]} />
-        <meshBasicMaterial
-          ref={ringMat}
-          color={jade}
-          transparent
-          opacity={0}
-          blending={AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
-          side={DoubleSide}
-        />
-      </mesh>
-    </group>
-  );
 }
 
 /* ── 묵령: 먹물이 스며들 듯 번져 흩어진다 (남의 불빛은 건드리지 않음) ── */
@@ -191,18 +141,28 @@ function Mukryeong({ cast, colors }: EffectProps) {
     if (p === null) return;
     const e = smooth(p * 1.4);
     for (let i = 0; i < SMOKE; i++) {
-      const ang = hash(i) * Math.PI * 2;
-      const r = (0.1 + hash(i, 1) * 0.9) * e * 0.9;
+      const ang = hash(i) * Math.PI * 2 + p * (0.8 + hash(i, 3));
+      const r = (0.04 + hash(i, 1) * 0.45) * e;
       pos[i * 3] = Math.cos(ang) * r;
       pos[i * 3 + 1] = 1.2 + hash(i, 2) * 0.5 * p - p * 0.15;
       pos[i * 3 + 2] = Math.sin(ang) * r;
     }
     touch(smoke.current);
-    if (smokeMat.current) smokeMat.current.opacity = (1 - p) * (1 - p) * 0.8;
+    if (smokeMat.current) {
+      smokeMat.current.opacity = smooth(p / 0.08) * (1 - p) * (1 - p) * 0.8;
+      smokeMat.current.size = 0.18 + e * 0.12;
+    }
   });
 
   return (
-    <group ref={root} position={[cast.x, 0, cast.z]}>
+    <group
+      ref={root}
+      position={[
+        cast.x - Math.sin(cast.ry) * (CAST_DISTANCE - 0.4),
+        cast.y ?? 0,
+        cast.z - Math.cos(cast.ry) * (CAST_DISTANCE - 0.4),
+      ]}
+    >
       <Glow
         pointsRef={smoke}
         matRef={smokeMat}
@@ -228,6 +188,7 @@ function Hwaryong({ cast, colors }: EffectProps) {
   const trailMat = useRef<PointsMaterial>(null);
   const fire = useRef<Points>(null);
   const fireMat = useRef<PointsMaterial>(null);
+  const fireLight = useRef<PointLight>(null);
   const trailPos = useMemo(() => new Float32Array(TRAIL * 3), []);
   const firePos = useMemo(() => new Float32Array(FLAMES * 3), []);
   const total = SPELLS.hwaryong.durationMs;
@@ -253,9 +214,9 @@ function Hwaryong({ cast, colors }: EffectProps) {
     const to = 0.5;
     for (let k = 0; k < TRAIL; k++) {
       const uk = clamp01(u - k * 0.05);
-      const d = from + (to - from) * uk;
+      const d = from + (to - from) * smooth(uk);
       // 용처럼 몸을 구불이며 날아가고 땅으로 내려앉는다
-      const wave = Math.sin(uk * 9 + k * 0.6) * 0.1 * (1 - uk * 0.5);
+      const wave = Math.sin(uk * 12 + k * 0.55) * 0.16 * (1 - uk * 0.5);
       trailPos[k * 3] = fx * d + fz * wave;
       trailPos[k * 3 + 1] = 1.15 - 0.85 * uk + Math.cos(uk * 9 + k) * 0.03;
       trailPos[k * 3 + 2] = fz * d - fx * wave;
@@ -273,29 +234,53 @@ function Hwaryong({ cast, colors }: EffectProps) {
     );
     for (let i = 0; i < FLAMES; i++) {
       const ph = (t * 1.1 + hash(i)) % 1;
-      firePos[i * 3] = fx * to + (hash(i, 1) - 0.5) * 0.3;
+      firePos[i * 3] =
+        fx * to + (hash(i, 1) - 0.5) * 0.3 + Math.sin(t * 2.5 + i) * 0.035;
       firePos[i * 3 + 1] = 0.12 + ph * 0.5;
-      firePos[i * 3 + 2] = fz * to + (hash(i, 2) - 0.5) * 0.3;
+      firePos[i * 3 + 2] =
+        fz * to + (hash(i, 2) - 0.5) * 0.3 + Math.cos(t * 2 + i) * 0.035;
     }
     touch(fire.current);
     if (fireMat.current) fireMat.current.opacity = p < FLIGHT ? 0 : burn * 0.9;
+    if (fireLight.current) {
+      const flicker = 0.85 + 0.15 * Math.sin(t * 11);
+      const traveling = p < FLIGHT;
+      const d = from + (to - from) * smooth(u);
+      fireLight.current.position.set(
+        fx * d,
+        traveling ? 1.15 - 0.85 * u : 0.35,
+        fz * d,
+      );
+      fireLight.current.intensity = traveling
+        ? 1.2 * flicker
+        : 1.8 * burn * flicker;
+    }
   });
 
   return (
-    <group ref={root} position={[cast.x, 0, cast.z]}>
+    <group ref={root} position={[cast.x, cast.y ?? 0, cast.z]}>
+      <pointLight
+        ref={fireLight}
+        color={trailColor}
+        intensity={0}
+        distance={3}
+        decay={2}
+      />
       <Glow
         pointsRef={trail}
         matRef={trailMat}
         positions={trailPos}
         color={trailColor}
-        size={0.3}
+        size={0.42}
+        flameShape
       />
       <Glow
         pointsRef={fire}
         matRef={fireMat}
         positions={firePos}
         color={colors["--color-scene-flame"]}
-        size={0.36}
+        size={0.48}
+        flameShape
       />
     </group>
   );
@@ -313,6 +298,7 @@ function hoverLift(p: number): number {
 function Buun({ cast, colors }: EffectProps) {
   const root = useRef<Group>(null);
   const pebble = useRef<Mesh>(null);
+  const shadow = useRef<Mesh>(null);
   const puffs = useRef<Points>(null);
   const puffMat = useRef<PointsMaterial>(null);
   const pos = useMemo(() => new Float32Array(PUFFS * 3), []);
@@ -328,10 +314,15 @@ function Buun({ cast, colors }: EffectProps) {
     if (pebble.current) {
       pebble.current.position.set(0, h, 0);
       pebble.current.rotation.y = t * 0.8;
+      pebble.current.rotation.x = Math.sin(t * 1.7) * 0.12 * lift;
+      pebble.current.rotation.z = Math.cos(t * 1.3) * 0.1 * lift;
     }
+    if (shadow.current) shadow.current.scale.setScalar(1 + lift * 0.35);
     for (let i = 0; i < PUFFS; i++) {
       const ang = (i / PUFFS) * Math.PI * 2 + t * 0.3;
-      const r = 0.17 + hash(i) * 0.1 + Math.sin(t * 1.5 + i) * 0.02;
+      const r =
+        (0.17 + hash(i) * 0.1 + Math.sin(t * 1.8 + i) * 0.035) *
+        (0.65 + lift * 0.35);
       pos[i * 3] = Math.cos(ang) * r;
       pos[i * 3 + 1] = h - 0.1 + hash(i, 1) * 0.06;
       pos[i * 3 + 2] = Math.sin(ang) * r;
@@ -343,7 +334,20 @@ function Buun({ cast, colors }: EffectProps) {
   });
 
   return (
-    <group ref={root} position={[cast.x, 0, cast.z]}>
+    <group ref={root} position={[cast.x, cast.y ?? 0, cast.z]}>
+      <mesh
+        ref={shadow}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.015, 0]}
+      >
+        <circleGeometry args={[0.18, 24]} />
+        <meshBasicMaterial
+          color={colors["--color-scene-hat"]}
+          transparent
+          opacity={0.2}
+          depthWrite={false}
+        />
+      </mesh>
       <mesh ref={pebble} position={[0, 0.1, 0]}>
         <icosahedronGeometry args={[0.09, 0]} />
         <meshStandardMaterial
@@ -368,7 +372,7 @@ function Buun({ cast, colors }: EffectProps) {
 
 const EFFECT: Record<SpellCast["spell"], (p: EffectProps) => React.ReactNode> =
   {
-    myeonggyeong: (p) => <Myeonggyeong {...p} />,
+    myeonggyeong: () => null,
     mukryeong: (p) => <Mukryeong {...p} />,
     hwaryong: (p) => <Hwaryong {...p} />,
     buun: (p) => <Buun {...p} />,

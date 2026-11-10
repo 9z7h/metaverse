@@ -423,7 +423,9 @@ function DancheongBand({ colors }: { colors: SceneColors }) {
 
 function useBannerTexture(house: HouseId, colors: SceneColors) {
   const crest = useTexture(houseCrestUrl(house));
-  const fabric = useTexture(`${import.meta.env.BASE_URL}textures/scroll-silk.jpg`);
+  const fabric = useTexture(
+    `${import.meta.env.BASE_URL}textures/scroll-silk.jpg`,
+  );
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -494,11 +496,14 @@ function Banner({
   x: number;
 }) {
   const map = useBannerTexture(house, colors);
-  const bump = useTexture(`${import.meta.env.BASE_URL}textures/scroll-silk-bump.jpg`, (texture) => {
-    texture.wrapS = texture.wrapT = RepeatWrapping;
-    texture.repeat.set(5, 14);
-    texture.anisotropy = 4;
-  });
+  const bump = useTexture(
+    `${import.meta.env.BASE_URL}textures/scroll-silk-bump.jpg`,
+    (texture) => {
+      texture.wrapS = texture.wrapT = RepeatWrapping;
+      texture.repeat.set(5, 14);
+      texture.anisotropy = 4;
+    },
+  );
   return (
     <mesh position={[x, HALL.wallH - 2.45, BACK_Z + 0.14]}>
       <planeGeometry args={[1.55, 4]} />
@@ -649,9 +654,15 @@ function HangingLamps({ colors }: { colors: SceneColors }) {
     const rand = seeded(287);
     return LAMP_SPOTS.flatMap(([x, z]) =>
       Array.from({ length: CANDLES_PER_CLUSTER }, () => ({
-        x: Math.max(ROOM.minX + 0.4, Math.min(ROOM.maxX - 0.4, x + (rand() - 0.5) * 3.8)),
+        x: Math.max(
+          ROOM.minX + 0.4,
+          Math.min(ROOM.maxX - 0.4, x + (rand() - 0.5) * 3.8),
+        ),
         y: HALL.wallH - 1.8 - rand() * 2.8,
-        z: Math.max(ROOM.minZ + 0.4, Math.min(FRONT_WALL_Z - 0.4, z + (rand() - 0.5) * 5)),
+        z: Math.max(
+          ROOM.minZ + 0.4,
+          Math.min(FRONT_WALL_Z - 0.4, z + (rand() - 0.5) * 5),
+        ),
         length: 0.28 + rand() * 0.28,
         phase: rand() * Math.PI * 2,
       })),
@@ -689,29 +700,72 @@ function HangingLamps({ colors }: { colors: SceneColors }) {
   });
 
   const flame = useMemo(
-    () => new Color(colors["--color-scene-flame"]).lerp(new Color(colors["--color-scene-spell-ember"]), 0.22),
+    () =>
+      new Color(colors["--color-scene-flame"]).lerp(
+        new Color(colors["--color-scene-spell-ember"]),
+        0.22,
+      ),
     [colors],
   );
   return (
     <group>
-      <instancedMesh ref={bodies} args={[undefined, undefined, candles.length]} frustumCulled={false}>
+      <instancedMesh
+        ref={bodies}
+        args={[undefined, undefined, candles.length]}
+        frustumCulled={false}
+      >
         <cylinderGeometry args={[0.06, 0.065, 1, 12]} />
-        <meshStandardMaterial color={colors["--color-scene-collar"]} emissive={flame} emissiveIntensity={0.22} roughness={0.82} />
+        <meshStandardMaterial
+          color={colors["--color-scene-collar"]}
+          emissive={flame}
+          emissiveIntensity={0.22}
+          roughness={0.82}
+        />
       </instancedMesh>
-      <instancedMesh ref={wicks} args={[undefined, undefined, candles.length]} frustumCulled={false}>
+      <instancedMesh
+        ref={wicks}
+        args={[undefined, undefined, candles.length]}
+        frustumCulled={false}
+      >
         <cylinderGeometry args={[0.011, 0.011, 0.045, 8]} />
         <meshBasicMaterial color={colors["--color-scene-wood-dark"]} />
       </instancedMesh>
-      <instancedMesh ref={flames} args={[undefined, undefined, candles.length]} frustumCulled={false}>
+      <instancedMesh
+        ref={flames}
+        args={[undefined, undefined, candles.length]}
+        frustumCulled={false}
+      >
         <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color={new Color(flame).multiplyScalar(1.35)} toneMapped={false} />
+        <meshBasicMaterial
+          color={new Color(flame).multiplyScalar(1.35)}
+          toneMapped={false}
+        />
       </instancedMesh>
       {LAMP_SPOTS.filter((_, i) => i % 3 === 1).map(([x, z], i) => (
-        <pointLight key={`ceiling-light-${i}`} position={[x, CANDLE_LIGHT_Y, z]} color={flame} intensity={20} distance={11} decay={1.6} />
+        <pointLight
+          key={`ceiling-light-${i}`}
+          position={[x, CANDLE_LIGHT_Y, z]}
+          color={flame}
+          intensity={20}
+          distance={11}
+          decay={1.6}
+        />
       ))}
       <points ref={glowRef} frustumCulled={false}>
-        <bufferGeometry><bufferAttribute attach="attributes-position" args={[glow, 3]} /></bufferGeometry>
-        <pointsMaterial onBeforeCompile={roundGlowShader} customProgramCacheKey={roundGlowKey} color={flame} size={0.9} sizeAttenuation transparent opacity={0.7} depthWrite={false} toneMapped={false} />
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[glow, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          onBeforeCompile={roundGlowShader}
+          customProgramCacheKey={roundGlowKey}
+          color={flame}
+          size={0.9}
+          sizeAttenuation
+          transparent
+          opacity={0.7}
+          depthWrite={false}
+          toneMapped={false}
+        />
       </points>
     </group>
   );
@@ -802,7 +856,13 @@ function MoonShafts({ colors }: { colors: SceneColors }) {
   );
 }
 
-export function Atmosphere({ colors, daylight = 1 }: { colors: SceneColors; daylight?: number }) {
+export function Atmosphere({
+  colors,
+  daylight = 1,
+}: {
+  colors: SceneColors;
+  daylight?: number;
+}) {
   return (
     <group>
       {/* 창으로 들어오는 푸른 달빛 — 촛불의 따뜻한 색과 대비 */}

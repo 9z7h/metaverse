@@ -86,6 +86,7 @@ export interface PlayerProps {
   facingRef?: MutableRefObject<number>;
   /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
+  wandLightAt?: number | null;
   /** true면 카메라가 순위판 앞으로 날아가 순위판을 크게 보여 준다 (매 프레임 읽음) */
   boardView?: MutableRefObject<boolean>;
   /** 내 머리 위 말풍선 글 */
@@ -138,6 +139,7 @@ export function Player({
   positionRef,
   facingRef,
   castAt,
+  wandLightAt,
   boardView,
   bubble,
   onMove,
@@ -318,6 +320,7 @@ export function Player({
       focusing={focusing}
       practicing={practicing}
       castAt={castAt}
+      wandLightAt={wandLightAt}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],
@@ -463,6 +466,7 @@ export interface RemoteWalkerProps {
   bubble?: string;
   /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
+  wandLightAt?: number | null;
 }
 
 export function RemoteWalker({
@@ -472,6 +476,7 @@ export function RemoteWalker({
   moves,
   bubble,
   castAt = null,
+  wandLightAt = null,
 }: RemoteWalkerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2 | null>(null);
@@ -520,6 +525,7 @@ export function RemoteWalker({
       focusing={false}
       practicing={false}
       castAt={castAt}
+      wandLightAt={wandLightAt}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],

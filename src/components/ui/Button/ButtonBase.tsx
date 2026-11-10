@@ -25,6 +25,7 @@ export function ButtonBase({
   className,
   radius,
   "aria-label": ariaLabel,
+  "aria-pressed": ariaPressed,
 }: ButtonBaseInternalProps) {
   const rootStyle = getButtonRootStyle(config, style, type, disabled);
 
@@ -35,6 +36,7 @@ export function ButtonBase({
       onClick={onClick}
       className={className ? `ds-button ${className}` : "ds-button"}
       aria-label={ariaLabel}
+      aria-pressed={ariaPressed}
       style={radius ? { ...rootStyle, borderRadius: radius } : rootStyle}
     >
       {icon ? (

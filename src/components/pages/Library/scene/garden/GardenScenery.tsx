@@ -1326,7 +1326,9 @@ function NearbyLanternLights({
       {Array.from({ length: count }, (_, i) => (
         <pointLight
           key={i}
-          ref={(light) => { lights.current[i] = light; }}
+          ref={(light) => {
+            lights.current[i] = light;
+          }}
           visible={false}
           color={color}
           intensity={intensity}
@@ -1367,7 +1369,14 @@ function StoneLanterns({ colors }: { colors: SceneColors }) {
         {box()}
       </Inst>
       <InstancedPyramids boxes={caps} geometry={pyramid} colors={colors} />
-      <NearbyLanternLights lamps={lampPositions} color={colors["--color-scene-flame"]} count={4} intensity={1.6} distance={8} decay={1.7} />
+      <NearbyLanternLights
+        lamps={lampPositions}
+        color={colors["--color-scene-flame"]}
+        count={4}
+        intensity={1.6}
+        distance={8}
+        decay={1.7}
+      />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}
@@ -1465,9 +1474,20 @@ function GardenLanterns({ colors }: { colors: SceneColors }) {
     <group>
       <instancedMesh ref={bodies} args={[undefined, undefined, LANTERN_COUNT]}>
         <cylinderGeometry args={[0.17, 0.2, 0.44, 12]} />
-        <meshStandardMaterial emissive={colors["--color-scene-flame"]} emissiveIntensity={0.18} roughness={0.9} />
+        <meshStandardMaterial
+          emissive={colors["--color-scene-flame"]}
+          emissiveIntensity={0.18}
+          roughness={0.9}
+        />
       </instancedMesh>
-      <NearbyLanternLights lamps={items} color={colors["--color-scene-flame"]} count={3} intensity={0.7} distance={4.5} decay={1.8} />
+      <NearbyLanternLights
+        lamps={items}
+        color={colors["--color-scene-flame"]}
+        count={3}
+        intensity={0.7}
+        distance={4.5}
+        decay={1.8}
+      />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}

@@ -223,8 +223,11 @@ export interface BroomRiderProps {
   /** 내 위치·바라보는 방향(rad)을 매 프레임 기록 — 주문이 앞쪽 구역에 닿는 데 쓴다 */
   positionRef?: MutableRefObject<Vec2>;
   facingRef?: MutableRefObject<number>;
+  /** 구름 높이 — 시전 높이를 맞출 때 읽는다 */
+  heightRef?: MutableRefObject<number>;
   /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
+  wandLightAt?: number | null;
   /** 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
   onMove?: (
     x: number,
@@ -254,7 +257,9 @@ export function BroomRider({
   bubble,
   positionRef,
   facingRef,
+  heightRef,
   castAt,
+  wandLightAt,
   onMove,
 }: BroomRiderProps) {
   const lastSent = useRef({ at: 0, moving: false });
@@ -387,6 +392,7 @@ export function BroomRider({
     g.rotation.y = cur.heading;
     if (positionRef) positionRef.current = { x: cur.x, z: cur.z };
     if (facingRef) facingRef.current = cur.heading;
+    if (heightRef) heightRef.current = cur.y;
     if (tilt.current) {
       // 돌아가는 쪽으로 몸을 기울인다. 이 아바타는 +z를 보고 있어 +x가 왼쪽이므로
       // 왼쪽으로 돌 때(heading 증가) 왼쪽으로 기울이려면 z축 회전은 음수다
@@ -505,6 +511,7 @@ export function BroomRider({
             hat={colors["--color-scene-hat"]}
             pose={pose}
             castAt={castAt}
+            wandLightAt={wandLightAt}
             wand={{
               wood: colors["--color-scene-wood-dark"],
               glow: colors["--color-scene-flame"],
@@ -553,6 +560,7 @@ export interface RemoteRiderProps {
   bubble?: string;
   /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
+  wandLightAt?: number | null;
 }
 
 /**
@@ -566,6 +574,7 @@ export function RemoteRider({
   reducedMotion,
   bubble,
   castAt = null,
+  wandLightAt = null,
 }: RemoteRiderProps) {
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
@@ -649,6 +658,7 @@ export function RemoteRider({
             hat={colors["--color-scene-hat"]}
             pose={pose}
             castAt={castAt}
+            wandLightAt={wandLightAt}
             wand={{
               wood: colors["--color-scene-wood-dark"],
               glow: colors["--color-scene-flame"],

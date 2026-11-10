@@ -143,8 +143,10 @@ describe("뜰 배치", () => {
     const dorm = SCHOOL_BUILDINGS.find((b) => b.id === "hyeonmu")!;
     const front = dorm.z + dorm.halfD + 1.6;
     for (const bamboo of BAMBOO) {
-      const inStairs = Math.abs(bamboo.x - dorm.x) <= 2.4 &&
-        bamboo.z >= front - 1 && bamboo.z <= front + 3 * STAIR_DEPTH + 1.3;
+      const inStairs =
+        Math.abs(bamboo.x - dorm.x) <= 2.4 &&
+        bamboo.z >= front - 1 &&
+        bamboo.z <= front + 3 * STAIR_DEPTH + 1.3;
       expect(inStairs).toBe(false);
     }
     for (const z of [front, front + STAIR_DEPTH, front + 2 * STAIR_DEPTH]) {

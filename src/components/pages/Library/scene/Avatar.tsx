@@ -22,11 +22,12 @@ import {
   Vector2,
   Vector3,
 } from "three";
-import type { Group } from "three";
+import type { Group, PointLight } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
 import type { HouseId } from "../houses";
-import { swingPose } from "./spellLogic";
+import { swingPose, wandLightIsOn } from "./spellLogic";
+import { MASK_WHITE_TOKEN, rootToken } from "./sceneLayout";
 
 /** 도포 윤곽 [높이 y, 반지름 r] — 몸통(Lathe)과 깃이 같은 곡선을 따른다 */
 const COAT_PROFILE: ReadonlyArray<readonly [number, number]> = [
@@ -157,6 +158,7 @@ export interface AvatarProps {
   wand?: { wood: string; glow: string };
   /** 주문을 시전한 시각(performance.now ms). 이 시각부터 잠깐 지팡이를 들어 휘두른다 */
   castAt?: number | null;
+  wandLightAt?: number | null;
   /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
   bubble?: string;
 }
@@ -249,6 +251,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     practicing = false,
     wand,
     castAt = null,
+    wandLightAt = null,
     bubble,
   },
   ref,
@@ -265,6 +268,9 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   const arm = useRef<Group>(null);
   const leftArm = useRef<Group>(null);
   const wandGroup = useRef<Group>(null);
+  const wandLight = useRef<Group>(null);
+  const wandLightLamp = useRef<PointLight>(null);
+  const lightWhite = useMemo(() => rootToken(MASK_WHITE_TOKEN), []);
   const leftFoot = useRef<Group>(null);
   const rightFoot = useRef<Group>(null);
   const coat = useMemo(
@@ -428,9 +434,22 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     const armDown = (sat: number) => sat + (rideArm - sat) * g.ride;
     // 주문 시전: 평소 팔 자세에서 지팡이를 앞으로 든 자세로 섞는다
     const cast = castAt === null ? null : swingPose(performance.now() - castAt);
+    const now = performance.now();
+    const wandLit = wandLightIsOn(wandLightAt, now);
+    if (wandLight.current) wandLight.current.visible = wandLit;
+    if (wandLightLamp.current && wandLightAt !== null) {
+      const elapsed = now - wandLightAt;
+      const fade = Math.max(0, Math.min(1, elapsed / 400));
+      wandLightLamp.current.intensity = 3 * fade;
+    }
+    if (cast && body.current && head.current) {
+      body.current.rotation.y += cast.flick * cast.weight * 0.12;
+      body.current.rotation.x += cast.flick * cast.weight * 0.06;
+      head.current.rotation.y -= cast.flick * cast.weight * 0.06;
+    }
     if (wandGroup.current) {
       wandGroup.current.visible =
-        practicing || (cast !== null && cast.weight > 0);
+        practicing || wandLit || (cast !== null && cast.weight > 0);
     }
     if (arm.current) {
       const baseX = practicing
@@ -443,7 +462,8 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
       const w = cast?.weight ?? 0;
       arm.current.rotation.x =
         baseX + (-1.3 + (cast?.flick ?? 0) * 0.45 - baseX) * w;
-      arm.current.rotation.z = baseZ + (-0.2 - baseZ) * w;
+      arm.current.rotation.z =
+        baseZ + (-0.2 + (cast?.flick ?? 0) * 0.12 - baseZ) * w;
     }
     if (leftArm.current) {
       leftArm.current.rotation.x = seat(-armSwing, armDown(sitArm + 0.05));
@@ -675,6 +695,38 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
                     <sphereGeometry args={[0.015, 8, 8]} />
                     <meshBasicMaterial color={wand.glow} toneMapped={false} />
                   </mesh>
+                  {wandLightAt !== null ? (
+                    <group
+                      ref={wandLight}
+                      position={[0, 0.335, 0]}
+                      visible={false}
+                    >
+                      <pointLight
+                        ref={wandLightLamp}
+                        color={lightWhite}
+                        intensity={0}
+                        distance={4}
+                        decay={2}
+                      />
+                      <mesh>
+                        <sphereGeometry args={[0.035, 12, 10]} />
+                        <meshBasicMaterial
+                          color={lightWhite}
+                          toneMapped={false}
+                        />
+                      </mesh>
+                      <mesh>
+                        <sphereGeometry args={[0.095, 12, 10]} />
+                        <meshBasicMaterial
+                          color={lightWhite}
+                          transparent
+                          opacity={0.14}
+                          depthWrite={false}
+                          toneMapped={false}
+                        />
+                      </mesh>
+                    </group>
+                  ) : null}
                 </group>
               ) : null}
             </group>

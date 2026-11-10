@@ -136,6 +136,7 @@ export interface ButtonBaseProps {
   className?: string;
   /** Accessible name. Required for icon-only buttons. */
   "aria-label"?: string;
+  "aria-pressed"?: boolean;
 }
 
 /** Builds the root `<button>` inline style for a given size/style/type/disabled combination. */

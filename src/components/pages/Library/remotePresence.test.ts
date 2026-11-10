@@ -385,9 +385,17 @@ describe("parseCast — 방송된 주문은 믿지 않는다", () => {
       spell: "hwaryong",
       x: 1.5,
       z: -2,
+      y: 0,
       ry: 0.5,
       place: "garden",
     });
+  });
+
+  it("구름 위 시전 높이는 범위 안으로 맞춘다", () => {
+    expect(parseCast({ ...ok, y: 2.4 })?.y).toBe(2.4);
+    expect(parseCast({ ...ok, y: 999 })?.y).toBe(40);
+    expect(parseCast({ ...ok, y: -3 })?.y).toBe(0);
+    expect(parseCast({ ...ok, y: "x" })?.y).toBe(0);
   });
 
   it("모르는 주문이나 프로토타입 키는 거른다", () => {

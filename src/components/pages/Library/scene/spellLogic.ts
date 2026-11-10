@@ -20,8 +20,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
   myeonggyeong: {
     id: "myeonggyeong",
     name: "명경",
-    hint: "옥색 불빛",
-    durationMs: 20000,
+    hint: "지팡이 불빛",
+    durationMs: Number.POSITIVE_INFINITY,
   },
   mukryeong: {
     id: "mukryeong",
@@ -55,8 +55,13 @@ export const SPELL_ORDER: ReadonlyArray<SpellId> = [
 export const CAST_DISTANCE = 1.6;
 /** 구역 반지름 (m) — 효과는 이 안에서만 그린다 */
 export const CAST_RADIUS = 1.2;
-/** 같은 사람이 다시 쓰기까지 ms */
-export const COOLDOWN_MS = 1500;
+/** 주문별 재시전 간격(ms). 명경·묵령은 같은 토글 간격을 공유한다. */
+export const COOLDOWN_MS: Record<SpellId, number> = {
+  myeonggyeong: 500,
+  mukryeong: 500,
+  hwaryong: 8000,
+  buun: 6000,
+};
 /** 한 장면에 동시에 남는 주문 효과 수 (넘으면 가장 오래된 것부터 지운다) */
 export const MAX_ACTIVE = 6;
 /** 주문 효과 하나가 쓰는 파티클 수 상한 */
@@ -114,6 +119,8 @@ export interface SpellCast {
   /** 구역 중심 */
   x: number;
   z: number;
+  /** 구역 높이. 구름 위에서 시전하면 구름 높이 (없으면 땅) */
+  y?: number;
   /** 시전 방향 rad (아바타 rotation.y와 같은 기준) */
   ry: number;
   /** 시전 시각 ms */
@@ -133,14 +140,29 @@ export function castZone(
 }
 
 /** 쿨다운이 지났는가. 처음 쓰는 경우(lastCastAt이 null)는 항상 가능 */
-export function canCast(lastCastAt: number | null, now: number): boolean {
-  return lastCastAt === null || now - lastCastAt >= COOLDOWN_MS;
+export function canCast(
+  lastCastAt: number | null,
+  now: number,
+  spell: SpellId,
+): boolean {
+  return lastCastAt === null || now - lastCastAt >= COOLDOWN_MS[spell];
 }
 
 /** 0(막 시작)~1(끝). 끝났으면 null */
 export function castProgress(cast: SpellCast, now: number): number | null {
   const t = (now - cast.t0) / SPELLS[cast.spell].durationMs;
   return t < 0 || t >= 1 ? null : t;
+}
+
+/** 명경은 시전 정점부터 묵령으로 끌 때까지 지팡이 끝을 밝힌다. */
+export function wandLightIsOn(start: number | null, now: number): boolean {
+  return start !== null && now >= start;
+}
+
+/** 빛 주문 버튼과 단축키는 현재 상태에 따라 켜기 또는 끄기로 동작한다. */
+export function resolveLightToggle(spell: SpellId, lightOn: boolean): SpellId {
+  if (spell !== "myeonggyeong" && spell !== "mukryeong") return spell;
+  return lightOn ? "mukryeong" : "myeonggyeong";
 }
 
 /** 아직 끝나지 않은 효과만 */
@@ -156,7 +178,8 @@ export function activeCasts(
  * 새 시전을 목록에 넣는다.
  * - 같은 사람이 같은 주문을 다시 쓰면 앞의 것을 바꾼다 (한 사람당 주문마다 하나).
  * - 묵령은 시전자 자신의 명경만 거둔다. 남의 불빛은 건드리지 않는다.
- * - 동시에 MAX_ACTIVE개를 넘으면 가장 오래된 것부터 지운다.
+ * - 일시적인 효과가 MAX_ACTIVE개를 넘으면 가장 오래된 것부터 지운다.
+ * - 켜진 명경은 다른 효과 때문에 사라지지 않는다.
  */
 export function addCast(
   casts: ReadonlyArray<SpellCast>,
@@ -173,5 +196,9 @@ export function addCast(
       ),
   );
   const all = [...kept, next];
-  return all.length > MAX_ACTIVE ? all.slice(all.length - MAX_ACTIVE) : all;
+  const temporary = all.filter((cast) => cast.spell !== "myeonggyeong");
+  const remove = new Set(
+    temporary.slice(0, Math.max(0, temporary.length - MAX_ACTIVE)),
+  );
+  return all.filter((cast) => !remove.has(cast));
 }

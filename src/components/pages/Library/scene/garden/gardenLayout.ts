@@ -380,9 +380,11 @@ export const GARDEN_OBSTACLES: ReadonlyArray<Circle> = [
   ...PLUM_TREES.map((p) => ({ ...p, r: 0.6 })),
   ...PINES.map((t) => ({ x: t.x, z: t.z, r: 0.55 * t.s })),
   // 대나무 숲은 굵은 원 몇 개로 막는다
-  ...[-20, -15, -10, -5].flatMap((z) =>
-    [22, 26, 30].map((x) => ({ x, z, r: 2.6 })),
-  ).filter((obstacle) => !overlapsDormStairs(obstacle.x, obstacle.z, obstacle.r)),
+  ...[-20, -15, -10, -5]
+    .flatMap((z) => [22, 26, 30].map((x) => ({ x, z, r: 2.6 })))
+    .filter(
+      (obstacle) => !overlapsDormStairs(obstacle.x, obstacle.z, obstacle.r),
+    ),
 ];
 
 /** 서고 건물 몸체 (사각형) */

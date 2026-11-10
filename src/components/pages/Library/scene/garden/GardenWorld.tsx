@@ -192,14 +192,16 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   /* 주문: 걸어 다닐 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
   const selfPos = useRef<Vec2>({ ...GARDEN_SPAWN });
   const selfFacing = useRef(0);
+  const selfHeight = useRef(0);
   const spells = useSpellCaster({
     selfId: "me",
     getPose: () => ({
       x: selfPos.current.x,
       z: selfPos.current.z,
+      y: selfHeight.current,
       ry: selfFacing.current,
     }),
-    enabled: !riding,
+    enabled: true,
   });
   const castLocal = spells.cast;
   const addRemoteCast = spells.addRemote;
@@ -208,7 +210,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const castSpell = useCallback(
     (id: SpellId) => {
       const made = castLocal(id);
-      if (made) sendCast(made.spell, made.x, made.z, made.ry);
+      if (made) sendCast(made.spell, made.x, made.z, made.ry, made.y);
     },
     [castLocal, sendCast],
   );
@@ -224,6 +226,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
           spell: c.spell,
           x: c.x,
           z: c.z,
+          y: c.y,
           ry: c.ry,
           t0: now,
         });
@@ -446,6 +449,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                   reducedMotion={reduced}
                   bubble={bubbles.get(w.id)?.text}
                   castAt={remoteCastAt[w.id] ?? null}
+                  wandLightAt={
+                    spells.casts.find(
+                      (c) => c.caster === w.id && c.spell === "myeonggyeong",
+                    )?.t0 ?? null
+                  }
                 />
               ))}
               <BroomRider
@@ -464,7 +472,13 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                 positionRef={selfPos}
                 facingRef={selfFacing}
+                heightRef={selfHeight}
                 castAt={spells.castAt}
+                wandLightAt={
+                  spells.casts.find(
+                    (c) => c.caster === "me" && c.spell === "myeonggyeong",
+                  )?.t0 ?? null
+                }
                 onMove={presence.sendMove}
               />
               <SpellEffects colors={colors} casts={spells.casts} />
@@ -621,7 +635,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
               ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD · Shift 가속"
               : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
           </p>
-          {riding ? null : <SpellBar onCast={castSpell} />}
+          <SpellBar
+            onCast={castSpell}
+            lightOn={spells.lightOn}
+            cooldowns={spells.cooldowns}
+          />
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
             {nearDoor ? (
               <ButtonLarge onClick={onBack}>서고로 돌아가기</ButtonLarge>

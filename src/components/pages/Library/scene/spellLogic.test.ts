@@ -15,7 +15,9 @@ import {
   castProgress,
   castZone,
   isSpellId,
+  resolveLightToggle,
   swingPose,
+  wandLightIsOn,
 } from "./spellLogic";
 import type { SpellCast, SpellId } from "./spellLogic";
 
@@ -41,6 +43,38 @@ describe("주문 표", () => {
     for (const bad of ["", "toString", "__proto__", 3, null, undefined]) {
       expect(isSpellId(bad)).toBe(false);
     }
+  });
+});
+
+describe("지팡이 불빛", () => {
+  it("시작 시각부터 끌 때까지 켜져 있다", () => {
+    const start = 1000;
+    expect(wandLightIsOn(null, start)).toBe(false);
+    expect(wandLightIsOn(start, start - 1)).toBe(false);
+    expect(wandLightIsOn(start, start)).toBe(true);
+    expect(wandLightIsOn(start, start + 24 * 60 * 60 * 1000)).toBe(true);
+  });
+  it("명경과 묵령 입력은 현재 불빛 상태를 반전한다", () => {
+    for (const spell of ["myeonggyeong", "mukryeong"] as const) {
+      expect(resolveLightToggle(spell, false)).toBe("myeonggyeong");
+      expect(resolveLightToggle(spell, true)).toBe("mukryeong");
+    }
+    expect(resolveLightToggle("hwaryong", true)).toBe("hwaryong");
+  });
+  it("다른 주문이 많아져도 켜진 명경은 유지된다", () => {
+    let list = [cast("a", "myeonggyeong", 0)];
+    for (let i = 0; i < MAX_ACTIVE + 3; i++) {
+      list = addCast(list, cast(`u${i}`, "buun", i), i);
+    }
+    expect(
+      list.some((c) => c.caster === "a" && c.spell === "myeonggyeong"),
+    ).toBe(true);
+    expect(list.filter((c) => c.spell !== "myeonggyeong")).toHaveLength(
+      MAX_ACTIVE,
+    );
+    expect(activeCasts(list, 24 * 60 * 60 * 1000).map((c) => c.spell)).toEqual([
+      "myeonggyeong",
+    ]);
   });
 });
 
@@ -78,9 +112,17 @@ describe("castZone", () => {
 
 describe("canCast", () => {
   it("처음은 가능하고 쿨다운 안에서는 막힌다", () => {
-    expect(canCast(null, 0)).toBe(true);
-    expect(canCast(1000, 1000 + COOLDOWN_MS - 1)).toBe(false);
-    expect(canCast(1000, 1000 + COOLDOWN_MS)).toBe(true);
+    for (const spell of SPELL_ORDER) {
+      expect(canCast(null, 0, spell)).toBe(true);
+      expect(canCast(1000, 1000 + COOLDOWN_MS[spell] - 1, spell)).toBe(false);
+      expect(canCast(1000, 1000 + COOLDOWN_MS[spell], spell)).toBe(true);
+    }
+    expect(COOLDOWN_MS).toEqual({
+      myeonggyeong: 500,
+      mukryeong: 500,
+      hwaryong: 8000,
+      buun: 6000,
+    });
   });
 });
 

@@ -641,6 +641,11 @@ export function LibraryWorld({
                     moves={presence.moves}
                     bubble={bubbles.get(w.id)?.text}
                     castAt={remoteCastAt[w.id] ?? null}
+                    wandLightAt={
+                      spells.casts.find(
+                        (c) => c.caster === w.id && c.spell === "myeonggyeong",
+                      )?.t0 ?? null
+                    }
                   />
                 ))}
                 {leavers.map((l) => (
@@ -656,6 +661,11 @@ export function LibraryWorld({
                   positionRef={playerPos}
                   facingRef={playerFacing}
                   castAt={spells.castAt}
+                  wandLightAt={
+                    spells.casts.find(
+                      (c) => c.caster === "me" && c.spell === "myeonggyeong",
+                    )?.t0 ?? null
+                  }
                   bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                   boardView={boardViewRef}
                   colors={colors}
@@ -962,7 +972,13 @@ export function LibraryWorld({
               gap: "var(--spacing-16)",
             }}
           >
-            {seat || viewingBoard ? null : <SpellBar onCast={castSpell} />}
+            {seat || viewingBoard ? null : (
+              <SpellBar
+                onCast={castSpell}
+                lightOn={spells.lightOn}
+                cooldowns={spells.cooldowns}
+              />
+            )}
             {nearSeat ? (
               <div style={{ ...auto, display: "grid" }}>
                 <ButtonLarge onClick={() => onSit(nearSeat)}>

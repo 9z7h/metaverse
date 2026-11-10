@@ -164,11 +164,14 @@ export function parseCast(
   const z = Number(r.z);
   const ry = Number(r.ry);
   if (![x, z, ry].every(Number.isFinite)) return null;
+  // y는 구름 위 시전에서만 오며, 없거나 잘못되면 땅으로 본다
+  const y = Number(r.y);
   return {
     senderId: r.id,
     spell: r.spell,
     x: clamp(x, -MAX_COORD, MAX_COORD),
     z: clamp(z, -MAX_COORD, MAX_COORD),
+    y: Number.isFinite(y) ? clamp(y, 0, MAX_HEIGHT) : 0,
     ry: clamp(ry, -Math.PI * 4, Math.PI * 4),
     place: isPlace(r.place) ? r.place : "library",
   };
@@ -486,7 +489,7 @@ export function useRemotePresence({
   );
 
   const sendCast = useCallback(
-    (spell: SpellId, x: number, z: number, ry: number) => {
+    (spell: SpellId, x: number, z: number, ry: number, y = 0) => {
       const lobby = lobbyRef.current;
       if (!lobby || !lobbyReady || !userId) return;
       const round = (v: number) => Math.round(v * 100) / 100;
@@ -498,6 +501,7 @@ export function useRemotePresence({
           spell,
           x: round(x),
           z: round(z),
+          y: round(y),
           ry: round(ry),
           place,
         },

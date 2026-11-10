@@ -4,6 +4,8 @@ import { expect, within } from "@storybook/test";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { SpellEffects } from "./SpellEffects";
+import { Avatar } from "./Avatar";
+import { houseToken } from "../houses";
 import { readSceneColors } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 import { SPELLS, SPELL_ORDER, addCast, castZone } from "./spellLogic";
@@ -44,6 +46,7 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
       );
     };
     cast();
+    if (spell === "myeonggyeong") return;
     const timer = window.setInterval(cast, SPELLS[spell].durationMs + 800);
     return () => window.clearInterval(timer);
   }, [spell]);
@@ -66,6 +69,24 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
             <meshStandardMaterial color={colors["--color-scene-floor"]} />
           </mesh>
           <SpellEffects colors={colors} casts={casts} />
+          <Avatar
+            house="cheongryong"
+            robe={colors[houseToken("cheongryong", "primary")]}
+            band={colors[houseToken("cheongryong", "accent")]}
+            collar={colors["--color-scene-collar"]}
+            skin={colors["--color-scene-skin"]}
+            hat={colors["--color-scene-hat"]}
+            pose="stand"
+            name="수련생"
+            showLabel={false}
+            wand={{
+              wood: colors["--color-scene-wood-dark"],
+              glow: colors["--color-scene-flame"],
+            }}
+            wandLightAt={
+              casts.find((c) => c.spell === "myeonggyeong")?.t0 ?? null
+            }
+          />
           <Tick />
           <OrbitControls
             target={[0, 0.8, 1.6]}
