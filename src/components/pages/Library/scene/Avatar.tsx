@@ -147,7 +147,7 @@ function synthFootstep(kind: FootstepKind, running: boolean) {
       (running ? 1.2 : 1) * (wood ? 1 : 0.55) * (0.88 + Math.random() * 0.24);
     const tone = (wood ? 1 : 0.62) * (0.94 + Math.random() * 0.12);
     const out = ctx.createGain();
-    out.gain.value = 1;
+    out.gain.value = 0.75;
     out.connect(ctx.destination);
     const ring = (
       type: OscillatorType,
@@ -251,7 +251,7 @@ export function playFootstep(kind: FootstepKind, running: boolean) {
     src.playbackRate.value = (wood ? 1 : 0.8) * (0.94 + Math.random() * 0.12);
     const gain = ctx.createGain();
     gain.gain.value =
-      (wood ? 0.5 : 0.3) * (running ? 1.2 : 1) * (0.85 + Math.random() * 0.3);
+      (wood ? 0.375 : 0.225) * (running ? 1.2 : 1) * (0.85 + Math.random() * 0.3);
     if (wood) {
       src.connect(gain).connect(ctx.destination);
     } else {

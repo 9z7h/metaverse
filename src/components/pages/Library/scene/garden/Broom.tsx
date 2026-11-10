@@ -399,7 +399,7 @@ export interface BroomRiderProps {
   riding: boolean;
   /** 키보드 입력 (x: 좌우, y: 화면 위아래) — 매 프레임 읽음. 움직이면 탭 목표는 취소 */
   input: MutableRefObject<{ x: number; y: number }>;
-  /** 쉬프트를 누르고 있는지 — 달리기(걷기 가속)·비행 부스트 (매 프레임 읽음) */
+  /** 쉬프트를 누르고 있는지 — 지상 달리기 (매 프레임 읽음) */
   boost: MutableRefObject<boolean>;
   /** 탭한 목표 — 매 프레임 읽고, 도착하면 null로 비운다 */
   target: MutableRefObject<Vec2 | null>;
@@ -523,7 +523,7 @@ export function BroomRider({
       const next = stepFlight(
         s,
         dt,
-        { dir, speedFrac: speedFrac * slow, boost: boost.current },
+        { dir, speedFrac: speedFrac * slow },
         !riding,
       );
       state.current = next;

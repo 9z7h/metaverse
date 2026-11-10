@@ -633,7 +633,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             }}
           >
             {riding
-              ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD · Shift 가속"
+              ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD 이동"
               : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
           </p>
           <SpellBar

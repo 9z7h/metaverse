@@ -262,18 +262,6 @@ describe("stepFlight — 구름 비행", () => {
     expect(later.z).toBeGreaterThan(5);
   });
 
-  it("부스트(쉬프트)면 순항 속도의 boostMultiplier배까지 빨라진다", () => {
-    const dir = { x: 0, z: 1 };
-    // 2초 — 꽃담 경계(속도 감쇠)에 닿기 전까지만 비교한다
-    const normal = run(at(), 2, { dir, speedFrac: 1 });
-    const boosted = run(at(), 2, { dir, speedFrac: 1, boost: true });
-    expect(boosted.speed).toBeGreaterThan(FLIGHT.cruiseSpeed);
-    expect(boosted.speed).toBeLessThanOrEqual(
-      FLIGHT.cruiseSpeed * FLIGHT.boostMultiplier + 1e-9,
-    );
-    expect(boosted.z).toBeGreaterThan(normal.z);
-  });
-
   it("움직이는 동안은 순항 높이로 오르고, 멈추면 다시 내려와 떠 있는다", () => {
     const flying = run(at(), 4, { dir: { x: 0, z: 1 }, speedFrac: 1 });
     expect(flying.y).toBeGreaterThan(FLIGHT.hoverY + 1);
