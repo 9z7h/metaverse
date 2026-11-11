@@ -380,6 +380,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
       press.current = null;
       if (
         e.type === "pointerup" &&
+        e.pointerType !== "touch" &&
         p &&
         !p.moved &&
         performance.now() - p.at <= TAP_MAX_MS
@@ -604,7 +605,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             </div>
           </div>
           {chatOpen ? (
-            <div style={{ ...auto, alignSelf: "stretch" }}>
+            <div className="world-chat-panel">
               <ChatPanel
                 messages={chatEnabled ? chatMessages : []}
                 onSend={(text) => presence.chat.send(text, house)}
@@ -643,9 +644,14 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
               color: "var(--color-text-secondary)",
             }}
           >
-            {riding
-              ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD 이동"
-              : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
+            <span className="movement-hint-desktop">
+              {riding
+                ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD 이동"
+                : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
+            </span>
+            <span className="movement-hint-touch">
+              조이스틱으로 이동 · 화면을 끌어 둘러보기
+            </span>
           </p>
           <SpellBar
             onCast={castSpell}

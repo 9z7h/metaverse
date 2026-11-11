@@ -462,7 +462,7 @@ export function LibraryWorld({
     moved: boolean;
   } | null>(null);
 
-  const handleTap = (clientX: number, clientY: number) => {
+  const handleTap = (clientX: number, clientY: number, touch: boolean) => {
     if (seat) return; // 앉아 있을 땐 이동하지 않음 (일어나기 버튼으로)
     const pick = pickFloor.current;
     const atFloor = pick?.(clientX, clientY, 0);
@@ -473,6 +473,7 @@ export function LibraryWorld({
       desks,
       occupied,
     );
+    if (touch && t.kind !== "seat") return;
     const at = t.kind === "seat" ? t.seat.chair : t.point;
     moveOrder.current = {
       target: at,
@@ -545,7 +546,7 @@ export function LibraryWorld({
         !p.moved &&
         performance.now() - p.at <= TAP_MAX_MS
       ) {
-        handleTap(e.clientX, e.clientY);
+        handleTap(e.clientX, e.clientY, e.pointerType === "touch");
       }
     }
   };
@@ -837,7 +838,7 @@ export function LibraryWorld({
             )}
           </div>
           {chatOpen && !viewingBoard ? (
-            <div style={{ ...auto, alignSelf: "stretch" }}>
+            <div className="world-chat-panel">
               <ChatPanel
                 messages={chatEnabled ? chatMessages : []}
                 onSend={(text) => presence.chat.send(text, house)}
@@ -1019,7 +1020,12 @@ export function LibraryWorld({
                   borderRadius: "var(--radius-lg)",
                 }}
               >
-                <span>바닥을 탭하면 이동, 빈 책상을 탭하면 앉아요</span>
+                <span className="movement-hint-desktop">
+                  바닥을 클릭하면 이동, 빈 책상을 클릭하면 앉아요
+                </span>
+                <span className="movement-hint-touch">
+                  조이스틱으로 이동, 빈 책상을 누르면 앉아요
+                </span>
                 <span style={{ color: "var(--color-text-tertiary)" }}>
                   화면을 끌면 시점 회전
                 </span>

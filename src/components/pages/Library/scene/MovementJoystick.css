@@ -25,7 +25,7 @@
   background: var(--color-interactive-primary);
   pointer-events: none;
 }
-@media (any-pointer: coarse) {
+@media (any-pointer: coarse), (max-width: 768px) {
   .movement-joystick {
     display: flex;
   }
@@ -33,8 +33,19 @@
     display: none;
   }
 }
-@media (any-pointer: fine) and (not (any-pointer: coarse)) {
+@media (any-pointer: fine) and (not (any-pointer: coarse)) and (min-width: 769px) {
   .movement-hint-touch {
     display: none;
   }
+}
+.world-chat-panel {
+  position: fixed;
+  right: max(var(--spacing-16), env(safe-area-inset-right));
+  bottom: calc(
+    max(var(--spacing-16), env(safe-area-inset-bottom)) + var(--spacing-64) +
+      var(--spacing-32)
+  );
+  width: min(calc(var(--spacing-48) * 11), calc(100vw - var(--spacing-32)));
+  z-index: 4;
+  pointer-events: auto;
 }
