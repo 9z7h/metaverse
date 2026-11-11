@@ -579,7 +579,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 휴식 중
               </span>
             </div>
-            <div style={auto}>
+            <div className="world-chat-trigger">
               <ButtonSmall
                 style="monolight"
                 aria-expanded={chatOpen}

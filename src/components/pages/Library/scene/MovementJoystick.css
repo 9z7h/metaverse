@@ -49,3 +49,10 @@
   z-index: 4;
   pointer-events: auto;
 }
+.world-chat-trigger {
+  position: fixed;
+  right: max(var(--spacing-16), env(safe-area-inset-right));
+  bottom: max(var(--spacing-16), env(safe-area-inset-bottom));
+  z-index: 4;
+  pointer-events: auto;
+}

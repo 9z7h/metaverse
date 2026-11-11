@@ -57,10 +57,10 @@ export function BackgroundMusic() {
         style={{
           position: "fixed",
           right: "max(var(--spacing-16), env(safe-area-inset-right))",
-          bottom: "max(var(--spacing-16), env(safe-area-inset-bottom))",
+          top: "calc(max(var(--spacing-16), env(safe-area-inset-top)) + var(--spacing-64) + var(--spacing-48))",
           zIndex: 5,
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "column-reverse",
           alignItems: "flex-end",
           gap: "var(--spacing-8)",
         }}

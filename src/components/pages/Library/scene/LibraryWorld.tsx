@@ -828,13 +828,15 @@ export function LibraryWorld({
               {viewingBoard ? "돌아가기" : "순위판 보기"}
             </ButtonSmall>
             {viewingBoard ? null : (
-              <ButtonSmall
-                style="monolight"
-                aria-expanded={chatOpen}
-                onClick={() => setChatOpen((v) => !v)}
-              >
-                대화
-              </ButtonSmall>
+              <div className="world-chat-trigger">
+                <ButtonSmall
+                  style="monolight"
+                  aria-expanded={chatOpen}
+                  onClick={() => setChatOpen((v) => !v)}
+                >
+                  대화
+                </ButtonSmall>
+              </div>
             )}
           </div>
           {chatOpen && !viewingBoard ? (
