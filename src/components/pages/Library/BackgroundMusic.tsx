@@ -46,7 +46,7 @@ export function BackgroundMusic() {
     <>
       <audio
         ref={audioRef}
-        src={`${import.meta.env.BASE_URL}sounds/music/sasinhakdang.mp3`}
+        src={`${import.meta.env.BASE_URL}sounds/music/winter-ink-and-stone.mp3`}
         loop
         preload="none"
         onPlay={() => setPlaying(true)}
