@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
+import { MovementJoystick } from "./MovementJoystick";
 import { Canvas } from "@react-three/fiber";
 import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
@@ -232,11 +233,12 @@ export function LibraryWorld({
 
   /* 입력: 키보드(WASD·방향키)는 마우스·터치를 못 쓰는 사용자를 위한 대체 수단 — 매 프레임 읽힘 */
   const input = useRef({ x: 0, y: 0 });
+  const joystick = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
   const running = useRef(false);
   const sync = useCallback(() => {
-    let x = 0;
-    let y = 0;
+    let x = joystick.current.x;
+    let y = joystick.current.y;
     keys.current.forEach((k) => {
       x += KEY_DIR[k][0];
       y += KEY_DIR[k][1];
@@ -287,6 +289,18 @@ export function LibraryWorld({
   const moveOrder = useRef<MoveOrder | null>(null);
   const pickFloor = useRef<FloorPick | null>(null);
   const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
+
+  const onJoystickMove = useCallback(
+    (direction: { x: number; y: number }) => {
+      joystick.current = direction;
+      if (direction.x || direction.y) {
+        moveOrder.current = null;
+        setBoardView(false);
+      }
+      sync();
+    },
+    [setBoardView, sync],
+  );
 
   const mySeatId = presence.me?.seatId ?? null;
   const [nearSeat, setNearSeat] = useState<string | null>(null);
@@ -736,6 +750,7 @@ export function LibraryWorld({
         }}
       />
 
+      <MovementJoystick onMove={onJoystickMove} disabled={Boolean(mySeatId)} />
       {/* ── HUD ── */}
       <div style={hudStyle}>
         <div

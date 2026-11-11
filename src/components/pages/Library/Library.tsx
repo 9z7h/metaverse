@@ -33,6 +33,7 @@ import type { HouseId } from "./houses";
 import { AlreadyRerolledError } from "./academyApi";
 import { useAcademyConnection, useFocusReport } from "./useAcademy";
 import { useRemotePresence } from "./remotePresence";
+import { BackgroundMusic } from "./BackgroundMusic";
 
 // three.js 번들(수백 KB)은 먹빛각에 들어갈 때만 내려받는다
 const GardenWorld = lazy(() =>
@@ -532,65 +533,54 @@ export function Library({
     );
   }
 
-  if (step === "garden" && house) {
+  if ((step === "garden" || step === "world") && house) {
     return (
       <div data-theme="library" style={pageStyle}>
+        {webgl ? <BackgroundMusic /> : null}
         {webgl ? (
           <Suspense
             fallback={
               <p style={{ ...captionStyle, padding: "var(--spacing-24)" }}>
-                숨돌림 뜰로 나가는 중…
+                {step === "garden"
+                  ? "숨돌림 뜰로 나가는 중…"
+                  : "먹빛각 문을 여는 중…"}
               </p>
             }
           >
-            <GardenWorld
-              house={house}
-              presence={presence}
-              onBack={() => setStep("world")}
-            />
+            {step === "garden" ? (
+              <GardenWorld
+                house={house}
+                presence={presence}
+                onBack={() => setStep("world")}
+              />
+            ) : (
+              <LibraryWorld
+                presence={presence}
+                timer={timer}
+                subject={mySubject}
+                house={house}
+                ranking={ranking}
+                mode={mode}
+                onModeChange={(m) => {
+                  setMode(m);
+                  presence.update({ mode: m });
+                }}
+                onSit={handleSit}
+                onStandUp={handleLeave}
+                onStart={handleStart}
+                onPause={handlePause}
+                onExit={() => {
+                  if (presence.me) handleLeave();
+                  setStep("entrance");
+                }}
+                onGoGarden={handleGoGarden}
+              />
+            )}
           </Suspense>
         ) : (
-          <Unsupported onBack={() => setStep("world")} />
-        )}
-      </div>
-    );
-  }
-
-  if (step === "world" && house) {
-    return (
-      <div data-theme="library" style={pageStyle}>
-        {webgl ? (
-          <Suspense
-            fallback={
-              <p style={{ ...captionStyle, padding: "var(--spacing-24)" }}>
-                먹빛각 문을 여는 중…
-              </p>
-            }
-          >
-            <LibraryWorld
-              presence={presence}
-              timer={timer}
-              subject={mySubject}
-              house={house}
-              ranking={ranking}
-              mode={mode}
-              onModeChange={(m) => {
-                setMode(m);
-                presence.update({ mode: m });
-              }}
-              onSit={handleSit}
-              onStandUp={handleLeave}
-              onStart={handleStart}
-              onPause={handlePause}
-              onExit={() => {
-                if (presence.me) handleLeave();
-                setStep("entrance");
-              }}
-              onGoGarden={handleGoGarden}
-            />
-          </Suspense>
-        ) : (
-          <Unsupported onBack={() => setStep("entrance")} />
+          <Unsupported
+            onBack={() => setStep(step === "garden" ? "world" : "entrance")}
+          />
         )}
       </div>
     );

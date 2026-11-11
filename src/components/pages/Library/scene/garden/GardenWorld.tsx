@@ -22,6 +22,7 @@ import type { LibraryPresence } from "../../libraryPresence";
 import { FloorPicker, FrameDriver, TapMarker } from "../Characters";
 import { SpellEffects } from "../SpellEffects";
 import { SpellBar } from "../SpellBar";
+import { MovementJoystick } from "../MovementJoystick";
 import { useSpellCaster } from "../useSpellCaster";
 import { SPELL_ORDER } from "../spellLogic";
 import type { SpellId } from "../spellLogic";
@@ -172,6 +173,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
 
   /* 입력 */
   const input = useRef({ x: 0, y: 0 });
+  const joystick = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
   const boost = useRef(false);
   const target = useRef<Vec2 | null>(null);
@@ -179,8 +181,8 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
 
   const sync = useCallback(() => {
-    let x = 0;
-    let y = 0;
+    let x = joystick.current.x;
+    let y = joystick.current.y;
     keys.current.forEach((k) => {
       x += KEY_DIR[k][0];
       y += KEY_DIR[k][1];
@@ -188,6 +190,14 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
     const len = Math.hypot(x, y);
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
   }, []);
+  const onJoystickMove = useCallback(
+    (direction: { x: number; y: number }) => {
+      joystick.current = direction;
+      if (direction.x || direction.y) target.current = null;
+      sync();
+    },
+    [sync],
+  );
 
   /* 주문: 걸어 다닐 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
   const selfPos = useRef<Vec2>({ ...GARDEN_SPAWN });
@@ -515,6 +525,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         }}
       />
 
+      <MovementJoystick onMove={onJoystickMove} />
       <div style={hudStyle}>
         <div
           style={{

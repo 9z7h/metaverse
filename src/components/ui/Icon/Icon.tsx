@@ -36,6 +36,7 @@ export type IconName =
   | "bookmark_fill"
   | "check"
   | "pencil"
+  | "music"
   | "google";
 
 /** 단색 stroke 아이콘의 공통 path 속성 */
@@ -58,6 +59,13 @@ export const multicolorIcons: readonly IconName[] = ["google"];
  * 각 항목은 외곽 <svg viewBox="0 0 16 16"> 내부에 그대로 삽입된다.
  */
 export const iconPaths: Record<IconName, ReactNode> = {
+  music: (
+    <>
+      <path d="M6 11.5V3.5l6-1.5v8" {...strokeProps} strokeWidth={1.3} />
+      <ellipse cx="4.5" cy="11.8" rx="1.7" ry="1.3" fill="currentColor" />
+      <ellipse cx="10.5" cy="10.3" rx="1.7" ry="1.3" fill="currentColor" />
+    </>
+  ),
   // inset 10% (x/y 1.6, w/h 12.8), viewBox 13.8 — 점선 라운드 사각형
   iconview: (
     <svg

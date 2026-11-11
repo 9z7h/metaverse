@@ -1,0 +1,40 @@
+.movement-joystick {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  left: max(var(--spacing-16), env(safe-area-inset-left));
+  bottom: calc(
+    max(var(--spacing-16), env(safe-area-inset-bottom)) + var(--spacing-64) +
+      var(--spacing-48)
+  );
+  width: calc(var(--spacing-64) + var(--spacing-48));
+  height: calc(var(--spacing-64) + var(--spacing-48));
+  border-radius: var(--radius-circle);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-background-Subtle);
+  opacity: 0.85;
+  touch-action: none;
+  user-select: none;
+  align-items: center;
+  justify-content: center;
+}
+.movement-joystick__knob {
+  width: var(--spacing-48);
+  height: var(--spacing-48);
+  border-radius: var(--radius-circle);
+  background: var(--color-interactive-primary);
+  pointer-events: none;
+}
+@media (any-pointer: coarse) {
+  .movement-joystick {
+    display: flex;
+  }
+  .movement-hint-desktop {
+    display: none;
+  }
+}
+@media (any-pointer: fine) and (not (any-pointer: coarse)) {
+  .movement-hint-touch {
+    display: none;
+  }
+}
