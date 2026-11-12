@@ -52,8 +52,12 @@ import {
   STAIR_COUNT,
   STAIR_DEPTH,
   STAIR_WIDTH,
+  GARDEN_LIGHT_POOL,
+  STATIC_LIGHTS,
+  assignLightSlots,
+  pickNearestLights,
 } from "./gardenLayout";
-import type { SchoolBuilding } from "./gardenLayout";
+import type { LightSource, SchoolBuilding } from "./gardenLayout";
 import { GuardianFlag } from "./GuardianFlag";
 import type { HouseId } from "../../houses";
 
@@ -548,13 +552,6 @@ function LibraryHall({
         size={2.6}
         opacity={0.45}
       />
-      <pointLight
-        position={[x, 3.4, frontZ + 3]}
-        intensity={9}
-        distance={16}
-        decay={1.6}
-        color={colors["--color-scene-flame"]}
-      />
     </group>
   );
 }
@@ -889,13 +886,6 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
           roofH={2.2}
         />
         <Finial colors={colors} at={[b.x, 12.3, b.z]} />
-        <pointLight
-          position={[b.x, 5, b.z + b.halfD + 3]}
-          intensity={7}
-          distance={18}
-          decay={1.6}
-          color={flame}
-        />
       </group>
     );
   }
@@ -925,13 +915,6 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
           roofH={1.5}
         />
         <Finial colors={colors} at={[b.x, 17.4, b.z]} h={2.4} />
-        <pointLight
-          position={[b.x, 6, b.z + b.halfD + 2]}
-          intensity={6}
-          distance={16}
-          decay={1.6}
-          color={flame}
-        />
       </group>
     );
   }
@@ -981,13 +964,6 @@ function SchoolHall({ b, colors }: { b: SchoolBuilding; colors: SceneColors }) {
             <meshStandardMaterial color={wood} roughness={0.9} />
           </mesh>
         </group>
-        <pointLight
-          position={[b.x, 3, frontZ + 1.5]}
-          intensity={3}
-          distance={9}
-          decay={1.6}
-          color={flame}
-        />
       </group>
     );
   }
@@ -1320,13 +1296,6 @@ function Pavilion({ colors }: { colors: SceneColors }) {
         size={3}
         opacity={0.5}
       />
-      <pointLight
-        position={[x, baseTop + 2.6, z]}
-        intensity={7}
-        distance={13}
-        decay={1.6}
-        color={colors["--color-scene-flame"]}
-      />
     </group>
   );
 }
@@ -1470,63 +1439,67 @@ function WhiteCloudClusters({ colors }: { colors: SceneColors }) {
 
 /* ── 석등 ──────────────────────────────────────────────────── */
 
-/** 화면 가까이의 등만 실제 광원을 사용하고, 먼 등은 발광으로 표시한다. */
-function NearbyLanternLights({
-  lamps,
+/**
+ * 정원의 점광원 전부. 후보(건물·정자·석등·떠다니는 등)는 많지만 실제 `pointLight`는
+ * GARDEN_LIGHT_POOL개만 항상 켜 두고, 카메라 가까운 후보에 배정한다.
+ * 켜진 점광원 수가 바뀌면 셰이더가 다시 컴파일되어 걸을 때 끊기므로, 쓰지 않는 칸은 intensity 0으로 둔다.
+ */
+function GardenLightPool({
+  sources,
   color,
-  count,
-  intensity,
-  distance,
-  decay,
 }: {
-  lamps: ReadonlyArray<{ x: number; y: number; z: number }>;
+  sources: ReadonlyArray<LightSource>;
   color: string;
-  count: number;
-  intensity: number;
-  distance: number;
-  decay: number;
 }) {
   const lights = useRef<(PointLight | null)[]>([]);
+  const slots = useRef<(LightSource | null)[]>(
+    Array.from({ length: GARDEN_LIGHT_POOL }, () => null),
+  );
   const lastUpdate = useRef(-1);
   useFrame(({ camera, clock }) => {
     if (clock.elapsedTime - lastUpdate.current < 0.4) return;
     lastUpdate.current = clock.elapsedTime;
-    const distanceSquared = (lamp: { x: number; z: number }) =>
-      (lamp.x - camera.position.x) ** 2 + (lamp.z - camera.position.z) ** 2;
-    const nearest = [...lamps]
-      .filter((lamp) => distanceSquared(lamp) < 18 ** 2)
-      .sort((a, b) => distanceSquared(a) - distanceSquared(b));
+    const picked = pickNearestLights(
+      sources,
+      { x: camera.position.x, z: camera.position.z },
+      GARDEN_LIGHT_POOL,
+    );
+    slots.current = assignLightSlots(slots.current, picked);
     lights.current.forEach((light, i) => {
       if (!light) return;
-      const lamp = nearest[i];
-      light.visible = Boolean(lamp);
-      if (lamp) light.position.set(lamp.x, lamp.y, lamp.z);
+      const s = slots.current[i];
+      if (!s) {
+        light.intensity = 0;
+        return;
+      }
+      light.position.set(s.x, s.y, s.z);
+      light.intensity = s.intensity;
+      light.distance = s.distance;
+      light.decay = s.decay;
     });
   });
   return (
     <>
-      {Array.from({ length: count }, (_, i) => (
+      {Array.from({ length: GARDEN_LIGHT_POOL }, (_, i) => (
         <pointLight
           key={i}
           ref={(light) => {
             lights.current[i] = light;
           }}
-          visible={false}
           color={color}
-          intensity={intensity}
-          distance={distance}
-          decay={decay}
+          intensity={0}
         />
       ))}
     </>
   );
 }
 
+/** 석등의 광원 후보 */
+const STONE_LANTERN_LIGHTS: ReadonlyArray<LightSource> = STONE_LANTERNS.map(
+  (l) => ({ x: l.x, y: 1.45, z: l.z, intensity: 1.6, distance: 8, decay: 1.7 }),
+);
+
 function StoneLanterns({ colors }: { colors: SceneColors }) {
-  const lampPositions = useMemo(
-    () => STONE_LANTERNS.map((lamp) => ({ ...lamp, y: 1.45 })),
-    [],
-  );
   const { stone, flame, caps, glow } = useMemo(() => {
     const stone: Box[] = [];
     const flame: Box[] = [];
@@ -1551,14 +1524,6 @@ function StoneLanterns({ colors }: { colors: SceneColors }) {
         {box()}
       </Inst>
       <InstancedPyramids boxes={caps} geometry={pyramid} colors={colors} />
-      <NearbyLanternLights
-        lamps={lampPositions}
-        color={colors["--color-scene-flame"]}
-        count={4}
-        intensity={1.6}
-        distance={8}
-        decay={1.7}
-      />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}
@@ -1600,23 +1565,40 @@ function InstancedPyramids({
 /* ── 연등(떠 있는 청사초롱) ──────────────────────────────────── */
 
 const LANTERN_COUNT = 30;
+const GARDEN_LANTERN_ITEMS = (() => {
+  const rand = seeded(13);
+  const spots = [...STONE_PATH, ...POND_PATH];
+  return Array.from({ length: LANTERN_COUNT }, (_, i) => {
+    const a = spots[i % spots.length];
+    return {
+      x: a.x + (rand() - 0.5) * 9,
+      z: a.z + (rand() - 0.5) * 9,
+      y: 2.6 + rand() * 1.6,
+      phase: rand() * Math.PI * 2,
+      blue: i % 2 === 0,
+    };
+  });
+})();
+/** 떠다니는 등의 광원 후보 */
+const FLOATING_LANTERN_LIGHTS: ReadonlyArray<LightSource> =
+  GARDEN_LANTERN_ITEMS.map((it) => ({
+    x: it.x,
+    y: it.y,
+    z: it.z,
+    intensity: 0.7,
+    distance: 4.5,
+    decay: 1.8,
+  }));
+/** 정원 전체 광원 후보 */
+const GARDEN_LIGHT_SOURCES: ReadonlyArray<LightSource> = [
+  ...STATIC_LIGHTS,
+  ...STONE_LANTERN_LIGHTS,
+  ...FLOATING_LANTERN_LIGHTS,
+];
 
 function GardenLanterns({ colors }: { colors: SceneColors }) {
   const bodies = useRef<InstancedMesh>(null);
-  const items = useMemo(() => {
-    const rand = seeded(13);
-    const spots = [...STONE_PATH, ...POND_PATH];
-    return Array.from({ length: LANTERN_COUNT }, (_, i) => {
-      const a = spots[i % spots.length];
-      return {
-        x: a.x + (rand() - 0.5) * 9,
-        z: a.z + (rand() - 0.5) * 9,
-        y: 2.6 + rand() * 1.6,
-        phase: rand() * Math.PI * 2,
-        blue: i % 2 === 0,
-      };
-    });
-  }, []);
+  const items = GARDEN_LANTERN_ITEMS;
   const glow = useMemo(() => {
     const arr = new Float32Array(items.length * 3);
     items.forEach((it, i) => arr.set([it.x, it.y, it.z], i * 3));
@@ -1662,14 +1644,6 @@ function GardenLanterns({ colors }: { colors: SceneColors }) {
           roughness={0.9}
         />
       </instancedMesh>
-      <NearbyLanternLights
-        lamps={items}
-        color={colors["--color-scene-flame"]}
-        count={3}
-        intensity={0.7}
-        distance={4.5}
-        decay={1.8}
-      />
       <GlowPoints
         positions={glow}
         color={colors["--color-scene-flame"]}
@@ -1846,6 +1820,10 @@ export function GardenScenery({
       <GardenLanterns colors={colors} />
       <Sky colors={colors} night={1 - daylight} />
       <Fireflies colors={colors} />
+      <GardenLightPool
+        sources={GARDEN_LIGHT_SOURCES}
+        color={colors["--color-scene-flame"]}
+      />
     </group>
   );
 }

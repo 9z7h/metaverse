@@ -563,11 +563,7 @@ export function stepFlight(
   const wantSpeed = wantsMove
     ? FLIGHT.cruiseSpeed * clamp(intent.speedFrac, 0, 1)
     : 0;
-  speed += clamp(
-    wantSpeed - speed,
-    -FLIGHT.decel * dt,
-    FLIGHT.accel * dt,
-  );
+  speed += clamp(wantSpeed - speed, -FLIGHT.decel * dt, FLIGHT.accel * dt);
   speed = Math.max(0, speed);
 
   x += Math.sin(heading) * speed * dt;
@@ -586,4 +582,120 @@ export function stepFlight(
   if (landing && y < 0.03) y = 0;
 
   return { x, z, y, heading, speed };
+}
+
+/* ── 정원 조명 풀 ─────────────────────────────────────────────
+ * 점광원은 켜진 개수만큼 모든 조명 재질의 프래그먼트 셰이더가 무거워지고,
+ * 개수가 바뀌면 셰이더가 다시 컴파일된다. 그래서 광원 후보는 많이 두되
+ * 실제 점광원은 고정 개수(GARDEN_LIGHT_POOL)만 두고, 카메라에 가까운 후보에 배정한다. */
+
+/** 동시에 켜 두는 점광원 수 — 항상 같은 개수를 유지해 셰이더 재컴파일을 막는다 */
+export const GARDEN_LIGHT_POOL = 6;
+
+/** 카메라가 빛이 닿는 거리보다 이만큼 더 멀어도 후보로 본다 (멀리서 보이는 건물 벽을 밝히려고) */
+const LIGHT_VIEW_MARGIN = 25;
+
+export interface LightSource {
+  x: number;
+  y: number;
+  z: number;
+  intensity: number;
+  distance: number;
+  decay: number;
+}
+
+/** 건물·정자의 고정 광원 후보 (서고 앞, 정문, 탑, 공방, 정자) */
+export const STATIC_LIGHTS: ReadonlyArray<LightSource> = [
+  {
+    x: LIBRARY_BUILDING.x,
+    y: 3.4,
+    z: LIBRARY_BUILDING.frontZ + 3,
+    intensity: 9,
+    distance: 16,
+    decay: 1.6,
+  },
+  ...SCHOOL_BUILDINGS.flatMap((b): LightSource[] => {
+    if (b.kind === "gate") {
+      return [
+        {
+          x: b.x,
+          y: 5,
+          z: b.z + b.halfD + 3,
+          intensity: 7,
+          distance: 18,
+          decay: 1.6,
+        },
+      ];
+    }
+    if (b.kind === "tower") {
+      return [
+        {
+          x: b.x,
+          y: 6,
+          z: b.z + b.halfD + 2,
+          intensity: 6,
+          distance: 16,
+          decay: 1.6,
+        },
+      ];
+    }
+    if (b.kind === "workshop") {
+      return [
+        {
+          x: b.x,
+          y: 3,
+          z: b.z + b.halfD - 0.3 + 1.5,
+          intensity: 3,
+          distance: 9,
+          decay: 1.6,
+        },
+      ];
+    }
+    return [];
+  }),
+  {
+    x: PAVILION.x,
+    y: 0.45 + 2.6,
+    z: PAVILION.z,
+    intensity: 7,
+    distance: 13,
+    decay: 1.6,
+  },
+];
+
+/**
+ * 카메라 가까운 광원부터 `count`개를 고른다.
+ * 빛이 닿는 거리 대비 상대 거리로 비교해, 멀리까지 비추는 큰 광원이 작은 등에 밀리지 않게 한다.
+ */
+export function pickNearestLights(
+  sources: ReadonlyArray<LightSource>,
+  at: Vec2,
+  count: number,
+): LightSource[] {
+  return sources
+    .map((s) => {
+      const d = Math.hypot(s.x - at.x, s.z - at.z);
+      return { s, d, score: d / s.distance };
+    })
+    .filter((c) => c.d < c.s.distance + LIGHT_VIEW_MARGIN)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, count)
+    .map((c) => c.s);
+}
+
+/**
+ * 광원이 바뀌어도 이미 배정된 칸은 그대로 둔다 — 칸의 광원이 갑자기 다른 곳으로 튀지 않게.
+ * 고른 광원 중 아직 칸이 없는 것만 빈 칸에 채운다. 남는 칸은 null.
+ */
+export function assignLightSlots(
+  prev: ReadonlyArray<LightSource | null>,
+  picked: ReadonlyArray<LightSource>,
+): (LightSource | null)[] {
+  const next = prev.map((s) => (s && picked.includes(s) ? s : null));
+  for (const s of picked) {
+    if (next.includes(s)) continue;
+    const free = next.indexOf(null);
+    if (free >= 0) next[free] = s;
+  }
+  return next;
 }

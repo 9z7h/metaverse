@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DOOR_PICK_Y, rayHitsDoor } from "../sceneLayout";
 import {
+  GARDEN_LIGHT_POOL,
+  STATIC_LIGHTS,
+  assignLightSlots,
+  pickNearestLights,
   BAMBOO,
   BAMBOO_GROVE,
   DOOR_REACH,
@@ -478,5 +482,56 @@ describe("뜰에서 서고 문 탭", () => {
   it("문 옆 벽과 문 앞 마당은 문이 아니다", () => {
     expect(hits({ x: 4, y: frame.baseY + 1.5, z: frame.z })).toBe(false);
     expect(hits({ x: 0, y: 0, z: LIBRARY_DOOR.z + 4 })).toBe(false);
+  });
+});
+
+describe("정원 조명 풀", () => {
+  const src = (x: number, z: number, distance = 10) => ({
+    x,
+    y: 3,
+    z,
+    intensity: 1,
+    distance,
+    decay: 1.6,
+  });
+
+  it("건물·정자 고정 광원 후보가 있다", () => {
+    expect(STATIC_LIGHTS.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("카메라에 가까운 광원부터 최대 count개만 고른다", () => {
+    const a = src(0, 1);
+    const b = src(0, 5);
+    const c = src(0, 9);
+    expect(pickNearestLights([c, b, a], { x: 0, z: 0 }, 2)).toEqual([a, b]);
+  });
+
+  it("빛이 닿는 거리 대비 상대 거리로 비교한다 — 멀리 비추는 큰 광원이 작은 등에 밀리지 않는다", () => {
+    const smallNear = src(0, 4, 4.5);
+    const bigFar = src(0, 12, 18);
+    expect(pickNearestLights([smallNear, bigFar], { x: 0, z: 0 }, 1)).toEqual([
+      bigFar,
+    ]);
+  });
+
+  it("너무 먼 광원은 후보에서 뺀다", () => {
+    expect(pickNearestLights([src(0, 100)], { x: 0, z: 0 }, 3)).toEqual([]);
+  });
+
+  it("이미 배정된 칸은 그대로 두고 새 광원만 빈 칸에 채운다", () => {
+    const a = src(0, 1);
+    const b = src(0, 2);
+    const c = src(0, 3);
+    const next = assignLightSlots([a, b, null], [b, c]);
+    expect(next).toEqual([c, b, null]);
+  });
+
+  it("칸 수는 늘지 않는다", () => {
+    const many = Array.from({ length: 10 }, (_, i) => src(0, i));
+    const next = assignLightSlots(
+      Array.from({ length: GARDEN_LIGHT_POOL }, () => null),
+      many.slice(0, GARDEN_LIGHT_POOL),
+    );
+    expect(next).toHaveLength(GARDEN_LIGHT_POOL);
   });
 });
