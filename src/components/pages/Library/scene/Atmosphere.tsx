@@ -48,7 +48,7 @@ const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
 
 /* ── 청사초롱: 공중에 떠서 흔들리는 비단 등 ─────────────────── */
 
-const LANTERN_COUNT = 70;
+const LANTERN_COUNT = 20;
 
 function Lanterns({ colors }: { colors: SceneColors }) {
   const silk = useSurfaceTexture("plaster");

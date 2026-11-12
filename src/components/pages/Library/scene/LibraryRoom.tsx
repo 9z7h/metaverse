@@ -498,36 +498,108 @@ function DeskSet({
 
 function FloatingBooks({ colors }: { colors: SceneColors }) {
   const group = useRef<Group>(null);
-  // 서고 길이를 따라 2.6m 간격으로 흩어 놓는다
+  const atlas = useTexture(BOOK_ATLAS_URL);
+  const paper = useTexture(
+    `${import.meta.env.BASE_URL}textures/open-study-book.jpg`,
+  );
+  const covers = useMemo(
+    () =>
+      Array.from({ length: 4 }, (_, i) => {
+        const texture = atlas.clone();
+        texture.colorSpace = SRGBColorSpace;
+        texture.repeat.set(0.25, 0.5);
+        texture.offset.set(i * 0.25, 0.5);
+        texture.anisotropy = 4;
+        texture.needsUpdate = true;
+        return texture;
+      }),
+    [atlas],
+  );
+  const pages = useMemo(
+    () =>
+      [-1, 1].map((side) => {
+        const texture = paper.clone();
+        texture.colorSpace = SRGBColorSpace;
+        texture.repeat.set(0.5, 1);
+        texture.offset.set(side < 0 ? 0 : 0.5, 0);
+        texture.anisotropy = 4;
+        texture.needsUpdate = true;
+        return texture;
+      }),
+    [paper],
+  );
+  useEffect(
+    () => () => {
+      covers.forEach((texture) => texture.dispose());
+      pages.forEach((texture) => texture.dispose());
+    },
+    [covers, pages],
+  );
+  // 통로 위를 가볍게 날며 서로 다른 높이와 속도로 움직인다.
   const items = useMemo(() => {
-    const colorsCycle = [
-      "--color-scene-robe-1",
-      "--color-scene-robe-2",
-      "--color-scene-robe-3",
-      "--color-scene-robe-4",
-    ] as const;
-    return Array.from({ length: 16 }, (_, i) => ({
-      x: ((i * 7) % 13) - 6,
-      y: 2.4 + (i % 4) * 0.25,
-      z: 11 - i * 2.6,
-      c: colorsCycle[i % 4],
+    return Array.from({ length: 6 }, (_, i) => ({
+      x: ((i * 7) % 9) - 4,
+      y: 3.1 + (i % 4) * 0.34,
+      z: 10 - i * 6.5,
     }));
   }, []);
+  const reducedMotion = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
+    [],
+  );
   useFrame(({ clock }) => {
+    if (reducedMotion) return;
     group.current?.children.forEach((child, i) => {
       const t = clock.elapsedTime + i * 1.7;
-      child.position.y = items[i].y + Math.sin(t * 0.9) * 0.15;
-      child.rotation.y = t * 0.25;
-      child.rotation.z = Math.sin(t * 0.7) * 0.15;
+      child.position.x = items[i].x + Math.sin(t * 0.22) * 0.8;
+      child.position.z = items[i].z + Math.cos(t * 0.17) * 0.7;
+      child.position.y = items[i].y + Math.sin(t * 0.8) * 0.16;
+      child.rotation.y = Math.sin(t * 0.22) * 0.45;
+      child.rotation.z = Math.sin(t * 0.7) * 0.12;
+      child.rotation.x =
+        (i === 1 || i === 3 ? Math.PI : 0) + Math.sin(t * 0.5 + i) * 0.1;
+      const left = child.getObjectByName("left-page");
+      const right = child.getObjectByName("right-page");
+      const flap = 0.28 + Math.sin(t * 3.8) * 0.36;
+      if (left) left.rotation.z = -flap;
+      if (right) right.rotation.z = flap;
     });
   });
   return (
     <group ref={group}>
-      {items.map((b) => (
-        <mesh key={`${b.x}${b.z}`} position={[b.x, b.y, b.z]}>
-          <boxGeometry args={[0.42, 0.08, 0.3]} />
-          <meshStandardMaterial color={colors[b.c]} roughness={0.8} />
-        </mesh>
+      {items.map((b, i) => (
+        <group
+          key={`${b.x}${b.z}`}
+          position={[b.x, b.y, b.z]}
+          rotation={[i === 1 || i === 3 ? Math.PI : 0, 0, 0]}
+        >
+          <mesh>
+            <boxGeometry args={[0.045, 0.08, 0.38]} />
+            <meshStandardMaterial map={covers[i % covers.length]} roughness={0.85} />
+          </mesh>
+          {[-1, 1].map((side) => (
+            <group
+              key={side}
+              name={side < 0 ? "left-page" : "right-page"}
+              rotation={[0, 0, side * 0.28]}
+            >
+              <mesh position={[side * 0.205, -0.025, 0]}>
+                <boxGeometry args={[0.4, 0.035, 0.4]} />
+                <meshStandardMaterial map={covers[i % covers.length]} roughness={0.85} />
+              </mesh>
+              <mesh position={[side * 0.2, 0, 0]}>
+                <boxGeometry args={[0.37, 0.04, 0.36]} />
+                <meshStandardMaterial
+                  color={colors["--color-scene-collar"]}
+                  map={pages[side < 0 ? 0 : 1]}
+                  roughness={1}
+                />
+              </mesh>
+            </group>
+          ))}
+        </group>
       ))}
     </group>
   );
