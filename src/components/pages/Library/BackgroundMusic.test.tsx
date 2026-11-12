@@ -16,7 +16,7 @@ it("자동 재생이 차단되면 사용자 입력에서 다시 시작하고 끌
   const { container, unmount } = render(<BackgroundMusic />);
   const audio = container.querySelector("audio")!;
   expect(audio.loop).toBe(true);
-  expect(audio.volume).toBeCloseTo(0.2);
+  expect(audio.volume).toBeCloseTo(0.1);
   await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
   fireEvent.pointerDown(document.body);
   await waitFor(() => expect(play).toHaveBeenCalledTimes(2));

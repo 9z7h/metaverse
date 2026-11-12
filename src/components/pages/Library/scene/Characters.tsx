@@ -131,7 +131,6 @@ export function Player({
   occupied,
   seat,
   focusing,
-  subject,
   focusSeconds,
   house,
   onNearSeatChange,
@@ -332,10 +331,9 @@ export function Player({
       name="나"
       focusSeconds={focusSeconds}
       bubble={bubble}
-      subject={seat ? subject : undefined}
       highlight
-      // 앉아 있을 땐 내 이름표 숨김 (카메라가 가까워 화면을 가림), 순위판을 볼 때도 숨김
-      showLabel={!seat && !facingBoard}
+      // 앉아 있어도 이름과 누적 수련 시간을 표시하고, 순위판을 볼 때만 숨긴다.
+      showLabel={!facingBoard}
     />
   );
 }

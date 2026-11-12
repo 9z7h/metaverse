@@ -3,7 +3,7 @@ import { ButtonMedium, ButtonSmall } from "../../ui/Button";
 import { getEffectsVolume, setEffectsVolume } from "./soundSettings";
 
 /** 처음 켰을 때의 음량(%) — 공부하는 동안 거슬리지 않게 낮게 둔다 */
-const DEFAULT_VOLUME = 20;
+const DEFAULT_VOLUME = 10;
 
 export function BackgroundMusic() {
   const audioRef = useRef<HTMLAudioElement>(null);
