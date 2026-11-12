@@ -34,6 +34,8 @@ export const LIBRARY_DOOR_FRAME: DoorFrame = {
   height: 3.2,
 };
 export const DOOR_REACH = 3.4;
+/** 서고 대문 앞 기단 가장자리를 오가며 문을 지키는 해태의 순찰길 — x ± halfRange, 기단 윗면 높이 y */
+export const HAETAE_PATROL = { z: -25.8, halfRange: 4.4, y: 0.6 } as const;
 
 export const POND = { x: 11, z: 3, r: 8 } as const;
 export const PAVILION = { x: -12, z: 6, half: 3.2 } as const;

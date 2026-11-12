@@ -3,15 +3,33 @@ import { SPELL_ORDER } from "./spellLogic";
 import {
   SPELL_SOUNDS,
   SPELL_SOUND_VOLUME,
+  SPELL_SOUND_LAYERS,
   hasSpellSound,
   playSpellSound,
 } from "./spellSound";
 
 describe("주문 효과음", () => {
-  it("명경과 묵령에는 소리가 있고 아직 정하지 않은 주문은 없다", () => {
+  it("네 주문에 모두 효과음이 있다", () => {
     expect(hasSpellSound("myeonggyeong")).toBe(true);
     expect(hasSpellSound("mukryeong")).toBe(true);
-    expect(hasSpellSound("hwaryong")).toBe(false);
+    expect(hasSpellSound("hwaryong")).toBe(true);
+    expect(hasSpellSound("buun")).toBe(true);
+  });
+
+  it("화룡과 부운은 서로 다른 불길과 떠오르는 바람 소리를 사용한다", () => {
+    expect(
+      SPELL_SOUND_LAYERS.hwaryong?.some(
+        ({ sound }) => sound.kind === "hiss" && sound.fromHz > sound.toHz,
+      ),
+    ).toBe(true);
+    expect(
+      SPELL_SOUND_LAYERS.buun?.some(
+        ({ sound }) => sound.kind === "hiss" && sound.fromHz < sound.toHz,
+      ),
+    ).toBe(true);
+    expect(
+      SPELL_SOUND_LAYERS.buun?.some(({ sound }) => sound.kind === "tone"),
+    ).toBe(true);
   });
 
   it("소리가 있는 주문은 모두 알려진 주문이다", () => {
@@ -20,14 +38,11 @@ describe("주문 효과음", () => {
     }
   });
 
-  it("명경은 짧고 경쾌한 한 음이다 — 올라오는 시간이 짧고 0.3초 안에 사라진다", () => {
-    const tone = SPELL_SOUNDS.myeonggyeong!;
-    expect(tone.kind).toBe("tone");
-    if (tone.kind !== "tone") return;
-    expect(tone.attackMs).toBeLessThanOrEqual(10);
-    for (const p of tone.partials) {
-      expect(p.decayMs).toBeLessThanOrEqual(300);
-    }
+  it("명경을 켤 때 맑은 잔향이 이어진다", () => {
+    expect(SPELL_SOUNDS.myeonggyeong).toBeUndefined();
+    const layer = SPELL_SOUND_LAYERS.myeonggyeong?.[0];
+    expect(layer?.offsetMs).toBeGreaterThan(0);
+    expect(layer?.sound.kind).toBe("tone");
   });
 
   it("묵령은 숨처럼 새며 낮아지는 소리다 — 높이가 내려가고 1초 안에 끝난다", () => {

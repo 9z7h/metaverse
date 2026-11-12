@@ -237,16 +237,16 @@ function Windows({ colors }: { colors: SceneColors }) {
   const bars = useRef<InstancedMesh>(null);
   const windows = useMemo<WindowSpec[]>(
     () => [
-      // 뒷벽 가운데: 양옆 서가 사이를 높이 가르는 큰 격자 살창
+      // 벽난로 위의 큰 살창: 선반 위에서부터 천장 가까이 이어진다.
       {
         x: 0,
-        y: 5.4,
+        y: 7.1,
         z: BACK_Z + 0.02,
         ry: 0,
         w: 5,
-        h: 6.8,
+        h: 6.2,
         cols: 8,
-        rows: 10,
+        rows: 9,
         bar: 0.06,
       },
       // 옆벽: 윗단 서가 위로, 서가 한 칸마다 높은 살창

@@ -59,6 +59,9 @@ import {
 } from "./gardenLayout";
 import type { LightSource, SchoolBuilding } from "./gardenLayout";
 import { GuardianFlag } from "./GuardianFlag";
+import { MysticFox } from "./MysticFox";
+import { GuardianToad } from "./GuardianToad";
+import { Haetae } from "./Haetae";
 import type { HouseId } from "../../houses";
 
 function seeded(seed: number) {
@@ -1783,6 +1786,7 @@ export function GardenScenery({
       <Ground />
       <Paths colors={colors} />
       <Pond colors={colors} />
+      <GuardianToad colors={colors} />
       <FlowerWall colors={colors} />
       <LibraryHall colors={colors} doorOpen={libraryDoorOpen} />
       <SchoolHalls colors={colors} />
@@ -1812,6 +1816,8 @@ export function GardenScenery({
         )}
       />
       <Pavilion colors={colors} />
+      <MysticFox colors={colors} />
+      <Haetae colors={colors} />
       <Pines />
       <Bamboo colors={colors} />
       <PlumTrees colors={colors} />

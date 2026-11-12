@@ -48,6 +48,7 @@ import { DISSOLVE_MS, pickFps, trackLeavers } from "./magicMotion";
 import type { Leaver } from "./magicMotion";
 import type { FloorPick, MoveOrder } from "./Characters";
 import { LibraryRoom } from "./LibraryRoom";
+import { Fireplace } from "./Fireplace";
 import { HallFrame } from "./HallFrame";
 import { Armillary } from "./Armillary";
 import { Atmosphere } from "./Atmosphere";
@@ -714,6 +715,7 @@ export function LibraryWorld({
               />
 
               <LibraryRoom colors={colors} desks={desks} doorOpen={doorOpen} />
+              <Fireplace colors={colors} />
               <HallFrame colors={colors} />
               <Armillary colors={colors} />
               <Atmosphere colors={colors} daylight={daylight} />

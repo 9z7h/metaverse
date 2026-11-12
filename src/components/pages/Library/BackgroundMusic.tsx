@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { ButtonMedium, ButtonSmall } from "../../ui/Button";
+import { getEffectsVolume, setEffectsVolume } from "./soundSettings";
 
 /** 처음 켰을 때의 음량(%) — 공부하는 동안 거슬리지 않게 낮게 둔다 */
-const DEFAULT_VOLUME = 5;
+const DEFAULT_VOLUME = 20;
 
 export function BackgroundMusic() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [open, setOpen] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const [effects, setEffects] = useState(() =>
+    Math.round(getEffectsVolume() * 100),
+  );
+  const lastEffects = useRef(effects || 100);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -93,6 +98,7 @@ export function BackgroundMusic() {
               type="range"
               min="0"
               max="100"
+              step="0.5"
               value={volume}
               style={{
                 width: "100%",
@@ -115,6 +121,39 @@ export function BackgroundMusic() {
             >
               {playing ? "배경음 끄기" : "배경음 켜기"}
             </ButtonSmall>
+            <label
+              htmlFor="effects-volume"
+              style={{ font: "var(--text-body-sm-bold)" }}
+            >
+              효과음 음량 {effects}%
+            </label>
+            <input
+              id="effects-volume"
+              type="range"
+              min="0"
+              max="100"
+              value={effects}
+              style={{
+                width: "100%",
+                accentColor: "var(--color-interactive-primary)",
+              }}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setEffects(next);
+                if (next > 0) lastEffects.current = next;
+                setEffectsVolume(next / 100);
+              }}
+            />
+            <ButtonSmall
+              style="monolight"
+              onClick={() => {
+                const next = effects > 0 ? 0 : lastEffects.current;
+                setEffects(next);
+                setEffectsVolume(next / 100);
+              }}
+            >
+              {effects > 0 ? "효과음 끄기" : "효과음 켜기"}
+            </ButtonSmall>
           </div>
         ) : null}
         <ButtonMedium
@@ -122,7 +161,7 @@ export function BackgroundMusic() {
           icon="music"
           style="monolight"
           radius="var(--radius-circle)"
-          aria-label="배경음 설정"
+          aria-label="음향 설정"
           aria-pressed={open}
           onClick={() => setOpen((value) => !value)}
         />

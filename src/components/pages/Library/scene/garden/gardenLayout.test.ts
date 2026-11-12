@@ -15,6 +15,8 @@ import {
   LIBRARY_BUILDING,
   LIBRARY_DOOR,
   LIBRARY_DOOR_FRAME,
+  HAETAE_PATROL,
+  STAIR_WIDTH,
   PAVILION,
   PINES,
   PLUM_TREES,
@@ -533,5 +535,20 @@ describe("정원 조명 풀", () => {
       many.slice(0, GARDEN_LIGHT_POOL),
     );
     expect(next).toHaveLength(GARDEN_LIGHT_POOL);
+  });
+});
+
+describe("해태 순찰길", () => {
+  const frontEdge = LIBRARY_BUILDING.z + 1 + LIBRARY_BUILDING.halfD + 2;
+
+  it("서고 기단 윗면 앞쪽 가장자리 안에 있고 기단 폭을 넘지 않는다", () => {
+    expect(HAETAE_PATROL.z + 0.6).toBeLessThan(frontEdge);
+    expect(HAETAE_PATROL.halfRange).toBeLessThan(LIBRARY_BUILDING.halfW + 1.5);
+    expect(HAETAE_PATROL.y).toBeCloseTo(0.6);
+  });
+
+  it("순찰길은 문 앞 가운데를 지나지만 문 앞은 계속 걸을 수 있다", () => {
+    expect(HAETAE_PATROL.halfRange).toBeGreaterThan(STAIR_WIDTH / 2);
+    expect(resolveWalk(LIBRARY_DOOR)).toEqual(LIBRARY_DOOR);
   });
 });

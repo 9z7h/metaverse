@@ -28,6 +28,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Group, PointLight } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
+import { getEffectsBus } from "../soundSettings";
 import type { HouseId } from "../houses";
 import { swingPose, wandLightIsOn } from "./spellLogic";
 import { MASK_WHITE_TOKEN, rootToken } from "./sceneLayout";
@@ -164,7 +165,7 @@ function synthFootstep(kind: FootstepKind, running: boolean) {
     const tone = (wood ? 1 : 0.62) * (0.94 + Math.random() * 0.12);
     const out = ctx.createGain();
     out.gain.value = 0.75;
-    out.connect(ctx.destination);
+    out.connect(getEffectsBus(ctx));
     const ring = (
       type: OscillatorType,
       from: number,
@@ -269,12 +270,12 @@ export function playFootstep(kind: FootstepKind, running: boolean) {
     gain.gain.value =
       (wood ? 0.375 : 0.225) * (running ? 1.2 : 1) * (0.85 + Math.random() * 0.3);
     if (wood) {
-      src.connect(gain).connect(ctx.destination);
+      src.connect(gain).connect(getEffectsBus(ctx));
     } else {
       const soften = ctx.createBiquadFilter();
       soften.type = "lowpass";
       soften.frequency.value = 1800;
-      src.connect(soften).connect(gain).connect(ctx.destination);
+      src.connect(soften).connect(gain).connect(getEffectsBus(ctx));
     }
     src.start();
   } catch {
