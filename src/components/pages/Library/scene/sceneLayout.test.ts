@@ -31,6 +31,9 @@ import {
   resolveCollision,
   BEAM_Z,
   FRONT_WALL_Z,
+  DOOR_PICK_Y,
+  LIBRARY_EXIT_DOOR,
+  rayHitsDoor,
   SIDE_SHELF_PITCH,
   SIDE_SHELF_Z,
   boardCameraRig,
@@ -723,5 +726,45 @@ describe("정원으로 나가는 문 — nearExit", () => {
     expect(nearExit(PLAYER_SPAWN)).toBe(false);
     expect(nearExit({ x: DOOR.x, z: DOOR.z })).toBe(true);
     expect(DOOR.z).toBeLessThanOrEqual(ROOM.maxZ);
+  });
+});
+
+/** 카메라(cam)에서 목표점(at: x, 높이, z)을 향한 시선이 바닥·DOOR_PICK_Y 평면과 만나는 점 */
+function picksFor(
+  cam: { x: number; y: number; z: number },
+  at: { x: number; y: number; z: number },
+) {
+  const at_ = (y: number) => {
+    const t = (cam.y - y) / (cam.y - at.y);
+    return { x: cam.x + (at.x - cam.x) * t, z: cam.z + (at.z - cam.z) * t };
+  };
+  return { low: at_(0), high: at_(DOOR_PICK_Y) };
+}
+
+describe("문 탭 판정", () => {
+  const cam = { x: 0, y: 4, z: 8 };
+  const door = LIBRARY_EXIT_DOOR;
+  const hits = (at: { x: number; y: number; z: number }) => {
+    const { low, high } = picksFor(cam, at);
+    return rayHitsDoor(low, high, door);
+  };
+
+  it("문짝의 아래·가운데·위를 누르면 문으로 친다", () => {
+    for (const y of [0.3, 1.3, 2.5])
+      expect(hits({ x: 0, y, z: door.z })).toBe(true);
+  });
+
+  it("문 폭 밖이나 문 위 벽, 방 안 바닥은 문이 아니다", () => {
+    expect(hits({ x: 3, y: 1.3, z: door.z })).toBe(false);
+    expect(hits({ x: 0, y: 3.6, z: door.z })).toBe(false);
+    expect(hits({ x: 0, y: 0, z: 12 })).toBe(false);
+  });
+
+  it("문 앞 바닥을 눌러도 문으로 치지 않는다", () => {
+    expect(hits({ x: 0, y: 0, z: ROOM.maxZ })).toBe(false);
+  });
+
+  it("시선이 벽과 나란하면 문이 아니다", () => {
+    expect(rayHitsDoor({ x: 0, z: 5 }, { x: 0, z: 5 }, door)).toBe(false);
   });
 });

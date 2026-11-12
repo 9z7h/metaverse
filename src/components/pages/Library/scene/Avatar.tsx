@@ -128,6 +128,22 @@ export type FootstepKind = "wood" | "grass";
 let audioCtx: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 
+/** 발소리와 주문 효과음이 함께 쓰는 오디오 컨텍스트. 소리를 낼 수 없는 환경이면 null */
+export function getAudioContext(): AudioContext | null {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx ??= new Ctx();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
 /** 샘플을 쓸 수 없을 때의 대체 합성음 — 또각. 잡음(챱챱) 대신 굽이 딱 닿는 짧은 점 소리 + 나무가 울리는 음정으로 만든다.
  * 마루는 높고 맑게, 풀밭은 낮고 둔하게 같은 소리를 작게 낸다. 매번 높낮이·세기를 조금씩 달리한다.
  */

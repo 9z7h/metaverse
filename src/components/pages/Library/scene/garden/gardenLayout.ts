@@ -5,7 +5,7 @@
  * 서고(북쪽 끝, 문이 남쪽을 향함)에서 나온 학생이 달밤의 후원을 거닐고,
  * 전통 구름을 타고 잠깐 하늘을 날며 머리를 식힌다.
  */
-import type { Vec2 } from "../sceneLayout";
+import type { DoorFrame, Vec2 } from "../sceneLayout";
 import type { HouseId } from "../../houses";
 
 /** 뜰 안쪽 경계 — x·z 모두 ±GARDEN_HALF (바깥은 꽃담) */
@@ -23,8 +23,16 @@ export const LIBRARY_BUILDING = {
   halfD: 4,
   frontZ: -28,
 } as const;
-/** 서고 문 앞 — 가까이 서면 "서고로 돌아가기"가 나타난다 */
+/** 서고 문 앞 — 문을 눌러 이 앞까지 걸어가면 서고로 들어간다 */
 export const LIBRARY_DOOR: Vec2 = { x: 0, z: -26.4 };
+/** 뜰에서 보이는 서고 대문 (문틀 포함 여유) — 기단 높이 0.6 위에 서 있다 */
+export const LIBRARY_DOOR_FRAME: DoorFrame = {
+  x: LIBRARY_BUILDING.x,
+  z: LIBRARY_BUILDING.frontZ + 0.12,
+  baseY: 0.6,
+  width: 2.7,
+  height: 3.2,
+};
 export const DOOR_REACH = 3.4;
 
 export const POND = { x: 11, z: 3, r: 8 } as const;

@@ -42,6 +42,8 @@ import {
 interface RoomProps {
   colors: SceneColors;
   desks: DeskLayout[];
+  /** 정원으로 나가는 문이 열려 있는지 */
+  doorOpen?: boolean;
 }
 
 /* ── 공통: 상자 여러 개를 InstancedMesh 하나로 ────────────────
@@ -614,7 +616,7 @@ function RoomTrim({
 
 /* ── 방 ─────────────────────────────────────────────── */
 
-export function LibraryRoom({ colors, desks }: RoomProps) {
+export function LibraryRoom({ colors, desks, doorOpen = false }: RoomProps) {
   const floorGrain = useSurfaceTexture("wood", 5, 12, true);
   const plaster = useSurfaceTexture("plaster", 6, 3);
   const shelves = useShelves();
@@ -692,7 +694,11 @@ export function LibraryRoom({ colors, desks }: RoomProps) {
       />
       {/* 서고 안쪽에서 바라보는 한옥 창호문 */}
       <group position={[0, 0, FRONT_WALL_Z - 0.02]} rotation={[0, Math.PI, 0]}>
-        <HanokDoor colors={colors} />
+        <HanokDoor
+          colors={colors}
+          open={doorOpen}
+          backdrop={colors["--color-background-default"]}
+        />
       </group>
 
       {chunks.map((c, i) => (

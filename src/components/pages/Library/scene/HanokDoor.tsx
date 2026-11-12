@@ -1,7 +1,8 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import { Color, Object3D, SRGBColorSpace } from "three";
-import type { InstancedMesh, Texture } from "three";
+import type { Group, InstancedMesh, Mesh, Texture } from "three";
 import type { SceneColors } from "./sceneLayout";
 import { useSurfaceTexture } from "./surfaceTexture";
 
@@ -51,7 +52,16 @@ export interface HanokDoorProps {
   width?: number;
   height?: number;
   warmInside?: boolean;
+  /** true면 두 짝이 정면 쪽(+z, 보는 사람 쪽)으로 열린다. 바뀌면 부드럽게 여닫힌다 */
+  open?: boolean;
+  /** 문이 열렸을 때 문틀 안에 보이는 색 — 문 뒤 벽이 비치지 않게 가린다. 없으면 막을 두지 않는다 */
+  backdrop?: string;
 }
+
+/** 활짝 열렸을 때 문짝이 벌어진 각도(rad) */
+const OPEN_ANGLE = Math.PI * 0.46;
+/** 여닫힘 속도 — 클수록 빠르다 (지수 감쇠) */
+const SWING_RATE = 4.5;
 
 /** 서고 안팎에서 공유하는 목제 쌍여닫이문. 정면은 로컬 +z 방향이다. */
 export function HanokDoor({
@@ -59,6 +69,8 @@ export function HanokDoor({
   width = 1.92,
   height = 2.6,
   warmInside = false,
+  open = false,
+  backdrop,
 }: HanokDoorProps) {
   const timber = useTexture(
     `${import.meta.env.BASE_URL}textures/antique-walnut.jpg`,
@@ -97,9 +109,11 @@ export function HanokDoor({
     ],
     [width, height],
   );
-  const leaves = useMemo<DoorMember[]>(() => {
-    const out: DoorMember[] = [];
+  /** [왼짝, 오른짝] — 짝마다 따로 열려야 해서 부재를 나눠 둔다 */
+  const leaves = useMemo<[DoorMember[], DoorMember[]]>(() => {
+    const sides: [DoorMember[], DoorMember[]] = [[], []];
     for (const side of [-1, 1]) {
+      const out = sides[side === -1 ? 0 : 1];
       const center = side * (leafWidth / 2 + 0.0125);
       out.push({ p: [center, height / 2, 0], s: [leafWidth, height, 0.065] });
       for (const edge of [-1, 1])
@@ -130,7 +144,7 @@ export function HanokDoor({
           s: [paneWidth, 0.02, 0.025],
         });
     }
-    return out;
+    return sides;
   }, [leafWidth, paneWidth, paneBottom, paneTop, paneHeight, height]);
   const metal = (
     <meshStandardMaterial
@@ -141,57 +155,99 @@ export function HanokDoor({
     />
   );
 
+  const swing = useRef(0);
+  const hinges = useRef<[Group | null, Group | null]>([null, null]);
+  const gap = useRef<Mesh>(null);
+  useFrame(({ invalidate }, rawDt) => {
+    const goal = open ? 1 : 0;
+    if (swing.current === goal) return;
+    const dt = Math.min(rawDt, 0.1);
+    const next =
+      swing.current + (goal - swing.current) * (1 - Math.exp(-SWING_RATE * dt));
+    swing.current = Math.abs(goal - next) < 0.002 ? goal : next;
+    // 경첩은 바깥 가장자리 — 왼짝은 −, 오른짝은 +로 돌아야 둘 다 정면 쪽으로 열린다
+    hinges.current[0]?.rotation.set(0, -swing.current * OPEN_ANGLE, 0);
+    hinges.current[1]?.rotation.set(0, swing.current * OPEN_ANGLE, 0);
+    if (gap.current) gap.current.visible = swing.current > 0.001;
+    if (swing.current !== goal) invalidate();
+  });
+
   return (
     <group>
       <TimberMembers members={frame} timber={timber} gain={1.15} />
-      <TimberMembers members={leaves} timber={timber} gain={1.7} />
+      {backdrop ? (
+        // 문짝 바로 뒤 — 열렸을 때만 보인다. 벽면과 겹쳐 깜빡이지 않게 살짝 앞으로 당긴다
+        <mesh ref={gap} position={[0, height / 2, -0.012]} visible={false}>
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial
+            color={backdrop}
+            polygonOffset
+            polygonOffsetFactor={-2}
+            polygonOffsetUnits={-2}
+          />
+        </mesh>
+      ) : null}
       {[-1, 1].map((side) => {
         const center = side * (leafWidth / 2 + 0.0125);
         const handleX = side * 0.13;
         const handleY = height * 0.36;
+        const index = side === -1 ? 0 : 1;
         return (
-          <group key={side}>
-            <mesh position={[center, (paneBottom + paneTop) / 2, 0.038]}>
-              <planeGeometry args={[paneWidth, paneHeight]} />
-              <meshStandardMaterial
-                map={hanji}
-                color={colors["--color-scene-collar"]}
-                roughness={0.96}
-                emissive={colors["--color-scene-flame"]}
-                emissiveIntensity={warmInside ? 0.14 : 0.02}
+          <group
+            key={side}
+            ref={(g) => {
+              hinges.current[index] = g;
+            }}
+            position={[side * (width / 2), 0, 0]}
+          >
+            <group position={[-side * (width / 2), 0, 0]}>
+              <TimberMembers
+                members={leaves[index]}
+                timber={timber}
+                gain={1.7}
               />
-            </mesh>
-            {/* 손잡이의 금속 받침과 고리, 작은 고정 못 */}
-            <mesh position={[handleX, handleY, 0.082]}>
-              <boxGeometry args={[0.074, 0.12, 0.015]} />
-              {metal}
-            </mesh>
-            <mesh position={[handleX, handleY - 0.04, 0.115]}>
-              <torusGeometry args={[0.049, 0.008, 8, 24]} />
-              {metal}
-            </mesh>
-            {[-1, 1].map((end) => (
-              <mesh
-                key={`rivet${end}`}
-                position={[handleX, handleY + end * 0.044, 0.096]}
-              >
-                <sphereGeometry args={[0.008, 8, 6]} />
+              <mesh position={[center, (paneBottom + paneTop) / 2, 0.038]}>
+                <planeGeometry args={[paneWidth, paneHeight]} />
+                <meshStandardMaterial
+                  map={hanji}
+                  color={colors["--color-scene-collar"]}
+                  roughness={0.96}
+                  emissive={colors["--color-scene-flame"]}
+                  emissiveIntensity={warmInside ? 0.14 : 0.02}
+                />
+              </mesh>
+              {/* 손잡이의 금속 받침과 고리, 작은 고정 못 */}
+              <mesh position={[handleX, handleY, 0.082]}>
+                <boxGeometry args={[0.074, 0.12, 0.015]} />
                 {metal}
               </mesh>
-            ))}
-            {/* 문틀 쪽 경첩과 회전축 */}
-            {[height * 0.2, height * 0.78].map((y) => (
-              <group key={y}>
-                <mesh position={[side * (width / 2 - 0.065), y, 0.135]}>
-                  <boxGeometry args={[0.14, 0.04, 0.012]} />
+              <mesh position={[handleX, handleY - 0.04, 0.115]}>
+                <torusGeometry args={[0.049, 0.008, 8, 24]} />
+                {metal}
+              </mesh>
+              {[-1, 1].map((end) => (
+                <mesh
+                  key={`rivet${end}`}
+                  position={[handleX, handleY + end * 0.044, 0.096]}
+                >
+                  <sphereGeometry args={[0.008, 8, 6]} />
                   {metal}
                 </mesh>
-                <mesh position={[side * (width / 2 + 0.005), y, 0.142]}>
-                  <cylinderGeometry args={[0.012, 0.012, 0.13, 10]} />
-                  {metal}
-                </mesh>
-              </group>
-            ))}
+              ))}
+              {/* 문틀 쪽 경첩과 회전축 */}
+              {[height * 0.2, height * 0.78].map((y) => (
+                <group key={y}>
+                  <mesh position={[side * (width / 2 - 0.065), y, 0.135]}>
+                    <boxGeometry args={[0.14, 0.04, 0.012]} />
+                    {metal}
+                  </mesh>
+                  <mesh position={[side * (width / 2 + 0.005), y, 0.142]}>
+                    <cylinderGeometry args={[0.012, 0.012, 0.13, 10]} />
+                    {metal}
+                  </mesh>
+                </group>
+              ))}
+            </group>
           </group>
         );
       })}

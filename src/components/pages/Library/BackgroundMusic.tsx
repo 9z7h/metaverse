@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { ButtonMedium, ButtonSmall } from "../../ui/Button";
 
+/** 처음 켰을 때의 음량(%) — 공부하는 동안 거슬리지 않게 낮게 둔다 */
+const DEFAULT_VOLUME = 5;
+
 export function BackgroundMusic() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [open, setOpen] = useState(false);
-  const [volume, setVolume] = useState(20);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.volume = 0.2;
+    audio.volume = DEFAULT_VOLUME / 100;
     let enabled = true;
     const start = () => {
       if (!enabled) return;

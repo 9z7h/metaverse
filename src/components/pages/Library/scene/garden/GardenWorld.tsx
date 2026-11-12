@@ -23,8 +23,11 @@ import { FloorPicker, FrameDriver, TapMarker } from "../Characters";
 import { SpellEffects } from "../SpellEffects";
 import { SpellBar } from "../SpellBar";
 import { MovementJoystick } from "../MovementJoystick";
+import { MyStudyChip } from "../MyStudyChip";
+import { DoorHoverLabel, moveDoorLabel } from "../DoorHoverLabel";
 import { useSpellCaster } from "../useSpellCaster";
-import { SPELL_ORDER } from "../spellLogic";
+import { CAST_RELEASE_MS, SPELL_ORDER } from "../spellLogic";
+import { playSpellSound } from "../spellSound";
 import type { SpellId } from "../spellLogic";
 import type { FloorPick } from "../Characters";
 import { LabelPortalContext } from "../Avatar";
@@ -33,6 +36,8 @@ import {
   ORBIT_DEFAULT,
   clampOrbit,
   readSceneColors,
+  DOOR_PICK_Y,
+  rayHitsDoor,
 } from "../sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "../sceneLayout";
 import { BroomRider, RemoteRider } from "./Broom";
@@ -41,6 +46,9 @@ import { SpaceSelect } from "../SpaceSelect";
 import {
   GARDEN_HALF,
   GARDEN_SPAWN,
+  LIBRARY_DOOR,
+  LIBRARY_DOOR_FRAME,
+  DOOR_REACH,
   preparingText,
   resolveWalk,
 } from "./gardenLayout";
@@ -59,10 +67,16 @@ export type GardenPresence = Pick<
 >;
 
 export interface GardenWorldProps {
+  /** 오늘 누적 수련 시간(초) — 나만 본다. 뜰은 쉬는 곳이라 타이머는 멈춰 있다 */
+  todaySeconds?: number;
   house: HouseId;
   presence: GardenPresence;
-  /** 서고로 돌아가기 (HUD 화살표·문 앞 버튼·E 키) */
+  /** 서고로 돌아가기 (HUD 화살표·서고 문·E 키) */
   onBack: () => void;
+  /** 서고 문으로 나왔는지 — 문 앞에서 걸어 나오고 문이 닫힌다 */
+  arrivedByDoor?: boolean;
+  /** 장면이 그려질 준비가 되었을 때 한 번 (전환 막을 걷는 신호) */
+  onReady?: () => void;
 }
 
 /** 움직이거나 구름을 탄 동안은 부드럽게, 가만히 있으면 아낀다 */
@@ -123,7 +137,14 @@ const auto: CSSProperties = { pointerEvents: "auto" };
  * 숨돌림 뜰 — 서고 밖 달밤의 후원. 걷다가 전통 구름을 타고 천천히 날며 머리를 식힌다.
  * 같은 정원에 있는 다른 수련생이 걷거나 구름을 타는 모습이 보인다. 대화·타이머는 없다(타이머는 상위가 멈춰 둔다).
  */
-export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
+export function GardenWorld({
+  todaySeconds = 0,
+  house,
+  presence,
+  onBack,
+  arrivedByDoor = false,
+  onReady,
+}: GardenWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<SceneColors | null>(null);
   useLayoutEffect(() => {
@@ -133,7 +154,19 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const [reduced] = useState(prefersReducedMotion);
   const [riding, setRiding] = useState(false);
   const ridingRef = useRef(false);
-  const [nearDoor, setNearDoor] = useState(false);
+  /* 서고 문: 눌러서 걸어가는 동안(headingIn) 열려 있고, 다른 입력이 들어오면 닫힌다.
+   * 서고에서 나왔다면 열린 채 시작해서 잠시 뒤 닫힌다 */
+  const [headingIn, setHeadingIn] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(arrivedByDoor);
+  const cancelDoor = useCallback(() => {
+    setHeadingIn(false);
+    setDoorOpen(false);
+  }, []);
+  useEffect(() => {
+    if (!arrivedByDoor) return;
+    const id = window.setTimeout(() => setDoorOpen(false), 1600);
+    return () => window.clearTimeout(id);
+  }, [arrivedByDoor]);
   const [moving, setMoving] = useState(false);
   const nearDoorRef = useRef(false);
   const [nearBuilding, setNearBuilding] = useState<string | null>(null);
@@ -176,7 +209,9 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const joystick = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
   const boost = useRef(false);
-  const target = useRef<Vec2 | null>(null);
+  const target = useRef<Vec2 | null>(
+    arrivedByDoor ? { ...GARDEN_SPAWN } : null,
+  );
   const pickFloor = useRef<FloorPick | null>(null);
   const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
 
@@ -188,8 +223,9 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
       y += KEY_DIR[k][1];
     });
     const len = Math.hypot(x, y);
+    if (len > 0) cancelDoor();
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
-  }, []);
+  }, [cancelDoor]);
   const onJoystickMove = useCallback(
     (direction: { x: number; y: number }) => {
       joystick.current = direction;
@@ -200,7 +236,9 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   );
 
   /* 주문: 걸어 다닐 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
-  const selfPos = useRef<Vec2>({ ...GARDEN_SPAWN });
+  const selfPos = useRef<Vec2>({
+    ...(arrivedByDoor ? LIBRARY_DOOR : GARDEN_SPAWN),
+  });
   const selfFacing = useRef(0);
   const selfHeight = useRef(0);
   const spells = useSpellCaster({
@@ -220,7 +258,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const castSpell = useCallback(
     (id: SpellId) => {
       const made = castLocal(id);
-      if (made) sendCast(made.spell, made.x, made.z, made.ry, made.y);
+      if (made) {
+        sendCast(made.spell, made.x, made.z, made.ry, made.y);
+        // 소리는 지팡이가 앞으로 나가는 정점에 맞춘다
+        playSpellSound(made.spell, CAST_RELEASE_MS);
+      }
     },
     [castLocal, sendCast],
   );
@@ -253,8 +295,26 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
 
   const handleNearDoor = useCallback((near: boolean) => {
     nearDoorRef.current = near;
-    setNearDoor(near);
   }, []);
+
+  // 문 앞에 닿으면 서고로 — 문은 이미 열려 있다
+  useEffect(() => {
+    if (!headingIn) return;
+    const id = window.setInterval(() => {
+      const p = selfPos.current;
+      const dist = Math.hypot(p.x - LIBRARY_DOOR.x, p.z - LIBRARY_DOOR.z);
+      if (dist > 1.2 && !(target.current === null && dist <= DOOR_REACH))
+        return;
+      window.clearInterval(id);
+      setHeadingIn(false);
+      onBack();
+    }, 80);
+    return () => window.clearInterval(id);
+  }, [headingIn, onBack]);
+  useEffect(() => {
+    if (colors) onReady?.();
+    // 처음 그릴 수 있게 되었을 때 한 번만 알린다
+  }, [Boolean(colors)]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -317,9 +377,21 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
   const wheelTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(wheelTimer.current), []);
 
-  const handleTap = (clientX: number, clientY: number) => {
+  const handleTap = (clientX: number, clientY: number, touch: boolean) => {
     const at = pickFloor.current?.(clientX, clientY, 0);
     if (!at) return;
+    const atDoor = pickFloor.current?.(clientX, clientY, DOOR_PICK_Y);
+    if (atDoor && rayHitsDoor(at, atDoor, LIBRARY_DOOR_FRAME)) {
+      // 서고 문을 누르면 문 앞까지 가고, 닿으면 서고로 들어간다 (터치도 동일)
+      const to = resolveWalk(LIBRARY_DOOR);
+      target.current = to;
+      setMarker({ at: to, key: performance.now() });
+      setDoorOpen(true);
+      setHeadingIn(true);
+      return;
+    }
+    if (touch) return; // 터치로 바닥을 눌러 이동하는 건 지원하지 않는다 (조이스틱 사용)
+    cancelDoor();
     const to = ridingRef.current
       ? {
           x: Math.max(-GARDEN_HALF, Math.min(GARDEN_HALF, at.x)),
@@ -341,7 +413,25 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
     draggingRef.current = true;
     setDragging(true);
   };
+  /* 서고 문 위에 마우스를 올리면 커서 곁에 안내 (마우스만 — 터치에는 hover가 없다) */
+  const [doorHover, setDoorHover] = useState(false);
+  const doorLabel = useRef<HTMLDivElement>(null);
+  const doorLabelAt = useRef({ x: 0, y: 0 });
+  const updateDoorHover = (e: PointerEvent<HTMLDivElement>) => {
+    let over = false;
+    if (e.pointerType === "mouse" && e.buttons === 0) {
+      const atFloor = pickFloor.current?.(e.clientX, e.clientY, 0);
+      const atDoor = pickFloor.current?.(e.clientX, e.clientY, DOOR_PICK_Y);
+      over = Boolean(
+        atFloor && atDoor && rayHitsDoor(atFloor, atDoor, LIBRARY_DOOR_FRAME),
+      );
+    }
+    doorLabelAt.current = { x: e.clientX, y: e.clientY };
+    if (over) moveDoorLabel(doorLabel.current, e.clientX, e.clientY);
+    setDoorHover(over);
+  };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    updateDoorHover(e);
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -380,12 +470,11 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
       press.current = null;
       if (
         e.type === "pointerup" &&
-        e.pointerType !== "touch" &&
         p &&
         !p.moved &&
         performance.now() - p.at <= TAP_MAX_MS
       ) {
-        handleTap(e.clientX, e.clientY);
+        handleTap(e.clientX, e.clientY, e.pointerType === "touch");
       }
     }
   };
@@ -422,6 +511,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerLeave={() => setDoorHover(false)}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
         onWheel={onWheel}
@@ -451,7 +541,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 args={[colors["--color-background-default"]]}
               />
               <fog attach="fog" args={[colors["--color-scene-fog"], 30, 120]} />
-              <GardenScenery colors={colors} />
+              <GardenScenery colors={colors} libraryDoorOpen={doorOpen} />
               {presence.walkers.map((w) => (
                 <RemoteRider
                   key={w.id}
@@ -483,6 +573,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 reducedMotion={reduced}
                 bubble={bubbles.get(ME_BUBBLE_KEY)?.text}
                 positionRef={selfPos}
+                spawn={arrivedByDoor ? LIBRARY_DOOR : undefined}
                 facingRef={selfFacing}
                 heightRef={selfHeight}
                 castAt={spells.castAt}
@@ -504,7 +595,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
               ) : null}
               <FrameDriver
                 fps={
-                  riding || moving || dragging || spells.active
+                  riding || moving || dragging || spells.active || doorOpen
                     ? FPS_ACTIVE
                     : FPS_IDLE
                 }
@@ -514,6 +605,13 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
         ) : null}
       </div>
 
+      {doorHover ? (
+        <DoorHoverLabel
+          label="서고로 들어가기"
+          labelRef={doorLabel}
+          at={doorLabelAt.current}
+        />
+      ) : null}
       {/* 아바타 이름표·말풍선이 붙는 레이어 — 캔버스와 같은 크기, 터치는 통과 */}
       <div
         ref={labelRef}
@@ -578,6 +676,7 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
                 {presence.connectedCount}명 접속 · {presence.restingCount}명
                 휴식 중
               </span>
+              <MyStudyChip todaySeconds={todaySeconds} />
             </div>
             <div className="world-chat-trigger">
               <ButtonSmall
@@ -647,10 +746,10 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             <span className="movement-hint-desktop">
               {riding
                 ? "가고 싶은 곳을 누르세요 · 끌어서 둘러보기 · WASD 이동"
-                : "뜰을 걸어 보세요 · 끌어서 둘러보기 · 구름을 타 볼까요?"}
+                : "뜰을 걸어 보세요 · 서고 문을 누르면 들어가요 · 구름을 타 볼까요?"}
             </span>
             <span className="movement-hint-touch">
-              조이스틱으로 이동 · 화면을 끌어 둘러보기
+              조이스틱으로 이동 · 서고 문을 누르면 들어가요
             </span>
           </p>
           <SpellBar
@@ -659,9 +758,6 @@ export function GardenWorld({ house, presence, onBack }: GardenWorldProps) {
             cooldowns={spells.cooldowns}
           />
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
-            {nearDoor ? (
-              <ButtonLarge onClick={onBack}>서고로 돌아가기</ButtonLarge>
-            ) : null}
             <ButtonLarge style="monolight" onClick={toggleRide}>
               {riding ? "구름에서 내리기" : "구름 타기"}
             </ButtonLarge>

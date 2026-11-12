@@ -432,6 +432,8 @@ export interface BroomRiderProps {
     y: number,
     riding: boolean,
   ) => void;
+  /** 처음 서는 곳 (기본: GARDEN_SPAWN) — 서고 문에서 걸어 나올 때는 문 앞 */
+  spawn?: Vec2;
 }
 
 const CAMERA_DIST = { walk: 7.6, fly: 10.5 };
@@ -456,6 +458,7 @@ export function BroomRider({
   castAt,
   wandLightAt,
   onMove,
+  spawn,
 }: BroomRiderProps) {
   const lastSent = useRef({ at: 0, moving: false });
   const root = useRef<Group>(null);
@@ -466,8 +469,8 @@ export function BroomRider({
   const pitch = useRef(0);
   const prevY = useRef(0);
   const state = useRef<FlightState>({
-    x: GARDEN_SPAWN.x,
-    z: GARDEN_SPAWN.z,
+    x: (spawn ?? GARDEN_SPAWN).x,
+    z: (spawn ?? GARDEN_SPAWN).z,
     y: 0,
     heading: 0, // 처음엔 남쪽(+z), 뜰 쪽을 바라봄
     speed: 0,

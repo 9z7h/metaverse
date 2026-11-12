@@ -8,6 +8,8 @@ import {
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
 import { MovementJoystick } from "./MovementJoystick";
+import { MyStudyChip } from "./MyStudyChip";
+import { DoorHoverLabel, moveDoorLabel } from "./DoorHoverLabel";
 import { Canvas } from "@react-three/fiber";
 import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
@@ -25,7 +27,8 @@ import { MagicEffect } from "./MagicEffect";
 import { SpellEffects } from "./SpellEffects";
 import { SpellBar } from "./SpellBar";
 import { useSpellCaster } from "./useSpellCaster";
-import { SPELL_ORDER } from "./spellLogic";
+import { CAST_RELEASE_MS, SPELL_ORDER } from "./spellLogic";
+import { playSpellSound } from "./spellSound";
 import type { SpellId } from "./spellLogic";
 import { SpaceSelect } from "./SpaceSelect";
 import { ChatPanel } from "../ChatPanel";
@@ -64,6 +67,11 @@ import {
   tapTarget,
   CAMERA_FOV,
   PLAYER_SPAWN,
+  DOOR,
+  DOOR_PICK_Y,
+  LIBRARY_EXIT_DOOR,
+  nearExit,
+  rayHitsDoor,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 
@@ -86,6 +94,10 @@ export interface LibraryWorldProps {
   onExit: () => void;
   /** 서고 문 밖 숨돌림 뜰로 나가기 */
   onGoGarden: () => void;
+  /** 정원에서 문으로 들어왔는지 — 문 앞에서 걸어 들어오고 문이 닫힌다 */
+  arrivedByDoor?: boolean;
+  /** 장면이 그려질 준비가 되었을 때 한 번 (전환 막을 걷는 신호) */
+  onReady?: () => void;
 }
 
 const MODE_LABEL: Record<StudyMode, string> = {
@@ -206,6 +218,8 @@ export function LibraryWorld({
   onPause,
   onExit,
   onGoGarden,
+  arrivedByDoor = false,
+  onReady,
 }: LibraryWorldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
@@ -236,6 +250,19 @@ export function LibraryWorld({
   const joystick = useRef({ x: 0, y: 0 });
   const keys = useRef(new Set<string>());
   const running = useRef(false);
+  /* 문: 눌러서 걸어가는 동안(headingOut) 열려 있고, 다른 입력이 들어오면 닫힌다.
+   * 정원에서 들어왔다면 열린 채 시작해서 잠시 뒤 닫힌다 */
+  const [headingOut, setHeadingOut] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(arrivedByDoor);
+  const cancelDoor = useCallback(() => {
+    setHeadingOut(false);
+    setDoorOpen(false);
+  }, []);
+  useEffect(() => {
+    if (!arrivedByDoor) return;
+    const id = window.setTimeout(() => setDoorOpen(false), 1600);
+    return () => window.clearTimeout(id);
+  }, [arrivedByDoor]);
   const sync = useCallback(() => {
     let x = joystick.current.x;
     let y = joystick.current.y;
@@ -244,8 +271,9 @@ export function LibraryWorld({
       y += KEY_DIR[k][1];
     });
     const len = Math.hypot(x, y);
+    if (len > 0) cancelDoor();
     input.current = len > 1 ? { x: x / len, y: y / len } : { x, y };
-  }, []);
+  }, [cancelDoor]);
 
   /* 서고의 속삭임: 대화창 열기·끄기와 머리 위 말풍선 */
   const [chatOpen, setChatOpen] = useState(false);
@@ -286,7 +314,9 @@ export function LibraryWorld({
   }, []);
 
   /* 탭 이동: 바닥을 탭하면 그곳으로, 빈 책상을 탭하면 걸어가서 앉음 */
-  const moveOrder = useRef<MoveOrder | null>(null);
+  const moveOrder = useRef<MoveOrder | null>(
+    arrivedByDoor ? { target: { ...PLAYER_SPAWN }, seatId: null } : null,
+  );
   const pickFloor = useRef<FloorPick | null>(null);
   const [marker, setMarker] = useState<{ at: Vec2; key: number } | null>(null);
 
@@ -306,8 +336,27 @@ export function LibraryWorld({
   const [nearSeat, setNearSeat] = useState<string | null>(null);
   const [atExit, setAtExit] = useState(false);
 
-  const playerPos = useRef<Vec2>({ ...PLAYER_SPAWN });
+  const playerPos = useRef<Vec2>({ ...(arrivedByDoor ? DOOR : PLAYER_SPAWN) });
   const playerFacing = useRef(Math.PI);
+  // 문 앞에 닿으면 정원으로 — 문은 이미 열려 있다
+  useEffect(() => {
+    if (!headingOut) return;
+    const id = window.setInterval(() => {
+      const p = playerPos.current;
+      const arrived =
+        Math.hypot(p.x - DOOR.x, p.z - DOOR.z) <= 1 ||
+        (!moveOrder.current && nearExit(p));
+      if (!arrived) return;
+      window.clearInterval(id);
+      setHeadingOut(false);
+      onGoGarden();
+    }, 80);
+    return () => window.clearInterval(id);
+  }, [headingOut, onGoGarden]);
+  useEffect(() => {
+    if (colors) onReady?.();
+    // 처음 그릴 수 있게 되었을 때 한 번만 알린다
+  }, [Boolean(colors)]);
   /* 주문: 서 있을 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
   const spells = useSpellCaster({
     selfId: "me",
@@ -325,7 +374,11 @@ export function LibraryWorld({
   const castSpell = useCallback(
     (id: SpellId) => {
       const made = castLocal(id);
-      if (made) sendCast(made.spell, made.x, made.z, made.ry);
+      if (made) {
+        sendCast(made.spell, made.x, made.z, made.ry);
+        // 소리는 지팡이가 앞으로 나가는 정점에 맞춘다
+        playSpellSound(made.spell, CAST_RELEASE_MS);
+      }
     },
     [castLocal, sendCast],
   );
@@ -446,7 +499,7 @@ export function LibraryWorld({
   const focusing = timer.status === "running";
   /** 앉아 있을 때 타이머는 기본 작게 — 3D 공간(함께 공부하는 사람들)이 보이도록 */
   const [expanded, setExpanded] = useState(false);
-  const progress = hourProgress(timer.elapsedSeconds);
+  const progress = hourProgress(timer.runSeconds);
 
   /* 시점: 한 손가락/마우스 드래그 = 회전, 두 손가락 핀치·휠 = 줌 */
   const orbit = useRef<Orbit>({ ...ORBIT_DEFAULT });
@@ -467,6 +520,16 @@ export function LibraryWorld({
     const pick = pickFloor.current;
     const atFloor = pick?.(clientX, clientY, 0);
     if (!pick || !atFloor) return;
+    const atDoor = pick(clientX, clientY, DOOR_PICK_Y);
+    if (atDoor && rayHitsDoor(atFloor, atDoor, LIBRARY_EXIT_DOOR)) {
+      // 문을 누르면 문 앞까지 걸어가고, 닿으면 정원으로 나간다 (터치도 동일)
+      moveOrder.current = { target: { ...DOOR }, seatId: null };
+      setMarker({ at: DOOR, key: performance.now() });
+      setDoorOpen(true);
+      setHeadingOut(true);
+      return;
+    }
+    cancelDoor();
     const t = tapTarget(
       atFloor,
       pick(clientX, clientY, DESK_TOP_Y),
@@ -501,7 +564,25 @@ export function LibraryWorld({
     draggingRef.current = true;
     setDragging(true);
   };
+  /* 문 위에 마우스를 올리면 커서 곁에 안내 (마우스만 — 터치에는 hover가 없다) */
+  const [doorHover, setDoorHover] = useState(false);
+  const doorLabel = useRef<HTMLDivElement>(null);
+  const doorLabelAt = useRef({ x: 0, y: 0 });
+  const updateDoorHover = (e: PointerEvent<HTMLDivElement>) => {
+    let over = false;
+    if (e.pointerType === "mouse" && e.buttons === 0 && !seat) {
+      const atFloor = pickFloor.current?.(e.clientX, e.clientY, 0);
+      const atDoor = pickFloor.current?.(e.clientX, e.clientY, DOOR_PICK_Y);
+      over = Boolean(
+        atFloor && atDoor && rayHitsDoor(atFloor, atDoor, LIBRARY_EXIT_DOOR),
+      );
+    }
+    doorLabelAt.current = { x: e.clientX, y: e.clientY };
+    if (over) moveDoorLabel(doorLabel.current, e.clientX, e.clientY);
+    setDoorHover(over);
+  };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    updateDoorHover(e);
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -588,6 +669,7 @@ export function LibraryWorld({
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerLeave={() => setDoorHover(false)}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
         onWheel={onWheel}
@@ -631,7 +713,7 @@ export function LibraryWorld({
                 ]}
               />
 
-              <LibraryRoom colors={colors} desks={desks} />
+              <LibraryRoom colors={colors} desks={desks} doorOpen={doorOpen} />
               <HallFrame colors={colors} />
               <Armillary colors={colors} />
               <Atmosphere colors={colors} daylight={daylight} />
@@ -699,6 +781,7 @@ export function LibraryWorld({
                   house={house}
                   onNearSeatChange={setNearSeat}
                   onNearExitChange={setAtExit}
+                  spawn={arrivedByDoor ? DOOR : undefined}
                   orbit={orbit}
                   dragging={draggingRef}
                   onMove={presence.sendMove}
@@ -723,7 +806,8 @@ export function LibraryWorld({
               <FrameDriver
                 fps={pickFps({
                   seated: Boolean(seat),
-                  busy: dragging || leavers.length > 0 || viewingBoard,
+                  busy:
+                    dragging || leavers.length > 0 || viewingBoard || doorOpen,
                   magic:
                     spells.active ||
                     (focusing && mode === "practice") ||
@@ -737,6 +821,13 @@ export function LibraryWorld({
           </Canvas>
         ) : null}
       </div>
+      {doorHover ? (
+        <DoorHoverLabel
+          label="정원으로 나가기"
+          labelRef={doorLabel}
+          at={doorLabelAt.current}
+        />
+      ) : null}
       {/* 아바타 이름표가 붙는 레이어 — 캔버스와 같은 크기, 터치는 통과 */}
       <div
         ref={labelRef}
@@ -795,6 +886,7 @@ export function LibraryWorld({
                 {presence.connectedCount}명 접속 · {presence.onlineCount}명 공부
                 중
               </span>
+              <MyStudyChip todaySeconds={timer.elapsedSeconds} />
             </div>
           </div>
           {/* 내 기숙사 배지 + 문 위 순위판 보기 */}
@@ -900,19 +992,19 @@ export function LibraryWorld({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {labelOf(seat.seatId)} · {subject} · 오늘 누적
+                  {labelOf(seat.seatId)} · {subject} · 이번 공부
                 </span>
                 {expanded ? null : (
                   <span
                     role="timer"
-                    aria-label={`오늘 누적 집중 ${formatClock(timer.elapsedSeconds)}`}
+                    aria-label={`이번 공부 ${formatClock(timer.runSeconds)}`}
                     style={{
                       font: "var(--text-display-sm-bold)",
                       color: "var(--color-text-primary)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {formatClock(timer.elapsedSeconds)}
+                    {formatClock(timer.runSeconds)}
                   </span>
                 )}
               </div>
@@ -966,7 +1058,7 @@ export function LibraryWorld({
             </div>
             {expanded ? (
               <FocusTimer
-                elapsedSeconds={timer.elapsedSeconds}
+                elapsedSeconds={timer.runSeconds}
                 status={timer.status}
                 label={subject}
                 onStart={onStart}
@@ -1004,12 +1096,6 @@ export function LibraryWorld({
                   {labelOf(nearSeat)} 자리에 앉기
                 </ButtonLarge>
               </div>
-            ) : atExit ? (
-              <div style={{ ...auto, display: "grid" }}>
-                <ButtonLarge style="monolight" onClick={onGoGarden}>
-                  정원으로 나가기 · 머리 식히기
-                </ButtonLarge>
-              </div>
             ) : (
               <p
                 style={{
@@ -1023,10 +1109,10 @@ export function LibraryWorld({
                 }}
               >
                 <span className="movement-hint-desktop">
-                  바닥을 클릭하면 이동, 빈 책상을 클릭하면 앉아요
+                  바닥을 클릭하면 이동, 빈 책상은 앉고, 문은 정원으로 나가요
                 </span>
                 <span className="movement-hint-touch">
-                  조이스틱으로 이동, 빈 책상을 누르면 앉아요
+                  조이스틱으로 이동, 빈 책상을 누르면 앉고 문을 누르면 나가요
                 </span>
                 <span style={{ color: "var(--color-text-tertiary)" }}>
                   화면을 끌면 시점 회전

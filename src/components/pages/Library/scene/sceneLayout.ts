@@ -27,13 +27,43 @@ export const DOOR: Vec2 = { x: 0, z: ROOM.maxZ - 0.6 };
 /** 내가 서고에 처음 들어와 서는 곳 (문에서 안쪽으로 6m) — 긴 서고가 앞에 펼쳐 보인다 */
 export const PLAYER_SPAWN: Vec2 = { x: 0, z: 9.4 };
 
-/** 이 안(문 앞 가운데)에 서면 "정원으로 나가기"가 나타난다 */
 /** 쉬프트로 달릴 때 걷기 속도에 곱하는 배율 — 서고·뜰 공통 */
 export const RUN_MULTIPLIER = 1.5;
 
+/** 이 안(문 앞 가운데)에 서면 문이 열리고 정원으로 나간다 */
 export const EXIT_ZONE = { halfWidth: 1.9, minZ: ROOM.maxZ - 1.5 } as const;
 export function nearExit(pos: Vec2): boolean {
   return Math.abs(pos.x) <= EXIT_ZONE.halfWidth && pos.z >= EXIT_ZONE.minZ;
+}
+
+/** 탭으로 집을 수 있는 문. 문은 벽면 `z`에 서 있고, 바닥에서 `baseY` 높이부터 `height`만큼 솟는다 */
+export interface DoorFrame {
+  x: number;
+  z: number;
+  baseY: number;
+  width: number;
+  height: number;
+}
+
+/** 문 탭을 판정하려고 화면 좌표를 한 번 더 집는 높이 (카메라보다 낮게) */
+export const DOOR_PICK_Y = 1;
+
+/**
+ * 탭한 화면 지점의 시선이 문짝에 닿는지.
+ * `low`는 시선이 바닥(y=0)과, `high`는 높이 DOOR_PICK_Y 평면과 만나는 점이다.
+ * 두 점을 지나는 선을 문이 선 벽면까지 이어서 그 지점의 x·높이가 문 안인지 본다.
+ */
+export function rayHitsDoor(low: Vec2, high: Vec2, door: DoorFrame): boolean {
+  const dz = low.z - high.z;
+  if (Math.abs(dz) < 1e-6) return false;
+  const s = (door.z - high.z) / dz;
+  const y = DOOR_PICK_Y * (1 - s);
+  const x = high.x + s * (low.x - high.x);
+  return (
+    y >= door.baseY &&
+    y <= door.baseY + door.height &&
+    Math.abs(x - door.x) <= door.width / 2
+  );
 }
 
 /** 높은 한옥 서고의 수직 구성 (벽·회랑·천장) */
@@ -395,6 +425,15 @@ export const ORBIT_DEFAULT: Orbit = { yaw: 0, pitch: 0.65, zoom: 1 };
  * 문은 이 벽에 있고, 문 앞(ROOM.maxZ)까지는 걸어갈 수 있다.
  */
 export const FRONT_WALL_Z = ROOM.maxZ + 1.5;
+
+/** 서고 안쪽에서 보이는 문 (문틀 포함 여유) */
+export const LIBRARY_EXIT_DOOR: DoorFrame = {
+  x: 0,
+  z: FRONT_WALL_Z - 0.02,
+  baseY: 0,
+  width: 2.2,
+  height: 2.9,
+};
 
 /**
  * 카메라가 머물 수 있는 공간. 좌우·뒤 책장 앞면(벽에서 0.45m)보다 안쪽,

@@ -439,7 +439,13 @@ function FlowerWall({ colors }: { colors: SceneColors }) {
 
 /* ── 서고 건물(뒷모습이 아닌 정면) ───────────────────────────── */
 
-function LibraryHall({ colors }: { colors: SceneColors }) {
+function LibraryHall({
+  colors,
+  doorOpen,
+}: {
+  colors: SceneColors;
+  doorOpen: boolean;
+}) {
   const stone = useSurfaceTexture("stone", 3, 2);
   const plaster = useSurfaceTexture("plaster", 3, 2);
   const woodMap = useSurfaceTexture("wood", 1, 2);
@@ -507,7 +513,14 @@ function LibraryHall({ colors }: { colors: SceneColors }) {
       </Inst>
       {/* 서고와 같은 창호·고리 손잡이를 쓰는 대문 */}
       <group position={[x, baseTop, frontZ + 0.12]}>
-        <HanokDoor colors={colors} width={2.4} height={3} warmInside />
+        <HanokDoor
+          colors={colors}
+          width={2.4}
+          height={3}
+          warmInside
+          open={doorOpen}
+          backdrop={colors["--color-scene-wood-dark"]}
+        />
       </group>
       {/* 처마 밑 단청 띠 */}
       <mesh position={[x, baseTop + wallH - 0.15, frontZ + 0.6]}>
@@ -1773,7 +1786,14 @@ function Fireflies({ colors }: { colors: SceneColors }) {
 }
 
 /** 숨돌림 뜰 전체 */
-export function GardenScenery({ colors }: { colors: SceneColors }) {
+export function GardenScenery({
+  colors,
+  libraryDoorOpen = false,
+}: {
+  colors: SceneColors;
+  /** 서고 대문이 열려 있는지 */
+  libraryDoorOpen?: boolean;
+}) {
   const [daylight, setDaylight] = useState(() => gardenDaylight(new Date()));
   useEffect(() => {
     const update = () => setDaylight(gardenDaylight(new Date()));
@@ -1790,7 +1810,7 @@ export function GardenScenery({ colors }: { colors: SceneColors }) {
       <Paths colors={colors} />
       <Pond colors={colors} />
       <FlowerWall colors={colors} />
-      <LibraryHall colors={colors} />
+      <LibraryHall colors={colors} doorOpen={libraryDoorOpen} />
       <SchoolHalls colors={colors} />
       <BuildingSteps colors={colors} />
       <Landscape daylight={daylight} />

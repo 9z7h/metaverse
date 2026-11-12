@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ButtonLarge, ButtonSmall } from "../../ui/Button";
@@ -44,6 +44,11 @@ const GardenWorld = lazy(() =>
 const LibraryWorld = lazy(() =>
   import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
 );
+
+/** 문을 지나 다른 공간으로 넘어갈 때 화면을 덮는 막이 어두워지는 데 걸리는 시간(ms) */
+const CURTAIN_MS = 450;
+/** 새 공간이 준비되지 않아도 막을 걷는 최대 대기(ms) — 로딩이 멈춰도 화면이 갇히지 않게 */
+const CURTAIN_MAX_MS = 5000;
 
 /** entrance → (첫 입장이면 sorting) → world(3D 먹빛각) */
 type Step = "entrance" | "sorting" | "world" | "garden";
@@ -461,6 +466,7 @@ export function Library({
   /** 입장: 기숙사가 없으면 사신등 의식부터 */
   const enter = () => {
     if (working || conn.status === "connecting") return;
+    setArrivedByDoor(false);
     if (house) setStep("world");
     else void assignHouse();
   };
@@ -492,6 +498,38 @@ export function Library({
     });
   };
 
+  /* 서고 ↔ 뜰: 문으로 걸어 나가면 막이 내려오고, 반대편 문 앞에서 걸어 나오며 막이 걷힌다 */
+  const [curtain, setCurtain] = useState(false);
+  const [arrivedByDoor, setArrivedByDoor] = useState(false);
+  const travelling = useRef(false);
+  const travelTimers = useRef<number[]>([]);
+  useEffect(
+    () => () => travelTimers.current.forEach((id) => window.clearTimeout(id)),
+    [],
+  );
+  const later = (fn: () => void, ms: number) => {
+    travelTimers.current.push(window.setTimeout(fn, ms));
+  };
+  const reveal = () => {
+    travelling.current = false;
+    setCurtain(false);
+  };
+  const travel = (to: "garden" | "world") => {
+    if (travelling.current) return;
+    travelling.current = true;
+    setCurtain(true);
+    later(() => {
+      if (to === "garden" && presence.me) handleLeave();
+      setArrivedByDoor(true);
+      setStep(to);
+      later(reveal, CURTAIN_MAX_MS);
+    }, CURTAIN_MS);
+  };
+  /** 새 공간이 그려질 준비가 되면 잠깐 걸어 나오는 모습을 보여 주고 막을 걷는다 */
+  const handleWorldReady = () => {
+    if (travelling.current) later(reveal, 250);
+  };
+
   /** 자리를 떠나면 일시정지만 — 오늘 누적은 그대로 */
   const handleLeave = () => {
     if (timer.status === "running") timer.pause();
@@ -499,10 +537,7 @@ export function Library({
   };
 
   /** 정원은 쉬는 곳 — 타이머를 멈추고 자리를 비운 뒤 나간다 (오늘 누적은 그대로) */
-  const handleGoGarden = () => {
-    if (presence.me) handleLeave();
-    setStep("garden");
-  };
+  const handleGoGarden = () => travel("garden");
 
   const handleStart = () => {
     timer.start();
@@ -527,7 +562,10 @@ export function Library({
         <SortingReveal
           house={house}
           durationMs={sortingDurationMs}
-          onEnter={() => setStep("world")}
+          onEnter={() => {
+            setArrivedByDoor(false);
+            setStep("world");
+          }}
         />
       </div>
     );
@@ -537,6 +575,19 @@ export function Library({
     return (
       <div data-theme="library" style={pageStyle}>
         {webgl ? <BackgroundMusic /> : null}
+        <div
+          aria-hidden="true"
+          data-testid="travel-curtain"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "var(--color-background-default)",
+            opacity: curtain ? 1 : 0,
+            pointerEvents: curtain ? "auto" : "none",
+            transition: `opacity ${curtain ? CURTAIN_MS : CURTAIN_MS + 150}ms ease`,
+          }}
+        />
         {webgl ? (
           <Suspense
             fallback={
@@ -549,9 +600,12 @@ export function Library({
           >
             {step === "garden" ? (
               <GardenWorld
+                todaySeconds={timer.elapsedSeconds}
                 house={house}
                 presence={presence}
-                onBack={() => setStep("world")}
+                onBack={() => travel("world")}
+                arrivedByDoor={arrivedByDoor}
+                onReady={handleWorldReady}
               />
             ) : (
               <LibraryWorld
@@ -571,9 +625,12 @@ export function Library({
                 onPause={handlePause}
                 onExit={() => {
                   if (presence.me) handleLeave();
+                  setArrivedByDoor(false);
                   setStep("entrance");
                 }}
                 onGoGarden={handleGoGarden}
+                arrivedByDoor={arrivedByDoor}
+                onReady={handleWorldReady}
               />
             )}
           </Suspense>

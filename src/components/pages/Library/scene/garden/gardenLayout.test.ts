@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DOOR_PICK_Y, rayHitsDoor } from "../sceneLayout";
 import {
   BAMBOO,
   BAMBOO_GROVE,
@@ -9,6 +10,7 @@ import {
   GARDEN_SPAWN,
   LIBRARY_BUILDING,
   LIBRARY_DOOR,
+  LIBRARY_DOOR_FRAME,
   PAVILION,
   PINES,
   PLUM_TREES,
@@ -455,5 +457,26 @@ describe("학교 건물 (입장 불가)", () => {
     expect(preparingText("별읽는 누각")).toBe(
       "별읽는 누각은 아직 준비 중이에요",
     );
+  });
+});
+
+describe("뜰에서 서고 문 탭", () => {
+  const cam = { x: 0, y: 4, z: -18 };
+  const frame = LIBRARY_DOOR_FRAME;
+  const hits = (at: { x: number; y: number; z: number }) => {
+    const pick = (y: number) => {
+      const t = (cam.y - y) / (cam.y - at.y);
+      return { x: cam.x + (at.x - cam.x) * t, z: cam.z + (at.z - cam.z) * t };
+    };
+    return rayHitsDoor(pick(0), pick(DOOR_PICK_Y), frame);
+  };
+
+  it("기단 위에 선 문짝을 누르면 문으로 친다", () => {
+    expect(hits({ x: 0, y: frame.baseY + 1.5, z: frame.z })).toBe(true);
+  });
+
+  it("문 옆 벽과 문 앞 마당은 문이 아니다", () => {
+    expect(hits({ x: 4, y: frame.baseY + 1.5, z: frame.z })).toBe(false);
+    expect(hits({ x: 0, y: 0, z: LIBRARY_DOOR.z + 4 })).toBe(false);
   });
 });

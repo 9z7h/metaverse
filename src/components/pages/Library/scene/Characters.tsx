@@ -93,6 +93,8 @@ export interface PlayerProps {
   bubble?: string;
   /** 걷는 동안 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
   onMove?: (x: number, z: number, ry: number, moving: boolean) => void;
+  /** 처음 서는 곳 (기본: 서고 안쪽 PLAYER_SPAWN) — 정원에서 문으로 들어올 때는 문 앞 */
+  spawn?: Vec2;
 }
 
 /** 카메라 기본 거리 — 걸을 때 / 앉아 있을 때 */
@@ -143,10 +145,11 @@ export function Player({
   boardView,
   bubble,
   onMove,
+  spawn,
 }: PlayerProps) {
   const ref = useRef<Group>(null);
   const lastSent = useRef({ at: 0, moving: false });
-  const pos = useRef<Vec2>({ ...PLAYER_SPAWN });
+  const pos = useRef<Vec2>({ ...(spawn ?? PLAYER_SPAWN) });
   const facing = useRef(Math.PI); // 처음엔 방 안쪽(-z)을 바라봄
   const nearRef = useRef<string | null>(null);
   const nearExitRef = useRef(false);
