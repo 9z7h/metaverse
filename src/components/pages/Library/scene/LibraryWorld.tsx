@@ -8,10 +8,11 @@ import {
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
 import { MovementJoystick } from "./MovementJoystick";
+import "./StudySheet.css";
 import { MyStudyChip } from "./MyStudyChip";
 import { DoorHoverLabel, moveDoorLabel } from "./DoorHoverLabel";
 import { Canvas } from "@react-three/fiber";
-import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../ui/Button";
+import { ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
   FocusTimer,
   PRIMARY_LABEL,
@@ -61,6 +62,7 @@ import type { HouseId } from "../houses";
 import { LabelPortalContext } from "./Avatar";
 import {
   DESK_TOP_Y,
+  CHAIR_SEAT_Y,
   ORBIT_DEFAULT,
   clampOrbit,
   deskLayout,
@@ -167,9 +169,15 @@ const pillStyle: CSSProperties = {
 const sheetStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-12)",
-  padding: "var(--spacing-16)",
-  borderRadius: "var(--radius-2xl)",
+  alignSelf: "center",
+  width: "100%",
+  maxWidth: "calc(var(--spacing-64) * 6)",
+  maxHeight: "60dvh",
+  overflowY: "auto",
+  boxSizing: "border-box",
+  gap: "var(--spacing-8)",
+  padding: "var(--spacing-12)",
+  borderRadius: "var(--radius-xl)",
   background: "var(--color-background-Subtle)",
   border: "1px solid var(--color-border-default)",
   pointerEvents: "auto",
@@ -500,6 +508,8 @@ export function LibraryWorld({
   const focusing = timer.status === "running";
   /** 앉아 있을 때 타이머는 기본 작게 — 3D 공간(함께 공부하는 사람들)이 보이도록 */
   const [expanded, setExpanded] = useState(false);
+  const [sheetCollapsed, setSheetCollapsed] = useState(false);
+  const sheetDrag = useRef<{ id: number; y: number } | null>(null);
   const progress = hourProgress(timer.runSeconds);
 
   /* 시점: 한 손가락/마우스 드래그 = 회전, 두 손가락 핀치·휠 = 줌 */
@@ -536,6 +546,7 @@ export function LibraryWorld({
       pick(clientX, clientY, DESK_TOP_Y),
       desks,
       occupied,
+      pick(clientX, clientY, CHAIR_SEAT_Y),
     );
     if (touch && t.kind !== "seat") return;
     const at = t.kind === "seat" ? t.seat.chair : t.point;
@@ -957,9 +968,40 @@ export function LibraryWorld({
           <section
             aria-label={`${labelOf(seat.seatId)} 자리 집중 타이머`}
             style={sheetStyle}
+            className={
+              sheetCollapsed
+                ? "study-sheet study-sheet--collapsed"
+                : "study-sheet"
+            }
           >
+            <div
+              className="study-sheet__handle"
+              onPointerDown={(event) => {
+                sheetDrag.current = { id: event.pointerId, y: event.clientY };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerUp={(event) => {
+                const start = sheetDrag.current;
+                sheetDrag.current = null;
+                if (!start || start.id !== event.pointerId) return;
+                const distance = event.clientY - start.y;
+                if (Math.abs(distance) > 30) setSheetCollapsed(distance > 0);
+              }}
+              onPointerCancel={() => {
+                sheetDrag.current = null;
+              }}
+            >
+              <span className="study-sheet__grip" aria-hidden="true" />
+              <ButtonSmall
+                style="monolight"
+                onClick={() => setSheetCollapsed((value) => !value)}
+              >
+                {sheetCollapsed ? "올리기" : "내리기"}
+              </ButtonSmall>
+            </div>
             {/* 진행 막대 */}
             <div
+              className="study-sheet__detail"
               aria-hidden
               style={{
                 height: "var(--spacing-4)",
@@ -996,7 +1038,7 @@ export function LibraryWorld({
                 >
                   {labelOf(seat.seatId)} · {subject} · 이번 공부
                 </span>
-                {expanded ? null : (
+                {expanded && !sheetCollapsed ? null : (
                   <span
                     role="timer"
                     aria-label={`이번 공부 ${formatClock(timer.runSeconds)}`}
@@ -1029,7 +1071,7 @@ export function LibraryWorld({
               </div>
             </div>
             {/* 공부 방식: 실습으로 집중하면 책상 위로 기숙사 마법이 피어오름 */}
-            <div style={rowStyle}>
+            <div className="study-sheet__detail" style={rowStyle}>
               <span
                 id="study-mode-label"
                 style={{
@@ -1058,24 +1100,26 @@ export function LibraryWorld({
                 ))}
               </div>
             </div>
-            {expanded ? (
-              <FocusTimer
-                elapsedSeconds={timer.runSeconds}
-                status={timer.status}
-                label={subject}
-                onStart={onStart}
-                onPause={onPause}
-              />
-            ) : (
-              <div style={{ display: "grid" }}>
-                <ButtonLarge
-                  style={timer.status === "running" ? "monolight" : "core"}
-                  onClick={timer.status === "running" ? onPause : onStart}
-                >
-                  {PRIMARY_LABEL[timer.status]}
-                </ButtonLarge>
-              </div>
-            )}
+            <div className="study-sheet__detail">
+              {expanded ? (
+                <FocusTimer
+                  elapsedSeconds={timer.runSeconds}
+                  status={timer.status}
+                  label={subject}
+                  onStart={onStart}
+                  onPause={onPause}
+                />
+              ) : (
+                <div style={{ display: "grid" }}>
+                  <ButtonMedium
+                    style={timer.status === "running" ? "monolight" : "core"}
+                    onClick={timer.status === "running" ? onPause : onStart}
+                  >
+                    {PRIMARY_LABEL[timer.status]}
+                  </ButtonMedium>
+                </div>
+              )}
+            </div>
           </section>
         ) : (
           <div
@@ -1092,35 +1136,27 @@ export function LibraryWorld({
                 cooldowns={spells.cooldowns}
               />
             )}
-            {nearSeat ? (
-              <div style={{ ...auto, display: "grid" }}>
-                <ButtonLarge onClick={() => onSit(nearSeat)}>
-                  {labelOf(nearSeat)} 자리에 앉기
-                </ButtonLarge>
-              </div>
-            ) : (
-              <p
-                style={{
-                  ...pillStyle,
-                  flexDirection: "column",
-                  alignSelf: "center",
-                  gap: "var(--spacing-2)",
-                  margin: 0,
-                  textAlign: "center",
-                  borderRadius: "var(--radius-lg)",
-                }}
-              >
-                <span className="movement-hint-desktop">
-                  바닥을 클릭하면 이동, 빈 책상은 앉고, 문은 정원으로 나가요
-                </span>
-                <span className="movement-hint-touch">
-                  조이스틱으로 이동, 빈 책상을 누르면 앉고 문을 누르면 나가요
-                </span>
-                <span style={{ color: "var(--color-text-tertiary)" }}>
-                  화면을 끌면 시점 회전
-                </span>
-              </p>
-            )}
+            <p
+              style={{
+                ...pillStyle,
+                flexDirection: "column",
+                alignSelf: "center",
+                gap: "var(--spacing-2)",
+                margin: 0,
+                textAlign: "center",
+                borderRadius: "var(--radius-lg)",
+              }}
+            >
+              <span className="movement-hint-desktop">
+                바닥을 클릭하면 이동, 빈 의자나 책상을 클릭하면 앉아요
+              </span>
+              <span className="movement-hint-touch">
+                조이스틱으로 이동, 빈 의자나 책상을 누르면 앉아요
+              </span>
+              <span style={{ color: "var(--color-text-tertiary)" }}>
+                화면을 끌면 시점 회전
+              </span>
+            </p>
             {/* 키보드 사용자 안내 (화면에는 숨김, 스크린리더로 읽힘) */}
             <p style={visuallyHidden}>
               키보드: 방향키 또는 WASD로 이동, 빈 책상 근처에서 E 키로 앉기, 문

@@ -163,6 +163,10 @@
         "$value": "{color.roof.700}",
         "comment": "3D — 기와"
       },
+      "brick": {
+        "$value": "{color.brick.500}",
+        "comment": "3D — 붉은 벽돌 (서고 벽난로)"
+      },
       "leaf": {
         "$value": "{color.moss.600}",
         "comment": "3D — 소나무·대나무 잎 (기존 moss 재사용)"

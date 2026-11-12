@@ -45,6 +45,8 @@ import {
   nearExit,
   EXIT_ZONE,
   PLAYER_SPAWN,
+  FIREPLACE,
+  fireplaceLayout,
 } from "./sceneLayout";
 import { SEATS } from "../libraryPresence";
 
@@ -383,6 +385,18 @@ describe("탭 이동 — tapTarget / planPath", () => {
     });
     const taken = tapTarget(l3.chair, null, desks, new Set(["L3"]));
     expect(taken.kind).toBe("floor");
+  });
+
+  it("의자 높이의 선택 지점으로 빈 자리와 사용 중인 자리를 구분한다", () => {
+    const chair = deskLayout("L3");
+    const floorBehind = { x: 0, z: 9 };
+    expect(tapTarget(floorBehind, null, desks, free, chair.chair)).toEqual({
+      kind: "seat",
+      seat: chair,
+    });
+    expect(
+      tapTarget(floorBehind, null, desks, new Set(["L3"]), chair.chair).kind,
+    ).toBe("floor");
   });
 
   it("테이블 상판을 탭하면 탭한 쪽에서 가장 가까운 빈 좌석에 앉는다", () => {
@@ -766,5 +780,53 @@ describe("문 탭 판정", () => {
 
   it("시선이 벽과 나란하면 문이 아니다", () => {
     expect(rayHitsDoor({ x: 0, z: 5 }, { x: 0, z: 5 }, door)).toBe(false);
+  });
+});
+
+describe("벽난로 배치", () => {
+  const layout = fireplaceLayout();
+
+  it("벽돌 벽이 폭과 높이 안에 있다", () => {
+    for (const b of layout.wall) {
+      expect(Math.abs(b.p[0]) + b.s[0] / 2).toBeLessThanOrEqual(
+        FIREPLACE.halfWidth + 1e-6,
+      );
+      expect(b.p[1] - b.s[1] / 2).toBeGreaterThanOrEqual(
+        FIREPLACE.floor - 1e-6,
+      );
+      expect(b.p[1] + b.s[1] / 2).toBeLessThanOrEqual(FIREPLACE.wallTop + 1e-6);
+    }
+  });
+
+  it("벽돌은 불 칸 안쪽을 가리지 않는다", () => {
+    for (const b of layout.wall) {
+      const [x, y] = b.p;
+      const inside =
+        y < FIREPLACE.spring
+          ? Math.abs(x) < FIREPLACE.openingR
+          : Math.hypot(x, y - FIREPLACE.spring) < FIREPLACE.openingR;
+      expect(inside).toBe(false);
+    }
+  });
+
+  it("아치 쐐기는 반원 테두리 위에 한 줄로 놓인다", () => {
+    expect(layout.arch).toHaveLength(FIREPLACE.voussoirs);
+    const mid = FIREPLACE.openingR + FIREPLACE.ringW / 2;
+    for (const v of layout.arch) {
+      expect(v.p[1]).toBeGreaterThan(FIREPLACE.spring);
+      expect(Math.hypot(v.p[0], v.p[1] - FIREPLACE.spring)).toBeCloseTo(mid, 5);
+    }
+  });
+
+  it("기둥 돌은 불 칸 바깥쪽에 있고 아치 시작 높이 아래에 있다", () => {
+    expect(layout.jambs.length).toBeGreaterThan(0);
+    for (const j of layout.jambs) {
+      expect(Math.abs(j.p[0]) - j.s[0] / 2).toBeCloseTo(FIREPLACE.openingR, 5);
+      expect(j.p[1]).toBeLessThan(FIREPLACE.spring);
+    }
+  });
+
+  it("같은 입력이면 같은 배치가 나온다", () => {
+    expect(fireplaceLayout()).toEqual(layout);
   });
 });

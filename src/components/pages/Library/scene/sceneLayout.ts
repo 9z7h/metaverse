@@ -273,6 +273,8 @@ export type TapTarget =
 
 /** 테이블 상판 높이 — 탭 판정용 */
 export const DESK_TOP_Y = 0.78;
+/** 의자 앉는 판의 높이 — 비스듬한 화면에서도 의자 선택 위치를 맞춘다. */
+export const CHAIR_SEAT_Y = 0.45;
 
 /** 상판을 탭했을 때 이 거리 안의 빈 좌석이 있으면 거기 앉는다 */
 const TAP_SEAT_REACH = 1.3;
@@ -290,7 +292,20 @@ export function tapTarget(
   atDesk: Vec2 | null,
   desks: DeskLayout[],
   occupied: Set<string>,
+  atChair: Vec2 | null = null,
 ): TapTarget {
+  if (atChair) {
+    const selected = desks.find(
+      (d) =>
+        Math.abs(atChair.x - d.chair.x) <= 0.3 &&
+        Math.abs(atChair.z - d.chair.z) <= 0.32,
+    );
+    if (selected) {
+      return occupied.has(selected.seatId)
+        ? { kind: "floor", point: resolveCollision(atFloor) }
+        : { kind: "seat", seat: selected };
+    }
+  }
   for (const d of desks) {
     if (occupied.has(d.seatId)) continue;
     if (Math.hypot(atFloor.x - d.chair.x, atFloor.z - d.chair.z) <= 0.7)
@@ -627,6 +642,7 @@ export const SCENE_COLOR_TOKENS = [
   "--color-scene-water",
   "--color-scene-stone",
   "--color-scene-roof-tile",
+  "--color-scene-brick",
   "--color-scene-leaf",
   "--color-scene-dancheong",
   "--color-scene-spell-jade",
@@ -735,4 +751,152 @@ export function withAlpha(color: string, alpha: number): string {
   const parsed = c ? parseWithBrowser(c) : null;
   if (parsed) return `rgba(${parsed[0]}, ${parsed[1]}, ${parsed[2]}, ${alpha})`;
   return color;
+}
+
+/* ── 벽난로: 벽돌 쌓기와 아치 배치 ─────────────────────────────
+ * 로컬 좌표: x는 좌우(가운데 0), y는 높이, z는 방 안쪽(+z)으로 튀어나오는 깊이. */
+
+/** 벽난로 치수 — 벽돌 벽 폭·높이, 불 칸 아치, 벽돌 크기 */
+export const FIREPLACE = {
+  halfWidth: 2.25,
+  /** 불 칸 바닥(석판 윗면) 높이 */
+  floor: 0.28,
+  /** 벽돌 벽 맨 윗면 — 그 위에 선반이 얹힌다 */
+  wallTop: 3.3,
+  wallDepth: 0.5,
+  /** 아치가 시작되는 높이(기둥 윗단) */
+  spring: 1.35,
+  /** 불 칸 반폭 = 아치 안쪽 반지름 */
+  openingR: 1.1,
+  /** 아치 테두리(쐐기돌) 두께 */
+  ringW: 0.3,
+  brickW: 0.34,
+  courseH: 0.15,
+  voussoirs: 13,
+} as const;
+
+export interface FireplacePart {
+  p: [number, number, number];
+  s: [number, number, number];
+  /** z축 회전 (아치 쐐기) */
+  rz?: number;
+  /** 0~1 — 같은 줄이라도 벽돌마다 색을 조금씩 달리한다 */
+  tint: number;
+}
+
+/** 같은 입력이면 같은 값 (0 이상 1 미만) */
+function tintAt(a: number, b: number): number {
+  let h = (Math.imul(a + 1, 374761393) ^ Math.imul(b + 7, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h % 1000) / 1000;
+}
+
+/** (x, y)가 아치 모양 불 칸 안인지 — 아래는 직사각형, 윗부분은 반원 */
+function inArch(x: number, y: number, r: number): boolean {
+  const { spring } = FIREPLACE;
+  return y < spring ? Math.abs(x) < r : Math.hypot(x, y - spring) < r;
+}
+
+/** 쐐기돌 한 개가 놓이는 윗부분 — 벽돌이 여기를 비워 둔다 */
+function inKeystone(x: number, y: number): boolean {
+  const { spring, openingR, ringW } = FIREPLACE;
+  return (
+    Math.abs(x) < 0.3 &&
+    y > spring + openingR + ringW - 0.12 &&
+    y < spring + 1.95
+  );
+}
+
+export interface FireplaceLayout {
+  /** 벽을 이루는 붉은 벽돌 — 불 칸·아치 테두리·쐐기돌 자리는 비운다 */
+  wall: FireplacePart[];
+  /** 불 칸 안쪽 어두운 벽돌 */
+  back: FireplacePart[];
+  /** 불 칸 둘레를 두르는 쐐기 모양 벽돌(아치) */
+  arch: FireplacePart[];
+  /** 아치 양쪽 기둥의 돌 블록 */
+  jambs: FireplacePart[];
+}
+
+/** 어긋나게 쌓은 벽돌줄을 만든다. `keep`이 참인 자리만 남긴다. */
+function brickCourses(
+  keep: (x: number, y: number) => boolean,
+  depth: number,
+  z: number,
+  brickW: number,
+  courseH: number,
+  gap: number,
+): FireplacePart[] {
+  const { halfWidth, floor, wallTop } = FIREPLACE;
+  const out: FireplacePart[] = [];
+  const rows = Math.floor((wallTop - floor) / courseH);
+  for (let r = 0; r < rows; r++) {
+    const cy = floor + (r + 0.5) * courseH;
+    const start = -halfWidth - (r % 2 ? brickW / 2 : 0);
+    for (let c = 0, x = start; x < halfWidth; c++, x += brickW) {
+      const left = Math.max(x, -halfWidth);
+      const right = Math.min(x + brickW, halfWidth);
+      const w = right - left;
+      if (w < 0.08) continue;
+      const cx = (left + right) / 2;
+      if (!keep(cx, cy)) continue;
+      out.push({
+        p: [cx, cy, z],
+        s: [w - gap, courseH - gap, depth],
+        tint: tintAt(r, c),
+      });
+    }
+  }
+  return out;
+}
+
+export function fireplaceLayout(): FireplaceLayout {
+  const { spring, openingR, ringW, floor, wallDepth, courseH, brickW } =
+    FIREPLACE;
+  const outer = openingR + ringW;
+  const wall = brickCourses(
+    (x, y) => !inArch(x, y, outer) && !inKeystone(x, y),
+    wallDepth,
+    wallDepth / 2,
+    brickW,
+    courseH,
+    0.025,
+  );
+  const back = brickCourses(
+    (x, y) => inArch(x, y, openingR + 0.02),
+    0.12,
+    0.14,
+    0.3,
+    courseH,
+    0.02,
+  );
+  const n = FIREPLACE.voussoirs;
+  const mid = openingR + ringW / 2;
+  const arch: FireplacePart[] = Array.from({ length: n }, (_, i) => {
+    // 왼쪽 시작점(π)에서 오른쪽(0)까지 반원을 n등분한 한가운데 각도
+    const theta = Math.PI - ((i + 0.5) * Math.PI) / n;
+    return {
+      p: [mid * Math.cos(theta), spring + mid * Math.sin(theta), 0.38],
+      s: [ringW, ((Math.PI * mid) / n) * 0.94, 0.65],
+      rz: theta,
+      tint: tintAt(i, 91),
+    };
+  });
+  const jambs: FireplacePart[] = [-1, 1].flatMap((side) => {
+    const rows = Math.floor((spring - floor) / 0.2);
+    return Array.from({ length: rows }, (_, r) => {
+      const w = r % 2 ? 0.26 : 0.3;
+      return {
+        // 안쪽 면을 맞추려고 폭이 달라도 안쪽 끝은 같게 둔다
+        p: [side * (openingR + w / 2), floor + (r + 0.5) * 0.2, 0.38] as [
+          number,
+          number,
+          number,
+        ],
+        s: [w, 0.2 - 0.02, 0.65] as [number, number, number],
+        tint: tintAt(r, side + 40),
+      };
+    });
+  });
+  return { wall, back, arch, jambs };
 }

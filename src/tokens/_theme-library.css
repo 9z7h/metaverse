@@ -48,6 +48,7 @@
   --color-scene-water: var(--color-pond-600); /** 3D — 숨돌림 뜰 연못 */
   --color-scene-stone: var(--color-stone-500); /** 3D — 돌담·석등·징검돌 */
   --color-scene-roof-tile: var(--color-roof-700); /** 3D — 기와 */
+  --color-scene-brick: var(--color-brick-500); /** 3D — 붉은 벽돌 (서고 벽난로) */
   --color-scene-leaf: var(--color-moss-600); /** 3D — 소나무·대나무 잎 (기존 moss 재사용) */
   --color-scene-dancheong: var(--color-dancheong-500); /** 3D — 단청 들보 바탕(뇌록) */
   --color-scene-spell-jade: var(--color-teal-600); /** 3D — 명경(빛 주문)의 옥색 도깨비불 */

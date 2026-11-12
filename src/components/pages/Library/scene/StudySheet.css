@@ -1,0 +1,30 @@
+.study-sheet__handle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .study-sheet {
+    margin-bottom: var(--spacing-40);
+  }
+
+  .study-sheet__handle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-8);
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .study-sheet__grip {
+    width: var(--spacing-40);
+    height: var(--spacing-4);
+    margin-left: var(--spacing-8);
+    border-radius: var(--radius-circle);
+    background: var(--color-text-tertiary);
+  }
+
+  .study-sheet--collapsed .study-sheet__detail {
+    display: none !important;
+  }
+}
