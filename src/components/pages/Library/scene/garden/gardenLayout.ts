@@ -7,6 +7,7 @@
  */
 import type { DoorFrame, Vec2 } from "../sceneLayout";
 import type { HouseId } from "../../houses";
+import { seeded } from "../random";
 
 /** 뜰 안쪽 경계 — x·z 모두 ±GARDEN_HALF (바깥은 꽃담) */
 export const GARDEN_HALF = 34;
@@ -265,15 +266,6 @@ export function nearSchoolBuilding(pos: Vec2): SchoolBuilding | null {
     }
   }
   return best;
-}
-
-/* ── 결정적 의사난수 (렌더·테스트마다 같은 배치) ─────────────── */
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {

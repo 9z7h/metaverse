@@ -38,6 +38,8 @@ import {
   deskBookKey,
   deskBookShader,
 } from "./deskBook";
+import { seeded } from "./random";
+import { useReducedMotion } from "./useReducedMotion";
 
 interface RoomProps {
   colors: SceneColors;
@@ -124,15 +126,6 @@ function chunkShelves(shelves: ShelfSpec[]): ShelfSpec[][] {
     out[i].push(s);
   }
   return out.filter((c) => c.length > 0);
-}
-
-/** 결정적 의사난수 (렌더마다 같은 책 배치) */
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 /** 서가 로컬 좌표(u: 폭, y, v: 깊이) → 월드 상자 */
@@ -543,12 +536,7 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
       z: 10 - i * 6.5,
     }));
   }, []);
-  const reducedMotion = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
-    [],
-  );
+  const reducedMotion = useReducedMotion();
   useFrame(({ clock }) => {
     if (reducedMotion) return;
     group.current?.children.forEach((child, i) => {
@@ -577,7 +565,10 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
         >
           <mesh>
             <boxGeometry args={[0.045, 0.08, 0.38]} />
-            <meshStandardMaterial map={covers[i % covers.length]} roughness={0.85} />
+            <meshStandardMaterial
+              map={covers[i % covers.length]}
+              roughness={0.85}
+            />
           </mesh>
           {[-1, 1].map((side) => (
             <group
@@ -587,7 +578,10 @@ function FloatingBooks({ colors }: { colors: SceneColors }) {
             >
               <mesh position={[side * 0.205, -0.025, 0]}>
                 <boxGeometry args={[0.4, 0.035, 0.4]} />
-                <meshStandardMaterial map={covers[i % covers.length]} roughness={0.85} />
+                <meshStandardMaterial
+                  map={covers[i % covers.length]}
+                  roughness={0.85}
+                />
               </mesh>
               <mesh position={[side * 0.2, 0, 0]}>
                 <boxGeometry args={[0.37, 0.04, 0.36]} />

@@ -19,7 +19,7 @@ import {
 import { houseToken } from "../../houses";
 import type { HouseId } from "../../houses";
 import type { LibraryPresence } from "../../libraryPresence";
-import { FloorPicker, FrameDriver, TapMarker } from "../Characters";
+import { FloorPicker, FrameDriver, MotionDpr, TapMarker } from "../Characters";
 import { SpellEffects } from "../SpellEffects";
 import { SpellBar } from "../SpellBar";
 import { MovementJoystick } from "../MovementJoystick";
@@ -52,6 +52,7 @@ import {
   preparingText,
   resolveWalk,
 } from "./gardenLayout";
+import { prefersReducedMotion } from "../useReducedMotion";
 
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
@@ -98,14 +99,6 @@ const KEY_DIR: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
   KeyD: [1, 0],
 };
-
-function prefersReducedMotion() {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
 
 const hudStyle: CSSProperties = {
   position: "absolute",
@@ -520,6 +513,7 @@ export function GardenWorld({
           <Canvas
             frameloop="demand"
             dpr={[1, 1.25]}
+            performance={{ min: 0.8, debounce: 400 }}
             gl={{ powerPreference: "high-performance" }}
             camera={{
               fov: CAMERA_FOV,
@@ -593,6 +587,7 @@ export function GardenWorld({
                   color={colors[houseToken(house, "accent")]}
                 />
               ) : null}
+              <MotionDpr active={riding || moving} />
               <FrameDriver
                 fps={
                   riding || moving || dragging || spells.active || doorOpen

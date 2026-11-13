@@ -17,6 +17,7 @@ import type { Group, InstancedMesh, Texture } from "three";
 import { OBSTACLES } from "./sceneLayout";
 import type { SceneColors } from "./sceneLayout";
 import { useSurfaceTexture } from "./surfaceTexture";
+import { useReducedMotion } from "./useReducedMotion";
 
 const SPHERE_Y = 1.81;
 const BRASS_GAIN = new Color().setScalar(1.5);
@@ -103,12 +104,7 @@ function GraduatedRing({
 
 export function Armillary({ colors }: { colors: SceneColors }) {
   const spin = useRef<Group>(null);
-  const reduced = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
+  const reduced = useReducedMotion();
   useFrame(({ clock }) => {
     if (spin.current && !reduced)
       spin.current.rotation.y = clock.elapsedTime * 0.075;

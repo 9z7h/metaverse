@@ -15,6 +15,7 @@ import type { Group } from "three";
 import { houseCrestUrl } from "../../HouseCrest";
 import type { HouseId } from "../../houses";
 import type { SceneColors } from "../sceneLayout";
+import { useReducedMotion } from "../useReducedMotion";
 
 export const FLAG_CLOTH = { w: 0.8, h: 2.5 } as const;
 const POLE_H = 2.9;
@@ -104,12 +105,7 @@ export function GuardianFlag({
     return tex;
   }, [canvas]);
   const swing = useRef<Group>(null);
-  const still = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
-    [],
-  );
+  const still = useReducedMotion();
 
   useEffect(() => {
     let cancelled = false;

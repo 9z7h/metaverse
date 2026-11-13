@@ -39,6 +39,7 @@ import {
   Bot,
   FloorPicker,
   FrameDriver,
+  MotionDpr,
   LeavingBot,
   Player,
   RemoteWalker,
@@ -77,6 +78,7 @@ import {
   rayHitsDoor,
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
+import { prefersReducedMotion } from "./useReducedMotion";
 
 export interface LibraryWorldProps {
   presence: LibraryPresence;
@@ -112,14 +114,6 @@ const MODE_LABEL: Record<StudyMode, string> = {
 /** 걷다가 앉은 사람이 그 자리에서 이어 걸어가도록 마지막 위치를 출발점으로 넘긴다 */
 function startFrom(move: RemoteMove | undefined): Vec2 | undefined {
   return move ? { x: move.x, z: move.z } : undefined;
-}
-
-function prefersReducedMotion() {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
 }
 
 /** 퇴장 목록이 그대로면 이전 배열을 돌려줘서 불필요한 상태 갱신을 막는다 */
@@ -690,6 +684,7 @@ export function LibraryWorld({
           <Canvas
             frameloop="demand"
             dpr={[1, 1.25]}
+            performance={{ min: 0.8, debounce: 400 }}
             gl={{ powerPreference: "high-performance" }}
             camera={{
               fov: CAMERA_FOV,
@@ -816,6 +811,7 @@ export function LibraryWorld({
               {seat && focusing && mode === "practice" && !viewingBoard ? (
                 <MagicEffect colors={colors} house={house} at={seat.desk} />
               ) : null}
+              <MotionDpr />
               <FrameDriver
                 fps={pickFps({
                   seated: Boolean(seat),

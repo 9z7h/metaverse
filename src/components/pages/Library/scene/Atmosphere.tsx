@@ -34,14 +34,8 @@ import { useSurfaceTexture } from "./surfaceTexture";
 import { roundGlowKey, roundGlowShader } from "./MagicEffect";
 import type { SceneColors } from "./sceneLayout";
 import { drawSilk } from "./RankingBoard";
-
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
+import { seeded } from "./random";
+import { useReducedMotion } from "./useReducedMotion";
 
 const WALL_X = ROOM.maxX + 0.7; // 좌우 벽 안쪽 면
 const BACK_Z = ROOM.minZ - 0.7; // 뒷벽 안쪽 면
@@ -214,16 +208,10 @@ function Windows({ colors }: { colors: SceneColors }) {
     }),
     [colors],
   );
+  const reduced = useReducedMotion();
   useEffect(() => {
-    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!media) return;
-    const update = () => {
-      wind.uForestMotion.value = media.matches ? 0 : 1;
-    };
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [wind]);
+    wind.uForestMotion.value = reduced ? 0 : 1;
+  }, [wind, reduced]);
   useFrame(({ clock }) => {
     wind.uForestTime.value = clock.elapsedTime;
   });

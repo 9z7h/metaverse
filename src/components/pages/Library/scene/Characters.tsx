@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
+import { AdaptiveDpr } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Plane, Raycaster, Vector2, Vector3 } from "three";
 import type { Group, Mesh, MeshBasicMaterial, PerspectiveCamera } from "three";
@@ -156,6 +157,8 @@ export function Player({
   // 문 위 순위판을 보는 중이면 내 이름표를 숨긴다 (깃발을 가리므로). 경계를 넘을 때만 갱신.
   const [facingBoard, setFacingBoard] = useState(false);
   const camera = useThree((s) => s.camera);
+  // 걷는 동안엔 해상도를 잠깐 낮춘다(AdaptiveDpr) — 멈추면 debounce 뒤 원래대로
+  const regress = useThree((s) => s.performance.regress);
   const look = useRef(new Vector3());
   const camTarget = useRef(new Vector3());
   const lookTarget = useRef(new Vector3());
@@ -246,6 +249,7 @@ export function Player({
           }
         }
       }
+      if (moving) regress();
       const nextPose: AvatarPose = moving
         ? running.current
           ? "run"
@@ -694,6 +698,21 @@ export function TapMarker({ at, color }: { at: Vec2; color: string }) {
       />
     </mesh>
   );
+}
+
+/* ── 이동 중 해상도 조절 ────────────────────────────────── */
+
+/**
+ * 움직이는 동안 캔버스 해상도를 잠깐 낮춰(AdaptiveDpr) 약한 기기의 끊김을 줄이고,
+ * 멈추면 `performance.debounce` 뒤 원래대로 돌린다.
+ * `active`가 참인 동안 매 프레임 낮춤을 갱신한다. 걷기를 스스로 알리는 쪽(Player)은 `active` 없이 쓴다.
+ */
+export function MotionDpr({ active = false }: { active?: boolean }) {
+  const regress = useThree((s) => s.performance.regress);
+  useFrame(() => {
+    if (active) regress();
+  });
+  return <AdaptiveDpr />;
 }
 
 /* ── 프레임레이트 제어 (배터리) ────────────────────────── */

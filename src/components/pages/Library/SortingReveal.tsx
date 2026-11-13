@@ -5,6 +5,7 @@ import { HouseCrest } from "./HouseCrest";
 import { MagicGat } from "./MagicGat";
 import { HOUSES, houseVar } from "./houses";
 import type { HouseId } from "./houses";
+import { prefersReducedMotion } from "./scene/useReducedMotion";
 
 export interface SortingRevealProps {
   /** 이미 정해진 결과 — 사신갓은 이 기숙사를 외친다 */
@@ -83,14 +84,6 @@ const BURST_DOTS = Array.from({ length: 16 }, (_, i) => ({
   angle: i * (360 / 16) + (i % 2 ? 8 : -8),
   distance: 90 + (i % 3) * 36,
 }));
-
-function prefersReducedMotion() {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * 기숙사 배정 연출 — 사신갓 의식.

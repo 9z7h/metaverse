@@ -48,6 +48,7 @@ import {
   FIREPLACE,
   fireplaceLayout,
 } from "./sceneLayout";
+import { seeded } from "./random";
 import { SEATS } from "../libraryPresence";
 
 const desks = SEATS.map((s) => deskLayout(s.id));
@@ -828,5 +829,21 @@ describe("벽난로 배치", () => {
 
   it("같은 입력이면 같은 배치가 나온다", () => {
     expect(fireplaceLayout()).toEqual(layout);
+  });
+});
+
+describe("seeded", () => {
+  it("같은 seed면 같은 수열, 값은 0 이상 1 미만", () => {
+    const a = seeded(42);
+    const b = seeded(42);
+    for (let i = 0; i < 50; i++) {
+      const v = a();
+      expect(v).toBe(b());
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
+    }
+  });
+  it("seed가 다르면 다른 수열", () => {
+    expect(seeded(1)()).not.toBe(seeded(2)());
   });
 });

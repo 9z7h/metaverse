@@ -63,14 +63,8 @@ import { MysticFox } from "./MysticFox";
 import { GuardianToad } from "./GuardianToad";
 import { Haetae } from "./Haetae";
 import type { HouseId } from "../../houses";
-
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
+import { seeded } from "../random";
+import { useReducedMotion } from "../useReducedMotion";
 
 /* ── 공통: 같은 재질의 모양 여러 개를 InstancedMesh 하나로 ───────────
  * 단위 크기 모양(상자·원기둥·원뿔·구)을 `scale`로 키워 쓴다. */
@@ -255,15 +249,7 @@ function Pond({ colors }: { colors: SceneColors }) {
       texture.anisotropy = 8;
     },
   );
-  const [reducedMotion, setReducedMotion] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReducedMotion(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+  const reducedMotion = useReducedMotion();
   useFrame((_, delta) => {
     if (!reducedMotion) {
       water.offset.x = (water.offset.x + Math.min(delta, 0.1) * 0.002) % 1;
@@ -1177,15 +1163,7 @@ function Clouds({ daylight }: { daylight: number }) {
       texture.anisotropy = 8;
     },
   );
-  const [reducedMotion, setReducedMotion] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReducedMotion(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+  const reducedMotion = useReducedMotion();
   useFrame((_, delta) => {
     if (group.current && !reducedMotion)
       group.current.rotation.y += Math.min(delta, 0.1) * 0.003;
@@ -1364,7 +1342,7 @@ function Bamboo({ colors }: { colors: SceneColors }) {
 function PlumTrees({ colors }: { colors: SceneColors }) {
   const bark = useSurfaceTexture("wood", 1, 2);
   const blossoms = useTexture(
-    `${import.meta.env.BASE_URL}textures/plum-branch.png`,
+    `${import.meta.env.BASE_URL}textures/plum-branch.webp`,
     (texture) => {
       texture.colorSpace = SRGBColorSpace;
       texture.anisotropy = 8;
