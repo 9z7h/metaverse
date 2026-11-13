@@ -64,11 +64,13 @@ export function BackgroundMusic() {
         data-music-control
         style={{
           position: "fixed",
-          right: "max(var(--spacing-16), env(safe-area-inset-right))",
-          top: "calc(max(var(--spacing-16), env(safe-area-inset-top)) + var(--spacing-64) + var(--spacing-48))",
+          // 오른쪽 아래, 주문 버튼(44px) 바로 왼쪽. 음량 패널은 위로 열린다.
+          right:
+            "calc(max(var(--spacing-16), env(safe-area-inset-right)) + var(--spacing-48) + var(--spacing-4))",
+          bottom: "max(var(--spacing-16), env(safe-area-inset-bottom))",
           zIndex: 5,
           display: "flex",
-          flexDirection: "column-reverse",
+          flexDirection: "column",
           alignItems: "flex-end",
           gap: "var(--spacing-8)",
         }}
@@ -85,6 +87,8 @@ export function BackgroundMusic() {
               border: "1px solid var(--color-border-default)",
               color: "var(--color-text-primary)",
               width: "calc(var(--spacing-48) * 4)",
+              // 펼친 주문 칩 목록(오른쪽 끝)과 겹치지 않게 그 왼쪽으로 비킨다
+              marginRight: "var(--spacing-64)",
             }}
           >
             <label

@@ -87,7 +87,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     name: "은형",
     hint: "모습 감추기",
     detail:
-      "내 모습이 흐려져 남에게는 거의 보이지 않습니다(10초). 나에게는 옅게 보여요.",
+      "내 모습이 흐려져 남에게는 보이지 않습니다(10초). 나에게는 옅게 보여요.",
     durationMs: 10000,
     unlockSeconds: 3 * HOUR,
   },
@@ -249,7 +249,7 @@ export const BODY_SCALE: Record<Exclude<BodyKind, "hidden">, number> = {
   big: 1.5,
 };
 /** 은형일 때 남에게 남는 불투명도 / 내 화면에 남는 불투명도 */
-export const HIDDEN_OPACITY_OTHERS = 0.1;
+export const HIDDEN_OPACITY_OTHERS = 0;
 export const HIDDEN_OPACITY_SELF = 0.4;
 /** 몸이 바뀌고 돌아오는 데 걸리는 시간 ms */
 export const BODY_FADE_IN_MS = 500;

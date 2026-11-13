@@ -395,8 +395,13 @@ export function Library({
   const timer = useFocusTimer();
   // 누적 수련 시간 = 오늘 이전(서버, 없으면 이 기기) + 오늘 — 일부 주문이 이 시간에 풀린다
   const [devicePast] = useState(() => loadPastSeconds(Date.now()));
-  const totalSeconds =
+  const trainedSeconds =
     usePastSeconds(server?.api ?? null, devicePast) + timer.elapsedSeconds;
+  // 개발 서버(npm run dev)에서는 확인용으로 모든 주문을 푼다. 빌드와 테스트에는 적용되지 않는다.
+  const totalSeconds =
+    import.meta.env.MODE === "development"
+      ? Number.MAX_SAFE_INTEGER
+      : trainedSeconds;
   // 먹빛각에 들어갈 때 한 번만 확인
   const webgl = useMemo(
     () =>

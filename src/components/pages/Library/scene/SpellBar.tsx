@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
   SPELLS,
@@ -33,13 +33,12 @@ const listStyle: CSSProperties = {
   gap: "var(--spacing-8)",
 };
 
-const lockedWrapStyle: CSSProperties = {
+const chipWrapStyle: CSSProperties = {
   position: "relative",
   display: "inline-flex",
 };
 
-/** 잠긴 버튼은 브라우저가 호버·탭을 막으므로, 투명한 덮개가 대신 받는다. */
-const lockedCoverStyle: CSSProperties = {
+const coverStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   cursor: "help",
@@ -97,7 +96,7 @@ export function SpellBar({
     const timer = window.setTimeout(() => setTip(null), TIP_TOUCH_MS);
     const closeOutside = (e: PointerEvent) => {
       const target = e.target instanceof Element ? e.target : null;
-      if (!target?.closest("[data-spell-lock]")) setTip(null);
+      if (!target?.closest("[data-spell-tip]")) setTip(null);
     };
     document.addEventListener("pointerdown", closeOutside);
     return () => {
@@ -106,7 +105,26 @@ export function SpellBar({
     };
   }, [tip, byTouch]);
 
-  const tipSpell = tip === null ? null : SPELLS[tip];
+  /** 마우스를 올리면 뜨고 벗어나면 사라진다. 터치는 칩이 눌리는 칩에서는 쓰지 않는다. */
+  const hoverProps = (id: SpellId) => ({
+    onPointerEnter: (e: ReactPointerEvent<HTMLElement>) => {
+      if (e.pointerType !== "mouse") return;
+      setByTouch(false);
+      setTip(id);
+    },
+    onPointerLeave: (e: ReactPointerEvent<HTMLElement>) => {
+      if (e.pointerType === "mouse") setTip(null);
+    },
+  });
+
+  const tipLocked = tip !== null && !isUnlocked(tip, totalSeconds);
+  /** 명경 칩은 켜져 있으면 묵령(끄기)으로 바뀐다 */
+  const tipSpell =
+    tip === null
+      ? null
+      : tip === "myeonggyeong" && lightOn
+        ? SPELLS.mukryeong
+        : SPELLS[tip];
 
   return (
     <div role="group" aria-label="주문" style={dockStyle}>
@@ -115,7 +133,9 @@ export function SpellBar({
           <div style={tipTitleStyle}>{tipSpell.name}</div>
           <div>{tipSpell.detail}</div>
           <div>
-            {`누적 수련 ${formatRemaining(tipSpell.unlockSeconds)} 필요 · 지금 ${formatRemaining(Math.floor(totalSeconds / 60) * 60)} · ${formatRemaining(secondsToUnlock(tip, totalSeconds))} 남음`}
+            {tipLocked
+              ? `누적 수련 ${formatRemaining(tipSpell.unlockSeconds)} 필요 · 지금 ${formatRemaining(Math.floor(totalSeconds / 60) * 60)} · ${formatRemaining(secondsToUnlock(tip, totalSeconds))} 남음`
+              : `단축키 ${tip === "myeonggyeong" ? "1 또는 2" : SPELL_ORDER.indexOf(tip) + 1}`}
           </div>
         </div>
       )}
@@ -136,6 +156,9 @@ export function SpellBar({
           {SPELL_ORDER.filter((id) => id !== "mukryeong").map((id) => {
             const remaining = cooldowns[id] ?? 0;
             const waiting = remaining > 0;
+            const locked = !isUnlocked(id, totalSeconds);
+            /** 비활성 버튼은 브라우저가 호버·탭을 막으므로, 투명한 덮개가 대신 받는다 */
+            const blocked = locked || disabled || waiting;
             const label =
               id === "myeonggyeong"
                 ? lightOn
@@ -143,9 +166,14 @@ export function SpellBar({
                   : "명경 · 켜기"
                 : SPELLS[id].name;
             const seconds = Math.ceil(remaining / 1000);
-            if (!isUnlocked(id, totalSeconds)) {
-              return (
-                <span key={id} data-spell-lock style={lockedWrapStyle}>
+            return (
+              <span
+                key={id}
+                data-spell-tip
+                style={chipWrapStyle}
+                {...(blocked ? {} : hoverProps(id))}
+              >
+                {locked ? (
                   <ButtonSmall
                     style="monolight"
                     disabled
@@ -153,20 +181,27 @@ export function SpellBar({
                   >
                     {`${SPELLS[id].name} · 잠김`}
                   </ButtonSmall>
+                ) : (
+                  <ButtonSmall
+                    style="monolight"
+                    disabled={disabled || waiting}
+                    aria-label={`${id === "myeonggyeong" ? (lightOn ? "지팡이 불빛 끄기, 묵령, 단축키 1 또는 2" : "지팡이 불빛 켜기, 명경, 단축키 1 또는 2") : `${SPELLS[id].name}, ${SPELLS[id].hint}, 단축키 ${SPELL_ORDER.indexOf(id) + 1}`}${waiting ? `, ${seconds}초 후 사용 가능` : ""}`}
+                    aria-pressed={id === "myeonggyeong" ? lightOn : undefined}
+                    onClick={() => onCast(id)}
+                  >
+                    {waiting && id !== "myeonggyeong"
+                      ? `${label} · ${seconds}초`
+                      : label}
+                  </ButtonSmall>
+                )}
+                {blocked ? (
                   <span
                     aria-hidden="true"
-                    data-spell-lock
-                    style={lockedCoverStyle}
+                    data-spell-lock={locked ? true : undefined}
+                    style={coverStyle}
+                    {...hoverProps(id)}
                     onPointerDown={(e) => {
                       pointerKind.current = e.pointerType;
-                    }}
-                    onPointerEnter={(e) => {
-                      if (e.pointerType !== "mouse") return;
-                      setByTouch(false);
-                      setTip(id);
-                    }}
-                    onPointerLeave={(e) => {
-                      if (e.pointerType === "mouse") setTip(null);
                     }}
                     onClick={() => {
                       if (pointerKind.current === "mouse" && tip === id) return;
@@ -175,22 +210,8 @@ export function SpellBar({
                       setTip((now) => (now === id && touch ? null : id));
                     }}
                   />
-                </span>
-              );
-            }
-            return (
-              <ButtonSmall
-                key={id}
-                style="monolight"
-                disabled={disabled || waiting}
-                aria-label={`${id === "myeonggyeong" ? (lightOn ? "지팡이 불빛 끄기, 묵령, 단축키 1 또는 2" : "지팡이 불빛 켜기, 명경, 단축키 1 또는 2") : `${SPELLS[id].name}, ${SPELLS[id].hint}, 단축키 ${SPELL_ORDER.indexOf(id) + 1}`}${waiting ? `, ${seconds}초 후 사용 가능` : ""}`}
-                aria-pressed={id === "myeonggyeong" ? lightOn : undefined}
-                onClick={() => onCast(id)}
-              >
-                {waiting && id !== "myeonggyeong"
-                  ? `${label} · ${seconds}초`
-                  : label}
-              </ButtonSmall>
+                ) : null}
+              </span>
             );
           })}
         </div>

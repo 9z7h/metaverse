@@ -120,7 +120,36 @@ describe("잠긴 주문 말풍선", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
-  it("풀린 주문과 쿨타임 칩에는 말풍선이 없다", () => {
+  it("이미 쓸 수 있는 주문도 마우스를 올리면 설명과 단축키가 뜬다", () => {
+    renderOpen({ onCast: vi.fn(), totalSeconds: 5 * 3600 });
+    const chip = screen.getByRole("button", { name: /화룡/ });
+    fireEvent.pointerEnter(chip.parentElement!, { pointerType: "mouse" });
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("작은 붉은 불꽃");
+    expect(tip.textContent).toContain("단축키 3");
+    fireEvent.pointerLeave(chip.parentElement!, { pointerType: "mouse" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("명경 칩은 불빛이 켜져 있으면 묵령 설명을 보여 준다", () => {
+    renderOpen({ onCast: vi.fn(), lightOn: true });
+    const chip = screen.getByRole("button", { name: /지팡이 불빛 끄기/ });
+    fireEvent.pointerEnter(chip.parentElement!, { pointerType: "mouse" });
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("묵령");
+    expect(tip.textContent).toContain("단축키 1 또는 2");
+  });
+
+  it("쿨타임 중인 칩도 마우스를 올리면 설명이 뜬다", () => {
+    renderOpen({ onCast: vi.fn(), cooldowns: { hwaryong: 5000 } });
+    const chip = screen.getByRole("button", { name: /화룡/ });
+    const cover =
+      chip.parentElement!.querySelector<HTMLElement>("[aria-hidden]")!;
+    fireEvent.pointerEnter(cover, { pointerType: "mouse" });
+    expect(screen.getByRole("tooltip").textContent).toContain("작은 붉은 불꽃");
+  });
+
+  it("풀린 주문은 잠금 덮개가 없다", () => {
     renderOpen({ onCast: vi.fn(), totalSeconds: 5 * 3600 });
     expect(document.querySelector("[data-spell-lock]")).toBeNull();
   });
