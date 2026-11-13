@@ -21,6 +21,8 @@ export interface SpellInfo {
   name: string;
   /** 한 줄 설명 (칩 라벨 보조) */
   hint: string;
+  /** 어떤 주문인지 풀어 쓴 설명 (잠긴 칩의 말풍선) */
+  detail: string;
   /** 효과가 남는 시간 ms */
   durationMs: number;
   /** 풀리는 누적 수련 시간(초). 0이면 처음부터 쓴다 */
@@ -34,6 +36,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "myeonggyeong",
     name: "명경",
     hint: "지팡이 불빛",
+    detail: "지팡이 끝에 밝은 흰빛을 켭니다. 묵령으로 끌 때까지 유지돼요.",
     durationMs: Number.POSITIVE_INFINITY,
     unlockSeconds: 0,
   },
@@ -41,6 +44,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "mukryeong",
     name: "묵령",
     hint: "내 불빛 끄기",
+    detail: "내 명경을 먹물처럼 흩어 끕니다.",
     durationMs: 1200,
     unlockSeconds: 0,
   },
@@ -48,6 +52,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "hwaryong",
     name: "화룡",
     hint: "작은 불꽃",
+    detail: "작은 붉은 불꽃이 용처럼 움직이며 불씨를 남깁니다.",
     durationMs: 8000,
     unlockSeconds: 0,
   },
@@ -55,6 +60,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "buun",
     name: "부운",
     hint: "조약돌 띄우기",
+    detail: "작은 조약돌을 구름 조각 위로 띄웠다가 내립니다.",
     durationMs: 6000,
     unlockSeconds: 0,
   },
@@ -62,6 +68,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "sosin",
     name: "소신",
     hint: "몸 줄이기",
+    detail:
+      "내 모습이 0.55배로 작아집니다(10분). 거신을 쓰면 원래 크기로 돌아와요.",
     durationMs: 10 * 60 * 1000,
     unlockSeconds: HOUR,
   },
@@ -69,6 +77,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "geosin",
     name: "거신",
     hint: "몸 키우기",
+    detail:
+      "내 모습이 1.5배로 커집니다(30분). 소신을 쓰면 원래 크기로 돌아와요.",
     durationMs: 30 * 60 * 1000,
     unlockSeconds: HOUR,
   },
@@ -76,6 +86,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "eunhyeong",
     name: "은형",
     hint: "모습 감추기",
+    detail:
+      "내 모습이 흐려져 남에게는 거의 보이지 않습니다(10초). 나에게는 옅게 보여요.",
     durationMs: 10000,
     unlockSeconds: 3 * HOUR,
   },
@@ -83,6 +95,7 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     id: "suhoryeong",
     name: "수호령",
     hint: "은빛 백호",
+    detail: "은빛 백호의 윤곽이 구역을 한 바퀴 돌고 흩어집니다(8초).",
     durationMs: 8000,
     unlockSeconds: 5 * HOUR,
   },

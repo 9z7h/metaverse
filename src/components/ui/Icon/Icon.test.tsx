@@ -12,8 +12,8 @@ describe("Icon", () => {
     expect(svg).toHaveAttribute("viewBox", "0 0 16 16");
   });
 
-  it("레지스트리의 22개 아이콘이 모두 path/shape를 그린다", () => {
-    expect(allNames).toHaveLength(22);
+  it("레지스트리의 23개 아이콘이 모두 path/shape를 그린다", () => {
+    expect(allNames).toHaveLength(23);
     for (const name of allNames) {
       const { container } = render(<Icon name={name} />);
       const drawables = container.querySelectorAll(

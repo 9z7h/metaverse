@@ -37,6 +37,7 @@ export type IconName =
   | "check"
   | "pencil"
   | "music"
+  | "sparkle"
   | "google";
 
 /** 단색 stroke 아이콘의 공통 path 속성 */
@@ -59,6 +60,16 @@ export const multicolorIcons: readonly IconName[] = ["google"];
  * 각 항목은 외곽 <svg viewBox="0 0 16 16"> 내부에 그대로 삽입된다.
  */
 export const iconPaths: Record<IconName, ReactNode> = {
+  sparkle: (
+    <>
+      <path
+        d="M6.5 3.5l1.3 3.7 3.7 1.3-3.7 1.3-1.3 3.7-1.3-3.7-3.7-1.3 3.7-1.3z"
+        {...strokeProps}
+        strokeWidth={1.2}
+      />
+      <path d="M12.5 1.8v3M11 3.3h3" {...strokeProps} strokeWidth={1.2} />
+    </>
+  ),
   music: (
     <>
       <path d="M6 11.5V3.5l6-1.5v8" {...strokeProps} strokeWidth={1.3} />

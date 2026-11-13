@@ -1,5 +1,6 @@
+import { useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { ButtonSmall } from "../../../ui/Button";
+import { ButtonMedium, ButtonSmall } from "../../../ui/Button";
 import {
   SPELLS,
   SPELL_ORDER,
@@ -9,12 +10,61 @@ import {
 } from "./spellLogic";
 import type { SpellId } from "./spellLogic";
 
-const barStyle: CSSProperties = {
+/** 터치로 연 말풍선이 저절로 닫히는 시간 */
+const TIP_TOUCH_MS = 4000;
+
+/** 음악 버튼처럼 동그란 토글 하나만 화면 오른쪽 아래에 두고, 누르면 칩이 위로 세로로 펼쳐진다. */
+const dockStyle: CSSProperties = {
+  position: "fixed",
+  right: "max(var(--spacing-16), env(safe-area-inset-right))",
+  bottom: "max(var(--spacing-16), env(safe-area-inset-bottom))",
+  zIndex: 5,
   display: "flex",
-  flexWrap: "wrap",
-  justifyContent: "center",
+  flexDirection: "column-reverse",
+  alignItems: "flex-end",
   gap: "var(--spacing-8)",
   pointerEvents: "auto",
+};
+
+const listStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: "var(--spacing-8)",
+};
+
+const lockedWrapStyle: CSSProperties = {
+  position: "relative",
+  display: "inline-flex",
+};
+
+/** 잠긴 버튼은 브라우저가 호버·탭을 막으므로, 투명한 덮개가 대신 받는다. */
+const lockedCoverStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  cursor: "help",
+  pointerEvents: "auto",
+};
+
+const tipStyle: CSSProperties = {
+  position: "absolute",
+  bottom: "100%",
+  right: 0,
+  marginBottom: "var(--spacing-8)",
+  width: "max-content",
+  maxWidth: "min(calc(var(--spacing-48) * 6), calc(100vw - var(--spacing-32)))",
+  padding: "var(--spacing-8) var(--spacing-12)",
+  borderRadius: "var(--radius-lg)",
+  background: "var(--color-background-Subtle)",
+  color: "var(--color-text-secondary)",
+  font: "var(--text-caption-lg-medium)",
+  textAlign: "left",
+  pointerEvents: "none",
+  zIndex: 1,
+};
+
+const tipTitleStyle: CSSProperties = {
+  color: "var(--color-text-primary)",
 };
 
 export interface SpellBarProps {
@@ -35,45 +85,116 @@ export function SpellBar({
   cooldowns = {},
   totalSeconds = 0,
 }: SpellBarProps) {
+  const tipId = useId();
+  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState<SpellId | null>(null);
+  /** 마지막 입력이 마우스면 호버로, 아니면 탭으로 말풍선을 연다 */
+  const pointerKind = useRef("mouse");
+  const [byTouch, setByTouch] = useState(false);
+
+  useEffect(() => {
+    if (tip === null || !byTouch) return;
+    const timer = window.setTimeout(() => setTip(null), TIP_TOUCH_MS);
+    const closeOutside = (e: PointerEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target?.closest("[data-spell-lock]")) setTip(null);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [tip, byTouch]);
+
+  const tipSpell = tip === null ? null : SPELLS[tip];
+
   return (
-    <div role="group" aria-label="주문" style={barStyle}>
-      {SPELL_ORDER.filter((id) => id !== "mukryeong").map((id) => {
-        const remaining = cooldowns[id] ?? 0;
-        const waiting = remaining > 0;
-        const label =
-          id === "myeonggyeong"
-            ? lightOn
-              ? "묵령 · 끄기"
-              : "명경 · 켜기"
-            : SPELLS[id].name;
-        const seconds = Math.ceil(remaining / 1000);
-        if (!isUnlocked(id, totalSeconds)) {
-          return (
-            <ButtonSmall
-              key={id}
-              style="monolight"
-              disabled
-              aria-label={`${SPELLS[id].name}, ${SPELLS[id].hint}, 수련 시간 ${formatRemaining(secondsToUnlock(id, totalSeconds))}을 더 채우면 풀립니다`}
-            >
-              {`${SPELLS[id].name} · 잠김`}
-            </ButtonSmall>
-          );
-        }
-        return (
-          <ButtonSmall
-            key={id}
-            style="monolight"
-            disabled={disabled || waiting}
-            aria-label={`${id === "myeonggyeong" ? (lightOn ? "지팡이 불빛 끄기, 묵령, 단축키 1 또는 2" : "지팡이 불빛 켜기, 명경, 단축키 1 또는 2") : `${SPELLS[id].name}, ${SPELLS[id].hint}, 단축키 ${SPELL_ORDER.indexOf(id) + 1}`}${waiting ? `, ${seconds}초 후 사용 가능` : ""}`}
-            aria-pressed={id === "myeonggyeong" ? lightOn : undefined}
-            onClick={() => onCast(id)}
-          >
-            {waiting && id !== "myeonggyeong"
-              ? `${label} · ${seconds}초`
-              : label}
-          </ButtonSmall>
-        );
-      })}
+    <div role="group" aria-label="주문" style={dockStyle}>
+      {tipSpell && tip && (
+        <div id={tipId} role="tooltip" style={tipStyle}>
+          <div style={tipTitleStyle}>{tipSpell.name}</div>
+          <div>{tipSpell.detail}</div>
+          <div>
+            {`누적 수련 ${formatRemaining(tipSpell.unlockSeconds)} 필요 · 지금 ${formatRemaining(Math.floor(totalSeconds / 60) * 60)} · ${formatRemaining(secondsToUnlock(tip, totalSeconds))} 남음`}
+          </div>
+        </div>
+      )}
+      <ButtonMedium
+        type="icon"
+        icon="sparkle"
+        style="monolight"
+        radius="var(--radius-circle)"
+        aria-label="주문 목록"
+        aria-pressed={open}
+        onClick={() => {
+          setOpen((v) => !v);
+          setTip(null);
+        }}
+      />
+      {open ? (
+        <div style={listStyle}>
+          {SPELL_ORDER.filter((id) => id !== "mukryeong").map((id) => {
+            const remaining = cooldowns[id] ?? 0;
+            const waiting = remaining > 0;
+            const label =
+              id === "myeonggyeong"
+                ? lightOn
+                  ? "묵령 · 끄기"
+                  : "명경 · 켜기"
+                : SPELLS[id].name;
+            const seconds = Math.ceil(remaining / 1000);
+            if (!isUnlocked(id, totalSeconds)) {
+              return (
+                <span key={id} data-spell-lock style={lockedWrapStyle}>
+                  <ButtonSmall
+                    style="monolight"
+                    disabled
+                    aria-label={`${SPELLS[id].name}, ${SPELLS[id].hint}, 수련 시간 ${formatRemaining(secondsToUnlock(id, totalSeconds))}을 더 채우면 풀립니다`}
+                  >
+                    {`${SPELLS[id].name} · 잠김`}
+                  </ButtonSmall>
+                  <span
+                    aria-hidden="true"
+                    data-spell-lock
+                    style={lockedCoverStyle}
+                    onPointerDown={(e) => {
+                      pointerKind.current = e.pointerType;
+                    }}
+                    onPointerEnter={(e) => {
+                      if (e.pointerType !== "mouse") return;
+                      setByTouch(false);
+                      setTip(id);
+                    }}
+                    onPointerLeave={(e) => {
+                      if (e.pointerType === "mouse") setTip(null);
+                    }}
+                    onClick={() => {
+                      if (pointerKind.current === "mouse" && tip === id) return;
+                      const touch = pointerKind.current !== "mouse";
+                      setByTouch(touch);
+                      setTip((now) => (now === id && touch ? null : id));
+                    }}
+                  />
+                </span>
+              );
+            }
+            return (
+              <ButtonSmall
+                key={id}
+                style="monolight"
+                disabled={disabled || waiting}
+                aria-label={`${id === "myeonggyeong" ? (lightOn ? "지팡이 불빛 끄기, 묵령, 단축키 1 또는 2" : "지팡이 불빛 켜기, 명경, 단축키 1 또는 2") : `${SPELLS[id].name}, ${SPELLS[id].hint}, 단축키 ${SPELL_ORDER.indexOf(id) + 1}`}${waiting ? `, ${seconds}초 후 사용 가능` : ""}`}
+                aria-pressed={id === "myeonggyeong" ? lightOn : undefined}
+                onClick={() => onCast(id)}
+              >
+                {waiting && id !== "myeonggyeong"
+                  ? `${label} · ${seconds}초`
+                  : label}
+              </ButtonSmall>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

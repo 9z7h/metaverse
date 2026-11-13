@@ -40,7 +40,7 @@
 }
 .world-chat-panel {
   position: fixed;
-  right: max(var(--spacing-16), env(safe-area-inset-right));
+  left: max(var(--spacing-16), env(safe-area-inset-left));
   bottom: calc(
     max(var(--spacing-16), env(safe-area-inset-bottom)) + var(--spacing-64) +
       var(--spacing-32)
@@ -51,7 +51,7 @@
 }
 .world-chat-trigger {
   position: fixed;
-  right: max(var(--spacing-16), env(safe-area-inset-right));
+  left: max(var(--spacing-16), env(safe-area-inset-left));
   bottom: max(var(--spacing-16), env(safe-area-inset-bottom));
   z-index: 4;
   pointer-events: auto;
