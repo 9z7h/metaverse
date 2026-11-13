@@ -8,10 +8,15 @@ import {
   CAST_RELEASE_MS,
   CAST_SWING_MS,
   COOLDOWN_MS,
+  SPELL_ORDER,
   activeCasts,
   addCast,
   canCast,
+  bodyFadeNow,
+  bodyKindOf,
   castZone,
+  isUnlocked,
+  nextBodyFadeChange,
   resolveLightToggle,
 } from "./spellLogic";
 import type { SpellCast, SpellId } from "./spellLogic";
@@ -32,12 +37,15 @@ export interface UseSpellCasterOptions {
   getPose: () => CasterPose | null;
   /** false면 시전하지 않는다 (앉아 있음, 구름 타는 중 등) */
   enabled: boolean;
+  /** 누적 수련 시간(초). 풀리지 않은 주문은 시전하지 않는다. 기본 0 */
+  totalSeconds?: number;
 }
 
 export function useSpellCaster({
   selfId,
   getPose,
   enabled,
+  totalSeconds = 0,
 }: UseSpellCasterOptions) {
   const [casts, setCasts] = useState<SpellCast[]>([]);
   const castsRef = useRef<SpellCast[]>([]);
@@ -53,11 +61,14 @@ export function useSpellCaster({
   getPoseRef.current = getPose;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const totalRef = useRef(totalSeconds);
+  totalRef.current = totalSeconds;
 
   /** 시전에 성공하면 그 시전을, 쿨다운이거나 할 수 없는 상태면 null을 돌려준다 */
   const cast = useCallback(
     (spell: SpellId): SpellCast | null => {
       if (!enabledRef.current) return null;
+      if (!isUnlocked(spell, totalRef.current)) return null;
       const now = performance.now();
       const isLight = spell === "myeonggyeong" || spell === "mukryeong";
       const cooldownKey = isLight ? "myeonggyeong" : spell;
@@ -111,7 +122,23 @@ export function useSpellCaster({
   }, []);
 
   // 끝난 효과를 치워 장면이 가만히 있을 때 다시 그리지 않게 한다
-  const hasCasts = casts.some((c) => c.spell !== "myeonggyeong");
+  // 몸 주문은 10분 넘게 남을 수 있어 "효과 진행 중"(화면을 자주 그리는 상태)으로 세지 않는다
+  const hasCasts = casts.some(
+    (c) => c.spell !== "myeonggyeong" && bodyKindOf(c.spell) === null,
+  );
+  // 몸이 바뀌고 돌아오는 짧은 순간에만 화면을 그리게 한다
+  const [bodyFading, setBodyFading] = useState(false);
+  useEffect(() => {
+    let timer: number | undefined;
+    const update = () => {
+      const now = performance.now();
+      setBodyFading(bodyFadeNow(castsRef.current, now));
+      const wait = nextBodyFadeChange(castsRef.current, now);
+      if (wait !== null) timer = window.setTimeout(update, wait + 5);
+    };
+    update();
+    return () => window.clearTimeout(timer);
+  }, [casts]);
   useEffect(() => {
     if (!hasCasts) return;
     const timer = window.setInterval(() => {
@@ -141,18 +168,19 @@ export function useSpellCaster({
     return () => window.clearInterval(timer);
   }, [cooldownUntil]);
 
-  const cooldowns = {
-    myeonggyeong: Math.max(0, (cooldownUntil.myeonggyeong ?? 0) - cooldownNow),
-    hwaryong: Math.max(0, (cooldownUntil.hwaryong ?? 0) - cooldownNow),
-    buun: Math.max(0, (cooldownUntil.buun ?? 0) - cooldownNow),
-  };
+  // 묵령은 명경과 쿨다운을 나눠 쓰므로 따로 두지 않는다
+  const cooldowns: Partial<Record<SpellId, number>> = {};
+  for (const id of SPELL_ORDER) {
+    if (id === "mukryeong") continue;
+    cooldowns[id] = Math.max(0, (cooldownUntil[id] ?? 0) - cooldownNow);
+  }
   return {
     casts,
     castAt,
     cast,
     addRemote,
     cooldowns,
-    active: hasCasts || animationAt !== null,
+    active: hasCasts || animationAt !== null || bodyFading,
     lightOn: casts.some(
       (c) => c.caster === selfId && c.spell === "myeonggyeong",
     ),

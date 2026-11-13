@@ -8,7 +8,7 @@ import {
   type StudyMode,
   type UseLibraryPresenceOptions,
 } from "./libraryPresence";
-import { dayKey, useFocusTimer } from "./useFocusTimer";
+import { dayKey, loadPastSeconds, useFocusTimer } from "./useFocusTimer";
 import { HouseCrest } from "./HouseCrest";
 import { SortingReveal } from "./SortingReveal";
 import {
@@ -31,7 +31,11 @@ import {
 import { DAY_ROSTER_HOUSES } from "./libraryPresence";
 import type { HouseId } from "./houses";
 import { AlreadyRerolledError } from "./academyApi";
-import { useAcademyConnection, useFocusReport } from "./useAcademy";
+import {
+  useAcademyConnection,
+  useFocusReport,
+  usePastSeconds,
+} from "./useAcademy";
 import { useRemotePresence } from "./remotePresence";
 import { BackgroundMusic } from "./BackgroundMusic";
 
@@ -41,8 +45,9 @@ const GardenWorld = lazy(() =>
     default: m.GardenWorld,
   })),
 );
+const loadLibraryWorld = () => import("./scene/LibraryWorld");
 const LibraryWorld = lazy(() =>
-  import("./scene/LibraryWorld").then((m) => ({ default: m.LibraryWorld })),
+  loadLibraryWorld().then((m) => ({ default: m.LibraryWorld })),
 );
 
 /** 문을 지나 다른 공간으로 넘어갈 때 화면을 덮는 막이 어두워지는 데 걸리는 시간(ms) */
@@ -388,11 +393,22 @@ export function Library({
   const [mode, setMode] = useState<StudyMode>("theory");
   // 오늘 누적 집중 스톱워치 (멈췄다 다시 시작해도 이어서 쌓임)
   const timer = useFocusTimer();
+  // 누적 수련 시간 = 오늘 이전(서버, 없으면 이 기기) + 오늘 — 일부 주문이 이 시간에 풀린다
+  const [devicePast] = useState(() => loadPastSeconds(Date.now()));
+  const totalSeconds =
+    usePastSeconds(server?.api ?? null, devicePast) + timer.elapsedSeconds;
   // 먹빛각에 들어갈 때 한 번만 확인
   const webgl = useMemo(
-    () => (step === "world" || step === "garden" ? supportsWebGL() : true),
+    () =>
+      step === "sorting" || step === "world" || step === "garden"
+        ? supportsWebGL()
+        : true,
     [step],
   );
+  // 배정 연출을 보는 동안 먹빛각 번들을 미리 받아 두면 입장이 빨라진다
+  useEffect(() => {
+    if (step === "sorting" && webgl) void loadLibraryWorld();
+  }, [step, webgl]);
 
   /**
    * 오늘 인원이 가장 적은 기숙사 중에서 무작위 배정 — 기숙사 합계 순위가
@@ -562,6 +578,7 @@ export function Library({
         <SortingReveal
           house={house}
           durationMs={sortingDurationMs}
+          webgl={webgl}
           onEnter={() => {
             setArrivedByDoor(false);
             setStep("world");
@@ -601,6 +618,7 @@ export function Library({
             {step === "garden" ? (
               <GardenWorld
                 todaySeconds={timer.elapsedSeconds}
+                totalSeconds={totalSeconds}
                 house={house}
                 presence={presence}
                 onBack={() => travel("world")}
@@ -611,6 +629,7 @@ export function Library({
               <LibraryWorld
                 presence={presence}
                 timer={timer}
+                totalSeconds={totalSeconds}
                 subject={mySubject}
                 house={house}
                 ranking={ranking}

@@ -4,6 +4,7 @@ import {
   AlreadyRerolledError,
   connectAcademy,
   parseHouseTotals,
+  parseSeconds,
   parseStudent,
 } from "./academyApi";
 
@@ -180,5 +181,27 @@ describe("connectAcademy", () => {
     await api.reportFocus(-4);
     expect(rpc).toHaveBeenCalledWith("academy_report_focus", { p_total: 125 });
     expect(rpc).toHaveBeenCalledWith("academy_report_focus", { p_total: 0 });
+  });
+
+  it("pastSeconds — 지난 수련 시간 합계를 가져온다", async () => {
+    const { client, rpc } = fakeClient({ rpc: () => 7265 });
+    const api = await connectAcademy(client);
+    await expect(api.pastSeconds()).resolves.toBe(7265);
+    expect(rpc).toHaveBeenCalledWith("academy_my_past_seconds", undefined);
+  });
+});
+
+describe("parseSeconds — 초 응답 검증", () => {
+  it.each([
+    [3600, 3600],
+    ["7200", 7200],
+    [59.9, 59],
+    [-5, 0],
+    [null, 0],
+    ["많이", 0],
+    [Number.NaN, 0],
+    [{}, 0],
+  ])("%j → %d", (raw, expected) => {
+    expect(parseSeconds(raw)).toBe(expected);
   });
 });

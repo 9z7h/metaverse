@@ -25,12 +25,20 @@ import {
   Vector3,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { Group, PointLight } from "three";
+import type { Group, Material, Mesh, PointLight } from "three";
 import { formatClock } from "../../../ui/FocusTimer";
 import { houseCrestUrl } from "../HouseCrest";
 import { getEffectsBus } from "../soundSettings";
 import type { HouseId } from "../houses";
-import { swingPose, wandLightIsOn } from "./spellLogic";
+import {
+  BODY_SCALE,
+  HIDDEN_OPACITY_OTHERS,
+  HIDDEN_OPACITY_SELF,
+  bodyAmount,
+  swingPose,
+  wandLightIsOn,
+} from "./spellLogic";
+import type { BodyEffect } from "./spellLogic";
 import { MASK_WHITE_TOKEN, rootToken } from "./sceneLayout";
 
 /** 도포 윤곽 [높이 y, 반지름 r] — 몸통(Lathe)과 깃이 같은 곡선을 따른다 */
@@ -268,7 +276,9 @@ export function playFootstep(kind: FootstepKind, running: boolean) {
     src.playbackRate.value = (wood ? 1 : 0.8) * (0.94 + Math.random() * 0.12);
     const gain = ctx.createGain();
     gain.gain.value =
-      (wood ? 0.375 : 0.225) * (running ? 1.2 : 1) * (0.85 + Math.random() * 0.3);
+      (wood ? 0.375 : 0.225) *
+      (running ? 1.2 : 1) *
+      (0.85 + Math.random() * 0.3);
     if (wood) {
       src.connect(gain).connect(getEffectsBus(ctx));
     } else {
@@ -324,10 +334,48 @@ export interface AvatarProps {
   /** 주문을 시전한 시각(performance.now ms). 이 시각부터 잠깐 지팡이를 들어 휘두른다 */
   castAt?: number | null;
   wandLightAt?: number | null;
+  /** 지금 걸린 몸 주문(소신·거신·은형). 모습만 바뀌고 이동·충돌은 그대로다 */
+  bodyEffect?: BodyEffect | null;
   /** 머리 위 말풍선 (서고의 속삭임). 없으면 그리지 않는다 — 글은 항상 텍스트로만 그린다 */
   bubble?: string;
   /** 걸을 때 발소리를 낸다 (내 아바타만) — 바닥 종류에 따라 소리가 다르다 */
   footstep?: FootstepKind;
+}
+
+/** 재질이 처음 모습을 기억해 두는 자리 */
+interface GhostMemory {
+  opacity: number;
+  transparent: boolean;
+  depthWrite: boolean;
+}
+
+/**
+ * 아바타 전체를 `ghost`(0=평소~1=가장 투명)만큼 투명하게 만든다. `floor`는 완전히 감췄을 때 남는 불투명도.
+ * 재질마다 처음 값을 기억해 두었다가 0이 되면 정확히 되돌린다.
+ * three는 transparent가 바뀌면 셰이더를 다시 만들어야 해서(needsUpdate) 투명해지는 처음과 돌아오는 끝에서만 바꾼다.
+ */
+function applyGhost(root: Group, ghost: number, floor: number) {
+  root.traverse((object) => {
+    const material = (object as Mesh).material as
+      | Material
+      | Material[]
+      | undefined;
+    if (!material) return;
+    for (const m of Array.isArray(material) ? material : [material]) {
+      const memory = (m.userData.ghostMemory ??= {
+        opacity: m.opacity,
+        transparent: m.transparent,
+        depthWrite: m.depthWrite,
+      } satisfies GhostMemory) as GhostMemory;
+      const transparent = ghost > 0 ? true : memory.transparent;
+      if (m.transparent !== transparent) {
+        m.transparent = transparent;
+        m.needsUpdate = true;
+      }
+      m.opacity = memory.opacity * (1 - ghost * (1 - floor));
+      m.depthWrite = ghost > 0 ? false : memory.depthWrite;
+    }
+  });
 }
 
 function HousePatch({ house }: { house: HouseId }) {
@@ -419,6 +467,7 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
     wand,
     castAt = null,
     wandLightAt = null,
+    bodyEffect = null,
     bubble,
     footstep,
   },
@@ -552,6 +601,39 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
   useEffect(() => () => strapGeometry?.dispose(), [strapGeometry]);
   const portal = useContext(LabelPortalContext);
 
+  // 몸 주문: 배율은 매 프레임 따라가고, 투명도는 값이 바뀔 때만 재질에 쓴다
+  const look = useRef<Group>(null);
+  const tagEl = useRef<HTMLDivElement>(null);
+  const ghostApplied = useRef(0);
+  const tagOpacity = useRef(1);
+  useFrame(() => {
+    const group = look.current;
+    if (!group) return;
+    const amount = bodyEffect
+      ? bodyAmount(performance.now() - bodyEffect.at, bodyEffect.durationMs)
+      : 0;
+    const scale =
+      bodyEffect && bodyEffect.kind !== "hidden"
+        ? 1 + (BODY_SCALE[bodyEffect.kind] - 1) * amount
+        : 1;
+    if (group.scale.x !== scale) group.scale.setScalar(scale);
+    const ghost = bodyEffect?.kind === "hidden" ? amount : 0;
+    if (ghost !== ghostApplied.current) {
+      ghostApplied.current = ghost;
+      applyGhost(
+        group,
+        ghost,
+        highlight ? HIDDEN_OPACITY_SELF : HIDDEN_OPACITY_OTHERS,
+      );
+    }
+    // 이름표도 남의 눈에는 함께 사라진다. 내 이름표는 그대로 둔다
+    const tag = highlight ? 1 : 1 - ghost;
+    if (tag !== tagOpacity.current) {
+      tagOpacity.current = tag;
+      if (tagEl.current) tagEl.current.style.opacity = String(tag);
+    }
+  });
+
   // 걸음·앉음 상태 — 위상(phase)을 누적해 박자가 바뀌어도 발이 튀지 않게 하고,
   // 걷기/달리기/앉기 가중치는 부드럽게 따라가게 해서 출발·정지·착석 때 동작이 뚝 끊기지 않게 한다
   const gait = useRef({ phase: 0, move: 0, run: 0, sit: 0, ride: 0 });
@@ -672,447 +754,466 @@ export const Avatar = forwardRef<Group, AvatarProps>(function Avatar(
 
   return (
     <group ref={ref}>
-      <group ref={body}>
-        {/* 겉도포와 안쪽 저고리. 기숙사색은 안감과 작은 매듭에 쓴다. */}
-        <mesh geometry={coatGeometry}>
-          <meshStandardMaterial
-            map={fabric}
-            bumpMap={fabric}
-            bumpScale={0.0015}
-            color={coat}
-            roughness={0.9}
-            side={DoubleSide}
-          />
-        </mesh>
-        <HousePatch house={house} />
-        {/* 앞섶의 겹침과 자락 끝의 가는 선 */}
-        <mesh position={[0.045, 0.46, 0.275]} rotation={[-0.16, 0, -0.06]}>
-          <boxGeometry args={[0.11, 0.55, 0.018]} />
-          <meshStandardMaterial
-            map={fabric}
-            bumpMap={fabric}
-            bumpScale={0.0015}
-            color={coat.clone().multiplyScalar(1.12)}
-            roughness={0.9}
-          />
-        </mesh>
-        <mesh position={[0, 0.119, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.346, 0.008, 4, 32]} />
-          <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
-        </mesh>
-        {/* 등 쪽 맞주름: 뒤에서 보는 내 캐릭터에도 옷의 구조가 보인다. */}
-        {[-1, 1].map((side) => (
-          <mesh
-            key={`pleat${side}`}
-            position={[side * 0.12, 0.43, -0.279]}
-            rotation={[0.13, 0, side * 0.1]}
-          >
-            <boxGeometry args={[0.012, 0.54, 0.014]} />
+      <group ref={look}>
+        <group ref={body}>
+          {/* 겉도포와 안쪽 저고리. 기숙사색은 안감과 작은 매듭에 쓴다. */}
+          <mesh geometry={coatGeometry}>
             <meshStandardMaterial
               map={fabric}
-              color={coat.clone().multiplyScalar(0.65)}
-              roughness={1}
+              bumpMap={fabric}
+              bumpScale={0.0015}
+              color={coat}
+              roughness={0.9}
+              side={DoubleSide}
             />
           </mesh>
-        ))}
-        {/* 저고리의 안깃과 그 위에 겹쳐지는 흰 동정 — 도포 표면을 따라 휘는 띠 */}
-        {collarGeometries.map(({ side, base, trim: trimGeo }) => (
-          <group key={`collar${side}`}>
-            <mesh geometry={base}>
-              <meshStandardMaterial
-                map={fabric}
-                color={robe}
-                roughness={0.85}
-                side={DoubleSide}
-              />
-            </mesh>
-            <mesh geometry={trimGeo}>
-              <meshStandardMaterial
-                map={fabric}
-                color={collar}
-                roughness={0.95}
-                side={DoubleSide}
-              />
-            </mesh>
-          </group>
-        ))}
-        {/* 고름: 납작한 매듭과 길이가 다른 두 가닥 */}
-        <mesh position={[0.105, 0.76, 0.252]}>
-          <sphereGeometry args={[0.026, 8, 6]} />
-          <meshStandardMaterial map={fabric} color={trim} roughness={0.75} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh
-            key={`ribbon${side}`}
-            position={[0.105 + side * 0.026, 0.66, 0.26]}
-            rotation={[0, 0, side * 0.2]}
-          >
-            <boxGeometry args={[0.025, side === 1 ? 0.21 : 0.16, 0.012]} />
+          <HousePatch house={house} />
+          {/* 앞섶의 겹침과 자락 끝의 가는 선 */}
+          <mesh position={[0.045, 0.46, 0.275]} rotation={[-0.16, 0, -0.06]}>
+            <boxGeometry args={[0.11, 0.55, 0.018]} />
+            <meshStandardMaterial
+              map={fabric}
+              bumpMap={fabric}
+              bumpScale={0.0015}
+              color={coat.clone().multiplyScalar(1.12)}
+              roughness={0.9}
+            />
+          </mesh>
+          <mesh position={[0, 0.119, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.346, 0.008, 4, 32]} />
             <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
           </mesh>
-        ))}
-        {/* 세조대와 허리의 작은 매듭 표식 */}
-        <mesh position={[0, 0.665, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.24, 0.012, 6, 24]} />
-          <meshStandardMaterial map={fabric} color={trim} roughness={0.8} />
-        </mesh>
-        <group position={[-0.18, 0.58, 0.215]}>
-          <mesh rotation={[0, 0, Math.PI / 4]}>
-            <torusGeometry args={[0.034, 0.01, 4, 4]} />
-            <meshStandardMaterial map={fabric} color={robe} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, -0.08, 0]}>
-            <cylinderGeometry args={[0.012, 0.024, 0.09, 8]} />
-            <meshStandardMaterial map={fabric} color={trim} roughness={0.85} />
-          </mesh>
-        </group>
-        {/* 버선과 검은 신발 */}
-        {[-1, 1].map((side) => (
-          <group
-            key={`shoe${side}`}
-            ref={side === 1 ? rightFoot : leftFoot}
-            position={[side * 0.125, 0.065, 0.045]}
-          >
-            <mesh position={[0, 0.035, -0.02]}>
-              <cylinderGeometry args={[0.06, 0.06, 0.09, 10]} />
-              <meshStandardMaterial map={fabric} color={collar} roughness={1} />
+          {/* 등 쪽 맞주름: 뒤에서 보는 내 캐릭터에도 옷의 구조가 보인다. */}
+          {[-1, 1].map((side) => (
+            <mesh
+              key={`pleat${side}`}
+              position={[side * 0.12, 0.43, -0.279]}
+              rotation={[0.13, 0, side * 0.1]}
+            >
+              <boxGeometry args={[0.012, 0.54, 0.014]} />
+              <meshStandardMaterial
+                map={fabric}
+                color={coat.clone().multiplyScalar(0.65)}
+                roughness={1}
+              />
             </mesh>
-            <mesh scale={[1, 0.5, 1.65]}>
-              <sphereGeometry args={[0.085, 12, 8]} />
-              <meshStandardMaterial color={hat} roughness={0.75} />
-            </mesh>
-          </group>
-        ))}
-        {/* 양팔과 넓은 소매. 실습하는 오른팔은 기존 동작을 유지한다. */}
-        {[-1, 1].map((side) => (
-          <group
-            key={`arm${side}`}
-            ref={side === 1 ? arm : leftArm}
-            position={[side * 0.19, 0.96, 0]}
-          >
-            <group rotation={[0, 0, side * 0.3]}>
-              {/* 소매: 어깨에서 좁게 시작해 소맷부리로 갈수록 넓어지는 한복 소매 */}
-              <mesh position={[side * 0.035, 0.0, 0]} scale={[1, 1, 0.95]}>
-                <sphereGeometry args={[0.082, 16, 12]} />
-                <meshStandardMaterial
-                  map={fabric}
-                  bumpMap={fabric}
-                  bumpScale={0.0015}
-                  color={coat}
-                  roughness={0.9}
-                />
-              </mesh>
-              <mesh position={[side * 0.035, -0.17, 0]} scale={[1, 1, 0.92]}>
-                <cylinderGeometry args={[0.082, 0.122, 0.31, 20]} />
-                <meshStandardMaterial
-                  map={fabric}
-                  bumpMap={fabric}
-                  bumpScale={0.0015}
-                  color={coat}
-                  roughness={0.9}
-                />
-              </mesh>
-              <mesh position={[side * 0.035, -0.31, 0]}>
-                <cylinderGeometry args={[0.124, 0.124, 0.032, 20]} />
+          ))}
+          {/* 저고리의 안깃과 그 위에 겹쳐지는 흰 동정 — 도포 표면을 따라 휘는 띠 */}
+          {collarGeometries.map(({ side, base, trim: trimGeo }) => (
+            <group key={`collar${side}`}>
+              <mesh geometry={base}>
                 <meshStandardMaterial
                   map={fabric}
                   color={robe}
                   roughness={0.85}
+                  side={DoubleSide}
                 />
               </mesh>
-              <mesh
-                position={[side * 0.035, -0.385, 0.005]}
-                scale={[0.85, 1.15, 0.8]}
-              >
-                <sphereGeometry args={[0.066, 12, 10]} />
-                <meshStandardMaterial color={face} roughness={0.85} />
-              </mesh>
-              {side === 1 && wand ? (
-                <group
-                  ref={wandGroup}
-                  visible={practicing}
-                  position={[0.034, -0.42, 0.09]}
-                  rotation={[Math.PI / 2, 0, 0]}
-                >
-                  <mesh position={[0, 0.12, 0]}>
-                    <cylinderGeometry args={[0.007, 0.021, 0.42, 16]} />
-                    <meshStandardMaterial
-                      color={wand.wood}
-                      roughness={0.48}
-                      metalness={0.08}
-                    />
-                  </mesh>
-                  {/* 대나무 마디와 손잡이를 감싼 천 */}
-                  {[0.035, 0.13, 0.225].map((y) => (
-                    <mesh
-                      key={y}
-                      position={[0, y, 0]}
-                      rotation={[Math.PI / 2, 0, 0]}
-                    >
-                      <torusGeometry args={[0.016 - y * 0.02, 0.0025, 6, 16]} />
-                      <meshStandardMaterial color={wand.wood} roughness={0.8} />
-                    </mesh>
-                  ))}
-                  <mesh position={[0, -0.035, 0]}>
-                    <cylinderGeometry args={[0.023, 0.024, 0.105, 16]} />
-                    <meshStandardMaterial color={robe} roughness={0.95} />
-                  </mesh>
-                  <mesh position={[0, -0.035, 0]}>
-                    <cylinderGeometry args={[0.024, 0.024, 0.028, 16]} />
-                    <meshStandardMaterial color={collar} roughness={0.9} />
-                  </mesh>
-                  {/* 북두칠성 금점 */}
-                  {[
-                    [0, 0.055],
-                    [0.007, 0.075],
-                    [0.002, 0.097],
-                    [0.009, 0.115],
-                    [0.003, 0.136],
-                    [0.009, 0.155],
-                    [0.004, 0.175],
-                  ].map(([x, y], i) => (
-                    <mesh key={i} position={[x, y, 0.018]}>
-                      <sphereGeometry args={[0.0025, 6, 6]} />
-                      <meshBasicMaterial color={band} toneMapped={false} />
-                    </mesh>
-                  ))}
-                  {/* 옥 구슬과 수술이 달린 노리개 */}
-                  <group position={[0.035, -0.11, 0]} rotation={[0, 0, 0.18]}>
-                    <mesh position={[0, 0.025, 0]}>
-                      <cylinderGeometry args={[0.002, 0.002, 0.07, 6]} />
-                      <meshStandardMaterial color={collar} />
-                    </mesh>
-                    <mesh position={[0, -0.02, 0]}>
-                      <sphereGeometry args={[0.013, 12, 10]} />
-                      <meshStandardMaterial color={band} roughness={0.25} />
-                    </mesh>
-                    <mesh position={[0, -0.075, 0]}>
-                      <cylinderGeometry args={[0.012, 0.018, 0.09, 10]} />
-                      <meshStandardMaterial color={robe} roughness={0.95} />
-                    </mesh>
-                  </group>
-                  <mesh position={[0, 0.31, 0]}>
-                    <sphereGeometry args={[0.015, 8, 8]} />
-                    <meshBasicMaterial color={wand.glow} toneMapped={false} />
-                  </mesh>
-                  {wandLightAt !== null ? (
-                    <group
-                      ref={wandLight}
-                      position={[0, 0.335, 0]}
-                      visible={false}
-                    >
-                      <pointLight
-                        ref={wandLightLamp}
-                        color={lightWhite}
-                        intensity={0}
-                        distance={4}
-                        decay={2}
-                      />
-                      <mesh>
-                        <sphereGeometry args={[0.035, 12, 10]} />
-                        <meshBasicMaterial
-                          color={lightWhite}
-                          toneMapped={false}
-                        />
-                      </mesh>
-                      <mesh>
-                        <sphereGeometry args={[0.095, 12, 10]} />
-                        <meshBasicMaterial
-                          color={lightWhite}
-                          transparent
-                          opacity={0.14}
-                          depthWrite={false}
-                          toneMapped={false}
-                        />
-                      </mesh>
-                    </group>
-                  ) : null}
-                </group>
-              ) : null}
-            </group>
-          </group>
-        ))}
-        <group ref={head} position={[0, 1.1, 0]} scale={0.92}>
-          {/* 둥근 얼굴과 머리카락, 귀 */}
-          <mesh
-            geometry={faceGeometry}
-            position={[0, 0.17, 0.012]}
-            scale={[1, 0.98, 0.94]}
-          >
-            <meshStandardMaterial vertexColors roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 0.195, -0.008]}>
-            <sphereGeometry
-              args={[0.302, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.46]}
-            />
-            <meshStandardMaterial color={hat} roughness={0.95} />
-          </mesh>
-          {[-1, 1].map((side) => (
-            <group key={`face${side}`}>
-              <mesh position={[side * 0.285, 0.16, 0]} scale={[0.55, 1, 0.7]}>
-                <sphereGeometry args={[0.064, 10, 8]} />
-                <meshStandardMaterial color={face} roughness={0.9} />
-              </mesh>
-              <mesh
-                position={[side * 0.255, 0.24, 0.07]}
-                scale={[0.48, 1, 0.6]}
-              >
-                <sphereGeometry args={[0.086, 10, 8]} />
-                <meshStandardMaterial color={hat} roughness={0.95} />
-              </mesh>
-              {/* 검정 동그라미 눈과 작은 흰색 하이라이트 */}
-              <group
-                position={[side * 0.105, 0.162, 0.274]}
-                rotation={[0, side * 0.36, side * 0.025]}
-              >
-                <mesh>
-                  <circleGeometry args={[0.029, 24]} />
-                  <meshBasicMaterial color={hat} />
-                </mesh>
-                <mesh position={[-0.008, 0.01, 0.002]}>
-                  <circleGeometry args={[0.007, 16]} />
-                  <meshBasicMaterial color={collar} toneMapped={false} />
-                </mesh>
-              </group>
-              {/* 귓바퀴 안쪽의 오목한 색면 */}
-              <mesh
-                position={[side * 0.3, 0.155, 0.034]}
-                rotation={[0, side * 0.75, 0]}
-                scale={[0.55, 1, 0.2]}
-              >
-                <sphereGeometry args={[0.034, 12, 10]} />
-                <meshStandardMaterial color={eyelidTone} roughness={1} />
+              <mesh geometry={trimGeo}>
+                <meshStandardMaterial
+                  map={fabric}
+                  color={collar}
+                  roughness={0.95}
+                  side={DoubleSide}
+                />
               </mesh>
             </group>
           ))}
-          {/* 콧대와 코끝, 아랫입술의 볼륨 */}
-          <mesh position={[0, 0.113, 0.285]} scale={[0.65, 1.65, 0.45]}>
-            <sphereGeometry args={[0.024, 12, 12]} />
-            <meshStandardMaterial color={face} roughness={0.95} />
+          {/* 고름: 납작한 매듭과 길이가 다른 두 가닥 */}
+          <mesh position={[0.105, 0.76, 0.252]}>
+            <sphereGeometry args={[0.026, 8, 6]} />
+            <meshStandardMaterial map={fabric} color={trim} roughness={0.75} />
           </mesh>
-          <mesh position={[0, 0.082, 0.298]} scale={[0.95, 0.7, 0.75]}>
-            <sphereGeometry args={[0.022, 14, 12]} />
-            <meshStandardMaterial color={noseTone} roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 0.027, 0.258]} scale={[1.3, 0.4, 0.25]}>
-            <sphereGeometry args={[0.022, 12, 8]} />
-            <meshStandardMaterial color={eyelidTone} roughness={1} />
-          </mesh>
-          <mesh position={[0, 0.038, 0.266]}>
-            <tubeGeometry args={[mouthCurve, 14, 0.003, 5, false]} />
-            <meshStandardMaterial color={lip} roughness={1} />
-          </mesh>
-          {/* 갓끈과 턱 밑 매듭 */}
-          {strapGeometry ? (
-            <mesh geometry={strapGeometry}>
-              <meshStandardMaterial color={trim} roughness={0.7} />
-            </mesh>
-          ) : null}
-          <mesh position={[0, -0.095, 0.195]}>
-            <sphereGeometry args={[0.012, 10, 8]} />
-            <meshStandardMaterial color={trim} roughness={0.35} />
-          </mesh>
-          {/* 갓의 얇은 챙과 원통형 대우 */}
-          <mesh position={[0, 0.425, 0]}>
-            <cylinderGeometry args={[0.375, 0.385, 0.016, 32]} />
-            <meshStandardMaterial color={hat} roughness={0.72} />
-          </mesh>
-          <mesh position={[0, 0.55, 0]}>
-            <cylinderGeometry args={[0.133, 0.153, 0.24, 24]} />
-            <meshStandardMaterial color={hat} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 0.438, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.153, 0.008, 4, 24]} />
-            <meshStandardMaterial color={trim} roughness={0.8} />
-          </mesh>
-          {/* 챙의 가장자리 테와 대우의 둥근 윗면 */}
-          <mesh position={[0, 0.425, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.38, 0.007, 5, 40]} />
-            <meshStandardMaterial color={hat} roughness={0.55} />
-          </mesh>
-          <mesh position={[0, 0.668, 0]} scale={[1, 0.18, 1]}>
-            <sphereGeometry
-              args={[0.133, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2]}
-            />
-            <meshStandardMaterial color={hat} roughness={0.8} />
-          </mesh>
-        </group>
-      </group>
-
-      {showLabel ? (
-        <Html
-          position={[0, 2.05, 0]}
-          center
-          distanceFactor={7}
-          zIndexRange={[10, 0]}
-          // drei 타입은 non-null ref를 요구하지만 마운트 전 null은 drei 내부에서 처리된다
-          portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
-        >
-          <div style={tagStackStyle} aria-hidden>
-            <span
-              style={{
-                ...tagPillStyle(highlight),
-                font: "var(--text-caption-lg-bold)",
-              }}
+          {[-1, 1].map((side) => (
+            <mesh
+              key={`ribbon${side}`}
+              position={[0.105 + side * 0.026, 0.66, 0.26]}
+              rotation={[0, 0, side * 0.2]}
             >
-              {houseDot ? (
+              <boxGeometry args={[0.025, side === 1 ? 0.21 : 0.16, 0.012]} />
+              <meshStandardMaterial
+                map={fabric}
+                color={trim}
+                roughness={0.85}
+              />
+            </mesh>
+          ))}
+          {/* 세조대와 허리의 작은 매듭 표식 */}
+          <mesh position={[0, 0.665, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.24, 0.012, 6, 24]} />
+            <meshStandardMaterial map={fabric} color={trim} roughness={0.8} />
+          </mesh>
+          <group position={[-0.18, 0.58, 0.215]}>
+            <mesh rotation={[0, 0, Math.PI / 4]}>
+              <torusGeometry args={[0.034, 0.01, 4, 4]} />
+              <meshStandardMaterial map={fabric} color={robe} roughness={0.8} />
+            </mesh>
+            <mesh position={[0, -0.08, 0]}>
+              <cylinderGeometry args={[0.012, 0.024, 0.09, 8]} />
+              <meshStandardMaterial
+                map={fabric}
+                color={trim}
+                roughness={0.85}
+              />
+            </mesh>
+          </group>
+          {/* 버선과 검은 신발 */}
+          {[-1, 1].map((side) => (
+            <group
+              key={`shoe${side}`}
+              ref={side === 1 ? rightFoot : leftFoot}
+              position={[side * 0.125, 0.065, 0.045]}
+            >
+              <mesh position={[0, 0.035, -0.02]}>
+                <cylinderGeometry args={[0.06, 0.06, 0.09, 10]} />
+                <meshStandardMaterial
+                  map={fabric}
+                  color={collar}
+                  roughness={1}
+                />
+              </mesh>
+              <mesh scale={[1, 0.5, 1.65]}>
+                <sphereGeometry args={[0.085, 12, 8]} />
+                <meshStandardMaterial color={hat} roughness={0.75} />
+              </mesh>
+            </group>
+          ))}
+          {/* 양팔과 넓은 소매. 실습하는 오른팔은 기존 동작을 유지한다. */}
+          {[-1, 1].map((side) => (
+            <group
+              key={`arm${side}`}
+              ref={side === 1 ? arm : leftArm}
+              position={[side * 0.19, 0.96, 0]}
+            >
+              <group rotation={[0, 0, side * 0.3]}>
+                {/* 소매: 어깨에서 좁게 시작해 소맷부리로 갈수록 넓어지는 한복 소매 */}
+                <mesh position={[side * 0.035, 0.0, 0]} scale={[1, 1, 0.95]}>
+                  <sphereGeometry args={[0.082, 16, 12]} />
+                  <meshStandardMaterial
+                    map={fabric}
+                    bumpMap={fabric}
+                    bumpScale={0.0015}
+                    color={coat}
+                    roughness={0.9}
+                  />
+                </mesh>
+                <mesh position={[side * 0.035, -0.17, 0]} scale={[1, 1, 0.92]}>
+                  <cylinderGeometry args={[0.082, 0.122, 0.31, 20]} />
+                  <meshStandardMaterial
+                    map={fabric}
+                    bumpMap={fabric}
+                    bumpScale={0.0015}
+                    color={coat}
+                    roughness={0.9}
+                  />
+                </mesh>
+                <mesh position={[side * 0.035, -0.31, 0]}>
+                  <cylinderGeometry args={[0.124, 0.124, 0.032, 20]} />
+                  <meshStandardMaterial
+                    map={fabric}
+                    color={robe}
+                    roughness={0.85}
+                  />
+                </mesh>
+                <mesh
+                  position={[side * 0.035, -0.385, 0.005]}
+                  scale={[0.85, 1.15, 0.8]}
+                >
+                  <sphereGeometry args={[0.066, 12, 10]} />
+                  <meshStandardMaterial color={face} roughness={0.85} />
+                </mesh>
+                {side === 1 && wand ? (
+                  <group
+                    ref={wandGroup}
+                    visible={practicing}
+                    position={[0.034, -0.42, 0.09]}
+                    rotation={[Math.PI / 2, 0, 0]}
+                  >
+                    <mesh position={[0, 0.12, 0]}>
+                      <cylinderGeometry args={[0.007, 0.021, 0.42, 16]} />
+                      <meshStandardMaterial
+                        color={wand.wood}
+                        roughness={0.48}
+                        metalness={0.08}
+                      />
+                    </mesh>
+                    {/* 대나무 마디와 손잡이를 감싼 천 */}
+                    {[0.035, 0.13, 0.225].map((y) => (
+                      <mesh
+                        key={y}
+                        position={[0, y, 0]}
+                        rotation={[Math.PI / 2, 0, 0]}
+                      >
+                        <torusGeometry
+                          args={[0.016 - y * 0.02, 0.0025, 6, 16]}
+                        />
+                        <meshStandardMaterial
+                          color={wand.wood}
+                          roughness={0.8}
+                        />
+                      </mesh>
+                    ))}
+                    <mesh position={[0, -0.035, 0]}>
+                      <cylinderGeometry args={[0.023, 0.024, 0.105, 16]} />
+                      <meshStandardMaterial color={robe} roughness={0.95} />
+                    </mesh>
+                    <mesh position={[0, -0.035, 0]}>
+                      <cylinderGeometry args={[0.024, 0.024, 0.028, 16]} />
+                      <meshStandardMaterial color={collar} roughness={0.9} />
+                    </mesh>
+                    {/* 북두칠성 금점 */}
+                    {[
+                      [0, 0.055],
+                      [0.007, 0.075],
+                      [0.002, 0.097],
+                      [0.009, 0.115],
+                      [0.003, 0.136],
+                      [0.009, 0.155],
+                      [0.004, 0.175],
+                    ].map(([x, y], i) => (
+                      <mesh key={i} position={[x, y, 0.018]}>
+                        <sphereGeometry args={[0.0025, 6, 6]} />
+                        <meshBasicMaterial color={band} toneMapped={false} />
+                      </mesh>
+                    ))}
+                    {/* 옥 구슬과 수술이 달린 노리개 */}
+                    <group position={[0.035, -0.11, 0]} rotation={[0, 0, 0.18]}>
+                      <mesh position={[0, 0.025, 0]}>
+                        <cylinderGeometry args={[0.002, 0.002, 0.07, 6]} />
+                        <meshStandardMaterial color={collar} />
+                      </mesh>
+                      <mesh position={[0, -0.02, 0]}>
+                        <sphereGeometry args={[0.013, 12, 10]} />
+                        <meshStandardMaterial color={band} roughness={0.25} />
+                      </mesh>
+                      <mesh position={[0, -0.075, 0]}>
+                        <cylinderGeometry args={[0.012, 0.018, 0.09, 10]} />
+                        <meshStandardMaterial color={robe} roughness={0.95} />
+                      </mesh>
+                    </group>
+                    <mesh position={[0, 0.31, 0]}>
+                      <sphereGeometry args={[0.015, 8, 8]} />
+                      <meshBasicMaterial color={wand.glow} toneMapped={false} />
+                    </mesh>
+                    {wandLightAt !== null ? (
+                      <group
+                        ref={wandLight}
+                        position={[0, 0.335, 0]}
+                        visible={false}
+                      >
+                        <pointLight
+                          ref={wandLightLamp}
+                          color={lightWhite}
+                          intensity={0}
+                          distance={4}
+                          decay={2}
+                        />
+                        <mesh>
+                          <sphereGeometry args={[0.035, 12, 10]} />
+                          <meshBasicMaterial
+                            color={lightWhite}
+                            toneMapped={false}
+                          />
+                        </mesh>
+                        <mesh>
+                          <sphereGeometry args={[0.095, 12, 10]} />
+                          <meshBasicMaterial
+                            color={lightWhite}
+                            transparent
+                            opacity={0.14}
+                            depthWrite={false}
+                            toneMapped={false}
+                          />
+                        </mesh>
+                      </group>
+                    ) : null}
+                  </group>
+                ) : null}
+              </group>
+            </group>
+          ))}
+          <group ref={head} position={[0, 1.1, 0]} scale={0.92}>
+            {/* 둥근 얼굴과 머리카락, 귀 */}
+            <mesh
+              geometry={faceGeometry}
+              position={[0, 0.17, 0.012]}
+              scale={[1, 0.98, 0.94]}
+            >
+              <meshStandardMaterial vertexColors roughness={0.9} />
+            </mesh>
+            <mesh position={[0, 0.195, -0.008]}>
+              <sphereGeometry
+                args={[0.302, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.46]}
+              />
+              <meshStandardMaterial color={hat} roughness={0.95} />
+            </mesh>
+            {[-1, 1].map((side) => (
+              <group key={`face${side}`}>
+                <mesh position={[side * 0.285, 0.16, 0]} scale={[0.55, 1, 0.7]}>
+                  <sphereGeometry args={[0.064, 10, 8]} />
+                  <meshStandardMaterial color={face} roughness={0.9} />
+                </mesh>
+                <mesh
+                  position={[side * 0.255, 0.24, 0.07]}
+                  scale={[0.48, 1, 0.6]}
+                >
+                  <sphereGeometry args={[0.086, 10, 8]} />
+                  <meshStandardMaterial color={hat} roughness={0.95} />
+                </mesh>
+                {/* 검정 동그라미 눈과 작은 흰색 하이라이트 */}
+                <group
+                  position={[side * 0.105, 0.162, 0.274]}
+                  rotation={[0, side * 0.36, side * 0.025]}
+                >
+                  <mesh>
+                    <circleGeometry args={[0.029, 24]} />
+                    <meshBasicMaterial color={hat} />
+                  </mesh>
+                  <mesh position={[-0.008, 0.01, 0.002]}>
+                    <circleGeometry args={[0.007, 16]} />
+                    <meshBasicMaterial color={collar} toneMapped={false} />
+                  </mesh>
+                </group>
+                {/* 귓바퀴 안쪽의 오목한 색면 */}
+                <mesh
+                  position={[side * 0.3, 0.155, 0.034]}
+                  rotation={[0, side * 0.75, 0]}
+                  scale={[0.55, 1, 0.2]}
+                >
+                  <sphereGeometry args={[0.034, 12, 10]} />
+                  <meshStandardMaterial color={eyelidTone} roughness={1} />
+                </mesh>
+              </group>
+            ))}
+            {/* 콧대와 코끝, 아랫입술의 볼륨 */}
+            <mesh position={[0, 0.113, 0.285]} scale={[0.65, 1.65, 0.45]}>
+              <sphereGeometry args={[0.024, 12, 12]} />
+              <meshStandardMaterial color={face} roughness={0.95} />
+            </mesh>
+            <mesh position={[0, 0.082, 0.298]} scale={[0.95, 0.7, 0.75]}>
+              <sphereGeometry args={[0.022, 14, 12]} />
+              <meshStandardMaterial color={noseTone} roughness={0.9} />
+            </mesh>
+            <mesh position={[0, 0.027, 0.258]} scale={[1.3, 0.4, 0.25]}>
+              <sphereGeometry args={[0.022, 12, 8]} />
+              <meshStandardMaterial color={eyelidTone} roughness={1} />
+            </mesh>
+            <mesh position={[0, 0.038, 0.266]}>
+              <tubeGeometry args={[mouthCurve, 14, 0.003, 5, false]} />
+              <meshStandardMaterial color={lip} roughness={1} />
+            </mesh>
+            {/* 갓끈과 턱 밑 매듭 */}
+            {strapGeometry ? (
+              <mesh geometry={strapGeometry}>
+                <meshStandardMaterial color={trim} roughness={0.7} />
+              </mesh>
+            ) : null}
+            <mesh position={[0, -0.095, 0.195]}>
+              <sphereGeometry args={[0.012, 10, 8]} />
+              <meshStandardMaterial color={trim} roughness={0.35} />
+            </mesh>
+            {/* 갓의 얇은 챙과 원통형 대우 */}
+            <mesh position={[0, 0.425, 0]}>
+              <cylinderGeometry args={[0.375, 0.385, 0.016, 32]} />
+              <meshStandardMaterial color={hat} roughness={0.72} />
+            </mesh>
+            <mesh position={[0, 0.55, 0]}>
+              <cylinderGeometry args={[0.133, 0.153, 0.24, 24]} />
+              <meshStandardMaterial color={hat} roughness={0.8} />
+            </mesh>
+            <mesh position={[0, 0.438, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.153, 0.008, 4, 24]} />
+              <meshStandardMaterial color={trim} roughness={0.8} />
+            </mesh>
+            {/* 챙의 가장자리 테와 대우의 둥근 윗면 */}
+            <mesh position={[0, 0.425, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.38, 0.007, 5, 40]} />
+              <meshStandardMaterial color={hat} roughness={0.55} />
+            </mesh>
+            <mesh position={[0, 0.668, 0]} scale={[1, 0.18, 1]}>
+              <sphereGeometry
+                args={[0.133, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2]}
+              />
+              <meshStandardMaterial color={hat} roughness={0.8} />
+            </mesh>
+          </group>
+        </group>
+
+        {showLabel ? (
+          <Html
+            position={[0, 2.05, 0]}
+            center
+            distanceFactor={7}
+            zIndexRange={[10, 0]}
+            // drei 타입은 non-null ref를 요구하지만 마운트 전 null은 drei 내부에서 처리된다
+            portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
+          >
+            <div ref={tagEl} style={tagStackStyle} aria-hidden>
+              <span
+                style={{
+                  ...tagPillStyle(highlight),
+                  font: "var(--text-caption-lg-bold)",
+                }}
+              >
+                {houseDot ? (
+                  <span
+                    style={{
+                      width: "var(--spacing-8)",
+                      height: "var(--spacing-8)",
+                      borderRadius: "var(--radius-circle)",
+                      background: houseDot,
+                    }}
+                  />
+                ) : null}
+                {name}
+              </span>
+              {subject ? (
                 <span
                   style={{
-                    width: "var(--spacing-8)",
-                    height: "var(--spacing-8)",
-                    borderRadius: "var(--radius-circle)",
-                    background: houseDot,
+                    ...tagPillStyle(highlight),
+                    font: "var(--text-caption-lg-medium)",
                   }}
-                />
+                >
+                  {subject}
+                  {pose === "sit"
+                    ? practicing
+                      ? " · 실습 중"
+                      : focusing
+                        ? ""
+                        : " · 휴식"
+                    : ""}
+                </span>
               ) : null}
-              {name}
-            </span>
-            {subject ? (
-              <span
-                style={{
-                  ...tagPillStyle(highlight),
-                  font: "var(--text-caption-lg-medium)",
-                }}
-              >
-                {subject}
-                {pose === "sit"
-                  ? practicing
-                    ? " · 실습 중"
-                    : focusing
-                      ? ""
-                      : " · 휴식"
-                  : ""}
-              </span>
-            ) : null}
-            {focusSeconds !== undefined ? (
-              <span
-                style={{
-                  ...tagPillStyle(highlight),
-                  font: "var(--text-caption-lg-medium)",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {formatClock(focusSeconds)}
-              </span>
-            ) : null}
-          </div>
-        </Html>
-      ) : null}
+              {focusSeconds !== undefined ? (
+                <span
+                  style={{
+                    ...tagPillStyle(highlight),
+                    font: "var(--text-caption-lg-medium)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatClock(focusSeconds)}
+                </span>
+              ) : null}
+            </div>
+          </Html>
+        ) : null}
 
-      {/* 서고의 속삭임: 이름표 위에 잠깐 떠오르는 말풍선 */}
-      {bubble ? (
-        <Html
-          position={[0, 2.75, 0]}
-          center
-          distanceFactor={7}
-          zIndexRange={[11, 1]}
-          portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
-        >
-          <div style={bubbleStyle} aria-hidden>
-            {bubble}
-          </div>
-        </Html>
-      ) : null}
+        {/* 서고의 속삭임: 이름표 위에 잠깐 떠오르는 말풍선 */}
+        {bubble ? (
+          <Html
+            position={[0, 2.75, 0]}
+            center
+            distanceFactor={7}
+            zIndexRange={[11, 1]}
+            portal={(portal ?? undefined) as RefObject<HTMLElement> | undefined}
+          >
+            <div style={bubbleStyle} aria-hidden>
+              {bubble}
+            </div>
+          </Html>
+        ) : null}
+      </group>
     </group>
   );
 });

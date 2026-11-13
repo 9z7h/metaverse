@@ -1,11 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { dayKey, loadToday, useFocusTimer } from "./useFocusTimer";
+import {
+  dayKey,
+  loadPastSeconds,
+  loadToday,
+  useFocusTimer,
+} from "./useFocusTimer";
 
 const KEY = "hanul-academy:focus";
+const PAST = "hanul-academy:past";
 
 beforeEach(() => {
   window.localStorage.removeItem(KEY);
+  window.localStorage.removeItem(PAST);
   vi.useFakeTimers();
   vi.setSystemTime(new Date(2026, 10, 5, 21, 0, 0)); // 밤 9시
 });
@@ -73,5 +80,44 @@ describe("useFocusTimer — 누적 스톱워치", () => {
     expect(result.current.elapsedSeconds).toBe(5);
     tick(10_000); // 00:00:05
     expect(result.current.elapsedSeconds).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("loadPastSeconds — 오늘 이전 누적(데모)", () => {
+  const now = new Date(2026, 10, 5, 21, 0, 0).getTime();
+  const yesterday = dayKey(new Date(2026, 10, 4, 12).getTime());
+
+  it("기록이 없으면 0", () => {
+    expect(loadPastSeconds(now)).toBe(0);
+  });
+
+  it("오늘 기록은 합치지 않는다", () => {
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ date: dayKey(now), seconds: 900 }),
+    );
+    expect(loadPastSeconds(now)).toBe(0);
+    expect(loadToday(now)).toBe(900);
+  });
+
+  it("지난 날 기록은 누적에 합치고 오늘 기록을 비운다 — 두 번 불러도 한 번만", () => {
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ date: yesterday, seconds: 1800 }),
+    );
+    expect(loadPastSeconds(now)).toBe(1800);
+    expect(loadPastSeconds(now)).toBe(1800);
+    expect(loadToday(now)).toBe(0);
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ date: yesterday, seconds: 600 }),
+    );
+    expect(loadPastSeconds(now)).toBe(2400);
+  });
+
+  it("망가진 값은 0으로 본다", () => {
+    window.localStorage.setItem(PAST, "많이");
+    window.localStorage.setItem(KEY, "{");
+    expect(loadPastSeconds(now)).toBe(0);
   });
 });

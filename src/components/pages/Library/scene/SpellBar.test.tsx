@@ -27,3 +27,37 @@ describe("지팡이 불빛 버튼", () => {
     expect(fire.textContent).toContain("8초");
   });
 });
+
+describe("잠긴 주문", () => {
+  it("수련 시간이 모자라는 주문은 잠긴 칩으로 보이고 누르지 못한다", () => {
+    const onCast = vi.fn();
+    render(<SpellBar onCast={onCast} totalSeconds={1800} />);
+    const locked = screen.getByRole("button", {
+      name: /소신.*30분을 더 채우면 풀립니다/,
+    });
+    expect(locked.hasAttribute("disabled")).toBe(true);
+    expect(locked.textContent).toContain("잠김");
+    fireEvent.click(locked);
+    expect(onCast).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("button", { name: /수호령.*4시간 30분/ })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("누적 시간이 차면 주문이 풀려 시전을 요청한다", () => {
+    const onCast = vi.fn();
+    render(<SpellBar onCast={onCast} totalSeconds={5 * 3600} />);
+    expect(screen.queryByText(/잠김/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /수호령/ }));
+    expect(onCast).toHaveBeenCalledWith("suhoryeong");
+  });
+
+  it("기본 주문은 수련 시간이 0이어도 쓸 수 있다", () => {
+    render(<SpellBar onCast={vi.fn()} totalSeconds={0} />);
+    expect(
+      screen.getByRole("button", { name: /화룡/ }).hasAttribute("disabled"),
+    ).toBe(false);
+  });
+});

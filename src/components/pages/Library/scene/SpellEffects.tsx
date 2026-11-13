@@ -1,6 +1,6 @@
 /**
- * 기본 주문 4종의 연출. 시전 하나가 구역 하나(반지름 CAST_RADIUS)만 쓰고 파티클은 MAX_PARTICLES 이하다.
- * 명경의 빛은 아바타 지팡이에 붙고, 나머지 효과는 시전자 앞 구역에 나타난다.
+ * 구역에 나타나는 주문 연출. 시전 하나가 구역 하나(반지름 CAST_RADIUS)만 쓰고 파티클은 MAX_PARTICLES 이하다.
+ * 명경의 빛은 아바타 지팡이에 붙고, 소신·거신·은형은 아바타 모습이 바뀌므로 여기서 따로 그리지 않는다.
  */
 import { useCallback, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -613,6 +613,127 @@ function Buun({ cast, colors }: EffectProps) {
   );
 }
 
+/* ── 수호령: 은빛 백호 윤곽이 구역을 한 바퀴 돌고 흩어진다 ───────── */
+
+const TIGER = PARTICLE_COUNTS.suhoryeong;
+/** 호랑이가 도는 반지름 — 구역 반지름(CAST_RADIUS) 안에 머문다 */
+const TIGER_RING = 0.85;
+/** 시전 시간 동안 도는 바퀴 수 */
+const TIGER_LAPS = 1.1;
+
+/**
+ * 호랑이 옆모습 광점 28개. [앞뒤(머리 쪽이 +), 높이, 다리 번호(-1이면 다리 아님)].
+ * 다리는 번호별로 걸음 위상이 달라 앞뒤로 흔들린다.
+ */
+const TIGER_SHAPE: ReadonlyArray<readonly [number, number, number]> = [
+  // 등선
+  [-0.4, 0.5, -1],
+  [-0.27, 0.56, -1],
+  [-0.13, 0.58, -1],
+  [0.02, 0.58, -1],
+  [0.16, 0.56, -1],
+  [0.3, 0.52, -1],
+  // 배선
+  [-0.32, 0.34, -1],
+  [-0.14, 0.3, -1],
+  [0.06, 0.3, -1],
+  [0.24, 0.34, -1],
+  // 머리·주둥이·귀
+  [0.42, 0.55, -1],
+  [0.5, 0.5, -1],
+  [0.58, 0.44, -1],
+  [0.4, 0.66, -1],
+  [0.34, 0.65, -1],
+  // 꼬리
+  [-0.5, 0.48, -1],
+  [-0.6, 0.55, -1],
+  [-0.66, 0.66, -1],
+  // 다리 (앞다리 둘, 뒷다리 둘 — 각 2점)
+  [0.26, 0.2, 0],
+  [0.26, 0.04, 0],
+  [0.14, 0.2, 1],
+  [0.14, 0.04, 1],
+  [-0.26, 0.2, 1],
+  [-0.26, 0.04, 1],
+  [-0.38, 0.2, 0],
+  [-0.38, 0.04, 0],
+  // 어깨·엉덩이 줄무늬 점
+  [0.1, 0.45, -1],
+  [-0.2, 0.46, -1],
+];
+
+function Suhoryeong({ cast, colors }: EffectProps) {
+  const root = useRef<Group>(null);
+  const body = useRef<Points>(null);
+  const bodyMat = useRef<PointsMaterial>(null);
+  const glow = useRef<Mesh>(null);
+  const glowMat = useRef<MeshBasicMaterial>(null);
+  const pos = useMemo(() => new Float32Array(TIGER * 3), []);
+  const halo = useMemo(() => getHalo(), []);
+
+  useFrame(() => {
+    const now = performance.now();
+    const p = castProgress(cast, now);
+    if (root.current) root.current.visible = p !== null;
+    if (p === null) return;
+    const t = (now - cast.t0) / 1000;
+    const angle = cast.ry + p * TIGER_LAPS * Math.PI * 2;
+    // 원의 접선 방향이 호랑이가 바라보는 앞이다
+    const tx = -Math.sin(angle);
+    const tz = Math.cos(angle);
+    const cx = Math.cos(angle) * TIGER_RING;
+    const cz = Math.sin(angle) * TIGER_RING;
+    const stride = t * 5;
+    for (let i = 0; i < TIGER; i++) {
+      const [lx, ly, leg] = TIGER_SHAPE[i];
+      const swing = leg < 0 ? 0 : Math.sin(stride + leg * Math.PI) * 0.08;
+      const lift =
+        leg < 0 ? 0 : Math.max(0, Math.cos(stride + leg * Math.PI)) * 0.03;
+      // 몸이 걸음마다 살짝 오르내리고 윤곽이 은은하게 일렁인다
+      const bob = Math.sin(stride * 2) * 0.012;
+      const shimmer = Math.sin(t * 3 + i * 1.7) * 0.006;
+      const along = lx + swing;
+      pos[i * 3] = cx + tx * along;
+      pos[i * 3 + 1] = ly + lift + bob + shimmer;
+      pos[i * 3 + 2] = cz + tz * along;
+    }
+    touch(body.current);
+    const a = fade(p, SPELLS.suhoryeong.durationMs, 700, 1500);
+    if (bodyMat.current) bodyMat.current.opacity = a * 0.95;
+    if (glow.current) {
+      glow.current.position.set(cx, 0.02, cz);
+      glow.current.scale.setScalar(1 + Math.sin(stride * 2) * 0.04);
+    }
+    if (glowMat.current) glowMat.current.opacity = a * 0.4;
+  });
+
+  return (
+    <group ref={root} position={[cast.x, cast.y ?? 0, cast.z]}>
+      <Glow
+        pointsRef={body}
+        matRef={bodyMat}
+        positions={pos}
+        color={colors["--color-scene-moonlight"]}
+        size={0.11}
+      />
+      {/* 걷는 자리에 번지는 은빛 */}
+      <mesh ref={glow} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.3, 1.3]} />
+        <meshBasicMaterial
+          ref={glowMat}
+          map={halo}
+          color={colors["--color-scene-moonlight"]}
+          transparent
+          opacity={0}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 /* ── 모아 그리기 ───────────────────────────────────────── */
 
 const EFFECT: Record<SpellCast["spell"], (p: EffectProps) => React.ReactNode> =
@@ -621,6 +742,11 @@ const EFFECT: Record<SpellCast["spell"], (p: EffectProps) => React.ReactNode> =
     mukryeong: (p) => <Mukryeong {...p} />,
     hwaryong: (p) => <Hwaryong {...p} />,
     buun: (p) => <Buun {...p} />,
+    // 몸 주문은 아바타 모습이 바뀌므로 구역에 그릴 것이 없다
+    sosin: () => null,
+    geosin: () => null,
+    eunhyeong: () => null,
+    suhoryeong: (p) => <Suhoryeong {...p} />,
   };
 
 export interface SpellEffectsProps {

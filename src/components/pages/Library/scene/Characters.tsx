@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { DissolveEffect, MagicEffect } from "./MagicEffect";
 import { dissolveAlpha, dissolveProgress, dissolveRise } from "./magicMotion";
 import type { AvatarPose } from "./Avatar";
+import type { BodyEffect } from "./spellLogic";
 import {
   BOARD_LIFT,
   DOOR,
@@ -88,6 +89,8 @@ export interface PlayerProps {
   /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
   wandLightAt?: number | null;
+  /** 이 사람에게 걸린 몸 주문(소신·거신·은형) */
+  bodyEffect?: BodyEffect | null;
   /** true면 카메라가 순위판 앞으로 날아가 순위판을 크게 보여 준다 (매 프레임 읽음) */
   boardView?: MutableRefObject<boolean>;
   /** 내 머리 위 말풍선 글 */
@@ -142,6 +145,7 @@ export function Player({
   facingRef,
   castAt,
   wandLightAt,
+  bodyEffect,
   boardView,
   bubble,
   onMove,
@@ -328,6 +332,7 @@ export function Player({
       practicing={practicing}
       castAt={castAt}
       wandLightAt={wandLightAt}
+      bodyEffect={bodyEffect}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],
@@ -473,6 +478,8 @@ export interface RemoteWalkerProps {
   /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
   wandLightAt?: number | null;
+  /** 이 사람에게 걸린 몸 주문(소신·거신·은형) */
+  bodyEffect?: BodyEffect | null;
 }
 
 export function RemoteWalker({
@@ -483,6 +490,7 @@ export function RemoteWalker({
   bubble,
   castAt = null,
   wandLightAt = null,
+  bodyEffect = null,
 }: RemoteWalkerProps) {
   const ref = useRef<Group>(null);
   const pos = useRef<Vec2 | null>(null);
@@ -532,6 +540,7 @@ export function RemoteWalker({
       practicing={false}
       castAt={castAt}
       wandLightAt={wandLightAt}
+      bodyEffect={bodyEffect}
       wand={{
         wood: colors["--color-scene-wood-dark"],
         glow: colors["--color-scene-flame"],

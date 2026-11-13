@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  BODY_FADE_IN_MS,
+  BODY_FADE_OUT_MS,
   CAST_DISTANCE,
   CAST_RELEASE_MS,
   CAST_SWING_MS,
@@ -11,11 +13,19 @@ import {
   SPELL_ORDER,
   activeCasts,
   addCast,
+  bodyAmount,
+  bodyEffectOf,
+  bodyFadeNow,
+  nextBodyFadeChange,
+  bodyKindOf,
   canCast,
   castProgress,
   castZone,
+  formatRemaining,
   isSpellId,
+  isUnlocked,
   resolveLightToggle,
+  secondsToUnlock,
   swingPose,
   wandLightIsOn,
 } from "./spellLogic";
@@ -31,11 +41,20 @@ function cast(
 }
 
 describe("주문 표", () => {
-  it("네 주문이 순서대로 있고 이름이 모두 다르다", () => {
-    expect(SPELL_ORDER).toHaveLength(4);
+  it("여덟 주문이 순서대로 있고 이름이 모두 다르다", () => {
+    expect(SPELL_ORDER).toHaveLength(8);
     const names = SPELL_ORDER.map((id) => SPELLS[id].name);
-    expect(new Set(names).size).toBe(4);
-    expect(names).toEqual(["명경", "묵령", "화룡", "부운"]);
+    expect(new Set(names).size).toBe(8);
+    expect(names).toEqual([
+      "명경",
+      "묵령",
+      "화룡",
+      "부운",
+      "소신",
+      "거신",
+      "은형",
+      "수호령",
+    ]);
   });
 
   it("isSpellId는 목록의 주문만 통과시킨다", () => {
@@ -81,7 +100,10 @@ describe("지팡이 불빛", () => {
 describe("파티클 예산", () => {
   it("주문 하나가 쓰는 파티클은 MAX_PARTICLES 이하다", () => {
     for (const id of SPELL_ORDER) {
-      expect(PARTICLE_COUNTS[id]).toBeGreaterThan(0);
+      // 몸 주문은 아바타를 바꾸므로 따로 그리는 파티클이 없다
+      if (bodyKindOf(id) === null) {
+        expect(PARTICLE_COUNTS[id]).toBeGreaterThan(0);
+      }
       expect(PARTICLE_COUNTS[id]).toBeLessThanOrEqual(MAX_PARTICLES);
     }
   });
@@ -122,6 +144,10 @@ describe("canCast", () => {
       mukryeong: 500,
       hwaryong: 8000,
       buun: 6000,
+      sosin: 1500,
+      geosin: 1500,
+      eunhyeong: 10000,
+      suhoryeong: 8000,
     });
   });
 });
@@ -233,5 +259,164 @@ describe("시작 전 효과", () => {
     expect(castProgress(list[0], 0)).toBeNull();
     expect(castProgress(list[0], CAST_RELEASE_MS + 1)).not.toBeNull();
     expect(activeCasts(list, 100)).toHaveLength(1);
+  });
+});
+
+describe("해금", () => {
+  it("기본 네 주문은 처음부터, 나머지는 정해진 누적 시간에 풀린다", () => {
+    for (const id of ["myeonggyeong", "mukryeong", "hwaryong", "buun"] as const)
+      expect(isUnlocked(id, 0)).toBe(true);
+    expect(isUnlocked("sosin", 3599)).toBe(false);
+    expect(isUnlocked("sosin", 3600)).toBe(true);
+    expect(isUnlocked("geosin", 3600)).toBe(true);
+    expect(isUnlocked("eunhyeong", 3 * 3600 - 1)).toBe(false);
+    expect(isUnlocked("eunhyeong", 3 * 3600)).toBe(true);
+    expect(isUnlocked("suhoryeong", 5 * 3600 - 1)).toBe(false);
+    expect(isUnlocked("suhoryeong", 5 * 3600)).toBe(true);
+  });
+
+  it("남은 시간은 풀리면 0이다", () => {
+    expect(secondsToUnlock("sosin", 0)).toBe(3600);
+    expect(secondsToUnlock("sosin", 1000)).toBe(2600);
+    expect(secondsToUnlock("sosin", 9999)).toBe(0);
+    expect(secondsToUnlock("hwaryong", 0)).toBe(0);
+  });
+
+  it("남은 시간을 시·분으로 올림해 적는다", () => {
+    expect(formatRemaining(59)).toBe("1분");
+    expect(formatRemaining(35 * 60)).toBe("35분");
+    expect(formatRemaining(3600)).toBe("1시간");
+    expect(formatRemaining(3600 + 20 * 60 + 1)).toBe("1시간 21분");
+  });
+
+  it("풀리는 순서는 소신·거신 → 은형 → 수호령이다", () => {
+    const need = (id: (typeof SPELL_ORDER)[number]) => SPELLS[id].unlockSeconds;
+    expect(need("sosin")).toBe(need("geosin"));
+    expect(need("sosin")).toBeLessThan(need("eunhyeong"));
+    expect(need("eunhyeong")).toBeLessThan(need("suhoryeong"));
+  });
+});
+
+describe("몸 주문", () => {
+  it("소신·거신·은형만 몸 주문이다", () => {
+    expect(bodyKindOf("sosin")).toBe("small");
+    expect(bodyKindOf("geosin")).toBe("big");
+    expect(bodyKindOf("eunhyeong")).toBe("hidden");
+    expect(bodyKindOf("suhoryeong")).toBeNull();
+    expect(bodyKindOf("hwaryong")).toBeNull();
+  });
+
+  it("변화량은 서서히 0→1로 오르고 끝에서 0으로 돌아온다", () => {
+    const d = 12000;
+    expect(bodyAmount(-1, d)).toBe(0);
+    expect(bodyAmount(0, d)).toBe(0);
+    expect(bodyAmount(BODY_FADE_IN_MS, d)).toBeCloseTo(1);
+    expect(bodyAmount(d / 2, d)).toBe(1);
+    expect(bodyAmount(d - BODY_FADE_OUT_MS / 2, d)).toBeGreaterThan(0);
+    expect(bodyAmount(d - BODY_FADE_OUT_MS / 2, d)).toBeLessThan(1);
+    expect(bodyAmount(d, d)).toBe(0);
+  });
+
+  it("시전자 한 명의 몸 주문만 찾고, 끝나면 null이다", () => {
+    const list = [cast("a", "sosin", 100), cast("b", "eunhyeong", 100)];
+    expect(bodyEffectOf(list, "a", 200)?.kind).toBe("small");
+    expect(bodyEffectOf(list, "b", 200)?.kind).toBe("hidden");
+    expect(bodyEffectOf(list, "c", 200)).toBeNull();
+    expect(bodyEffectOf(list, "a", 100 + SPELLS.sosin.durationMs)).toBeNull();
+  });
+
+  it("한 사람이 새 몸 주문을 쓰면 앞의 몸 주문이 끝난다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "sosin", 0), 0);
+    list = addCast(list, cast("a", "hwaryong", 10), 10);
+    list = addCast(list, cast("a", "eunhyeong", 20), 20);
+    expect(list.map((c) => c.spell)).toEqual(["hwaryong", "eunhyeong"]);
+  });
+
+  it("소신은 10분, 거신은 30분 남는다", () => {
+    expect(SPELLS.sosin.durationMs).toBe(10 * 60 * 1000);
+    expect(SPELLS.geosin.durationMs).toBe(30 * 60 * 1000);
+  });
+
+  it("작아진 채 거신을 쓰면 커지지 않고 원래 크기로 돌아온다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "sosin", 1000), 1000);
+    const back = addCast(list, cast("a", "geosin", 5000), 5000);
+    // 거신 시전은 남지 않고, 소신이 지금 시점에서 서서히 끝난다
+    expect(back.map((c) => c.spell)).toEqual(["sosin"]);
+    const end = 5000 - 1000 + BODY_FADE_OUT_MS;
+    expect(back[0].durationMs).toBe(end);
+    expect(bodyEffectOf(back, "a", 5000)?.kind).toBe("small");
+    expect(bodyEffectOf(back, "a", 1000 + end)).toBeNull();
+    // 돌아오는 동안 변화량은 1에서 0으로 줄어든다
+    const eff = bodyEffectOf(back, "a", 5000)!;
+    expect(bodyAmount(5000 - eff.at, eff.durationMs)).toBeCloseTo(1);
+    expect(
+      bodyAmount(5000 - eff.at + BODY_FADE_OUT_MS / 2, eff.durationMs),
+    ).toBeLessThan(1);
+  });
+
+  it("커진 채 소신을 써도 원래 크기로 돌아오고, 그 다음 쓰면 다시 바뀐다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "geosin", 0), 0);
+    list = addCast(list, cast("a", "sosin", 3000), 3000);
+    expect(list.map((c) => c.spell)).toEqual(["geosin"]);
+    const later = 3000 + BODY_FADE_OUT_MS + 10;
+    list = addCast(list, cast("a", "sosin", later), later);
+    expect(list.map((c) => c.spell)).toEqual(["sosin"]);
+  });
+
+  it("같은 주문을 다시 쓰면 되돌아가지 않고 시간이 새로 시작한다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "sosin", 0), 0);
+    list = addCast(list, cast("a", "sosin", 4000), 4000);
+    expect(list).toHaveLength(1);
+    expect(list[0].t0).toBe(4000);
+    expect(list[0].durationMs).toBeUndefined();
+  });
+
+  it("되돌리기는 시전자 본인의 몸 주문에만 작용한다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "sosin", 0), 0);
+    list = addCast(list, cast("b", "geosin", 100), 100);
+    expect(list.map((c) => `${c.caster}:${c.spell}`)).toEqual([
+      "a:sosin",
+      "b:geosin",
+    ]);
+    expect(list.every((c) => c.durationMs === undefined)).toBe(true);
+  });
+
+  it("은형은 소신·거신과 서로 교체될 뿐 되돌리기로 보지 않는다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "sosin", 0), 0);
+    list = addCast(list, cast("a", "eunhyeong", 50), 50);
+    expect(list.map((c) => c.spell)).toEqual(["eunhyeong"]);
+  });
+
+  it("몸이 바뀌고 돌아오는 순간에만 화면을 다시 그리게 한다", () => {
+    const list = [cast("a", "sosin", 1000)];
+    const d = SPELLS.sosin.durationMs;
+    expect(bodyFadeNow(list, 500)).toBe(false);
+    expect(bodyFadeNow(list, 950)).toBe(true);
+    expect(bodyFadeNow(list, 1000 + BODY_FADE_IN_MS)).toBe(false);
+    expect(bodyFadeNow(list, 1000 + d / 2)).toBe(false);
+    expect(bodyFadeNow(list, 1000 + d - 100)).toBe(true);
+    expect(bodyFadeNow(list, 1000 + d)).toBe(false);
+    expect(nextBodyFadeChange(list, 500)).toBe(500 - 100);
+    expect(nextBodyFadeChange(list, 1000 + d)).toBeNull();
+    expect(bodyFadeNow([cast("a", "hwaryong", 1000)], 1000)).toBe(false);
+  });
+
+  it("남의 몸 주문은 건드리지 않고, 다른 효과가 넘쳐도 밀려나지 않는다", () => {
+    let list: SpellCast[] = [];
+    list = addCast(list, cast("a", "eunhyeong", 0), 0);
+    list = addCast(list, cast("b", "sosin", 0), 0);
+    for (let i = 0; i < MAX_ACTIVE + 3; i++) {
+      list = addCast(list, cast(`u${i}`, "buun", i), i);
+    }
+    const left = list.map((c) => `${c.caster}:${c.spell}`);
+    expect(left).toContain("a:eunhyeong");
+    expect(left).toContain("b:sosin");
+    expect(list.filter((c) => c.spell === "buun")).toHaveLength(MAX_ACTIVE);
   });
 });

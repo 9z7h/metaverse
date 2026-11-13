@@ -9,11 +9,30 @@ import {
 } from "./spellSound";
 
 describe("주문 효과음", () => {
-  it("네 주문에 모두 효과음이 있다", () => {
-    expect(hasSpellSound("myeonggyeong")).toBe(true);
-    expect(hasSpellSound("mukryeong")).toBe(true);
-    expect(hasSpellSound("hwaryong")).toBe(true);
-    expect(hasSpellSound("buun")).toBe(true);
+  it("모든 주문에 효과음이 있다", () => {
+    for (const id of SPELL_ORDER) expect(hasSpellSound(id)).toBe(true);
+  });
+
+  it("소신은 내려가고 거신은 올라가는 두 음이다", () => {
+    const freqs = (id: "sosin" | "geosin") =>
+      (SPELL_SOUND_LAYERS[id] ?? []).flatMap(({ sound }) =>
+        sound.kind === "tone" ? [sound.freq] : [],
+      );
+    const small = freqs("sosin");
+    const big = freqs("geosin");
+    expect(small).toHaveLength(2);
+    expect(small[1]).toBeLessThan(small[0]);
+    expect(big).toHaveLength(2);
+    expect(big[1]).toBeGreaterThan(big[0]);
+  });
+
+  it("은형은 숨 같은 바람이고 수호령은 길게 울리는 종소리다", () => {
+    expect(
+      SPELL_SOUND_LAYERS.eunhyeong?.every(({ sound }) => sound.kind === "hiss"),
+    ).toBe(true);
+    const bell = SPELL_SOUND_LAYERS.suhoryeong ?? [];
+    expect(bell.length).toBeGreaterThanOrEqual(2);
+    expect(bell.every(({ sound }) => sound.kind === "tone")).toBe(true);
   });
 
   it("화룡과 부운은 서로 다른 불길과 떠오르는 바람 소리를 사용한다", () => {

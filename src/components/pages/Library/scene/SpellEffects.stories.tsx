@@ -120,3 +120,8 @@ export const Myeonggyeong: Story = {
 export const Mukryeong: Story = { args: { spell: "mukryeong" } };
 export const Hwaryong: Story = { args: { spell: "hwaryong" } };
 export const Buun: Story = { args: { spell: "buun" } };
+export const Suhoryeong: Story = { args: { spell: "suhoryeong" } };
+/** 몸 주문은 구역에 그릴 것이 없다 — 아바타가 바뀌는 모습은 Avatar 스토리에서 본다 */
+export const Sosin: Story = { args: { spell: "sosin" } };
+export const Geosin: Story = { args: { spell: "geosin" } };
+export const Eunhyeong: Story = { args: { spell: "eunhyeong" } };

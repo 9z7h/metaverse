@@ -40,6 +40,16 @@ export interface AcademyApi {
   reportFocus: (totalSeconds: number) => Promise<void>;
   /** 기숙사별 오늘 집중 시간 합계 — 나를 제외 */
   houseTotals: () => Promise<HouseSeconds>;
+  /** 오늘 이전의 내 수련 시간 합계(초) — 주문 해금에 쓴다. 오늘 시간은 화면에서 더한다 */
+  pastSeconds: () => Promise<number>;
+}
+
+/** 서버가 돌려준 초(bigint)를 0 이상의 정수로. 숫자가 아니면 0 */
+export function parseSeconds(raw: unknown): number {
+  const n = typeof raw === "string" ? Number(raw) : raw;
+  return typeof n === "number" && Number.isFinite(n)
+    ? Math.max(0, Math.floor(n))
+    : 0;
 }
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -130,5 +140,7 @@ async function connect(client: SupabaseClient): Promise<AcademyApi> {
     },
     houseTotals: async () =>
       parseHouseTotals(await call("academy_house_totals")),
+    pastSeconds: async () =>
+      parseSeconds(await call("academy_my_past_seconds")),
   };
 }

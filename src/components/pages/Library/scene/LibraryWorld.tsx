@@ -28,7 +28,7 @@ import { MagicEffect } from "./MagicEffect";
 import { SpellEffects } from "./SpellEffects";
 import { SpellBar } from "./SpellBar";
 import { useSpellCaster } from "./useSpellCaster";
-import { CAST_RELEASE_MS, SPELL_ORDER } from "./spellLogic";
+import { CAST_RELEASE_MS, SPELL_ORDER, bodyEffectOf } from "./spellLogic";
 import { playSpellSound } from "./spellSound";
 import type { SpellId } from "./spellLogic";
 import { SpaceSelect } from "./SpaceSelect";
@@ -83,6 +83,8 @@ import { prefersReducedMotion } from "./useReducedMotion";
 export interface LibraryWorldProps {
   presence: LibraryPresence;
   timer: FocusTimerState;
+  /** 누적 수련 시간(초) — 모자라는 주문은 잠겨 있다 */
+  totalSeconds?: number;
   subject: string;
   /** 내 기숙사 */
   house: HouseId;
@@ -210,6 +212,7 @@ const KEY_DIR: Record<string, [number, number]> = {
 export function LibraryWorld({
   presence,
   timer,
+  totalSeconds = 0,
   subject,
   house,
   ranking,
@@ -369,6 +372,7 @@ export function LibraryWorld({
       ry: playerFacing.current,
     }),
     enabled: !mySeatId && !viewingBoard,
+    totalSeconds,
   });
   const castLocal = spells.cast;
   const addRemoteCast = spells.addRemote;
@@ -417,7 +421,7 @@ export function LibraryWorld({
         sync();
         e.preventDefault();
       } else if (
-        /^Digit[1-4]$/.test(e.code) &&
+        /^Digit[1-8]$/.test(e.code) &&
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey
@@ -747,6 +751,11 @@ export function LibraryWorld({
                     moves={presence.moves}
                     bubble={bubbles.get(w.id)?.text}
                     castAt={remoteCastAt[w.id] ?? null}
+                    bodyEffect={bodyEffectOf(
+                      spells.casts,
+                      w.id,
+                      performance.now(),
+                    )}
                     wandLightAt={
                       spells.casts.find(
                         (c) => c.caster === w.id && c.spell === "myeonggyeong",
@@ -767,6 +776,11 @@ export function LibraryWorld({
                   positionRef={playerPos}
                   facingRef={playerFacing}
                   castAt={spells.castAt}
+                  bodyEffect={bodyEffectOf(
+                    spells.casts,
+                    "me",
+                    performance.now(),
+                  )}
                   wandLightAt={
                     spells.casts.find(
                       (c) => c.caster === "me" && c.spell === "myeonggyeong",
@@ -1130,6 +1144,7 @@ export function LibraryWorld({
                 onCast={castSpell}
                 lightOn={spells.lightOn}
                 cooldowns={spells.cooldowns}
+                totalSeconds={totalSeconds}
               />
             )}
             <p

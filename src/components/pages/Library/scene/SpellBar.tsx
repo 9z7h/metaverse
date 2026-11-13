@@ -1,6 +1,12 @@
 import type { CSSProperties } from "react";
 import { ButtonSmall } from "../../../ui/Button";
-import { SPELLS, SPELL_ORDER } from "./spellLogic";
+import {
+  SPELLS,
+  SPELL_ORDER,
+  formatRemaining,
+  isUnlocked,
+  secondsToUnlock,
+} from "./spellLogic";
 import type { SpellId } from "./spellLogic";
 
 const barStyle: CSSProperties = {
@@ -17,6 +23,8 @@ export interface SpellBarProps {
   disabled?: boolean;
   lightOn?: boolean;
   cooldowns?: Partial<Record<SpellId, number>>;
+  /** 누적 수련 시간(초). 모자라는 주문은 잠긴 칩으로 보인다 */
+  totalSeconds?: number;
 }
 
 /** 명경과 묵령은 하나의 불빛 토글로 표시한다. */
@@ -25,6 +33,7 @@ export function SpellBar({
   disabled = false,
   lightOn = false,
   cooldowns = {},
+  totalSeconds = 0,
 }: SpellBarProps) {
   return (
     <div role="group" aria-label="주문" style={barStyle}>
@@ -38,6 +47,18 @@ export function SpellBar({
               : "명경 · 켜기"
             : SPELLS[id].name;
         const seconds = Math.ceil(remaining / 1000);
+        if (!isUnlocked(id, totalSeconds)) {
+          return (
+            <ButtonSmall
+              key={id}
+              style="monolight"
+              disabled
+              aria-label={`${SPELLS[id].name}, ${SPELLS[id].hint}, 수련 시간 ${formatRemaining(secondsToUnlock(id, totalSeconds))}을 더 채우면 풀립니다`}
+            >
+              {`${SPELLS[id].name} · 잠김`}
+            </ButtonSmall>
+          );
+        }
         return (
           <ButtonSmall
             key={id}

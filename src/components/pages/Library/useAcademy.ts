@@ -46,6 +46,36 @@ export function useAcademyConnection(
   return conn;
 }
 
+/**
+ * 오늘 이전의 내 수련 시간 합계(초) — 주문 해금에 쓴다. 연결되면 한 번 가져온다.
+ * 연결이 없거나 실패하면 `fallback`(이 기기에 쌓은 값)을 그대로 돌려준다.
+ */
+export function usePastSeconds(
+  api: AcademyApi | null,
+  fallback: number,
+): number {
+  const [past, setPast] = useState<number | null>(null);
+  useEffect(() => {
+    if (!api) {
+      setPast(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .pastSeconds()
+      .then((seconds) => {
+        if (!cancelled) setPast(seconds);
+      })
+      .catch(() => {
+        if (!cancelled) setPast(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+  return past ?? fallback;
+}
+
 const REPORT_INTERVAL_MS = 15_000;
 
 /**

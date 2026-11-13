@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { ButtonLarge, ButtonMedium } from "../../ui/Button";
 import { HouseCrest } from "./HouseCrest";
@@ -7,12 +7,19 @@ import { HOUSES, houseVar } from "./houses";
 import type { HouseId } from "./houses";
 import { prefersReducedMotion } from "./scene/useReducedMotion";
 
+// 3D 갓은 WebGL이 되는 기기에서 입장 화면이 뜰 때 내려받는다
+const MagicGat3D = lazy(() =>
+  import("./MagicGat3D").then((m) => ({ default: m.MagicGat3D })),
+);
+
 export interface SortingRevealProps {
   /** 이미 정해진 결과 — 사신갓은 이 기숙사를 외친다 */
   house: HouseId;
   onEnter: () => void;
   /** 갓이 내려와 외치기까지의 길이(ms). 기본 9500. 0이거나 모션 줄이기 설정이면 바로 결과 */
   durationMs?: number;
+  /** true면 3D 갓, 아니면 평면 그림 갓. 기본 false (WebGL을 쓸 수 있을 때만 켠다) */
+  webgl?: boolean;
 }
 
 /** 갓이 내려와 외치기까지의 기본 길이 — 두 줄을 여유 있게 읽을 수 있게 */
@@ -24,14 +31,6 @@ const SECOND_LINE_AT = 4200 / DEFAULT_DURATION_MS;
 /** 외치는 순간의 이펙트 키프레임. 색은 `--fx`(기숙사 포인트색 토큰)에서 온다 */
 const FX_CSS = `
 @keyframes fx-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
-@keyframes fx-shake {
-  0%, 100% { transform: translate(0, 0); }
-  15% { transform: translate(-7px, 3px); }
-  30% { transform: translate(6px, -4px); }
-  45% { transform: translate(-5px, -2px); }
-  60% { transform: translate(4px, 3px); }
-  80% { transform: translate(-2px, 1px); }
-}
 @keyframes fx-ring {
   from { transform: scale(0.3); opacity: 0.95; }
   to { transform: scale(3.4); opacity: 0; }
@@ -41,9 +40,9 @@ const FX_CSS = `
   to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.2); opacity: 0; }
 }
 @keyframes fx-crest {
-  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
-  55% { transform: scale(1.35) rotate(6deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
+  0% { transform: scale(0); opacity: 0; }
+  55% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 @keyframes fx-slam {
   0% { transform: scale(2.4); opacity: 0; filter: blur(8px); }
@@ -65,7 +64,6 @@ const FX_CSS = `
   100% { transform: scale(1.9); opacity: 0; }
 }
 .fx-flash { animation: fx-flash 700ms ease-out both; }
-.fx-shake { animation: fx-shake 450ms ease-out both; }
 .fx-ring { animation: fx-ring 900ms ease-out both; }
 .fx-burst { animation: fx-burst 800ms cubic-bezier(0.1, 0.8, 0.3, 1) both; }
 .fx-crest { animation: fx-crest 650ms cubic-bezier(0.2, 0.9, 0.3, 1.2) 120ms both; }
@@ -74,7 +72,7 @@ const FX_CSS = `
 .fx-drop { animation: fx-drop 400ms ease-out 150ms both; }
 .fx-gat-out { animation: fx-gat-out 380ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .fx-flash, .fx-shake, .fx-ring, .fx-burst, .fx-crest, .fx-slam,
+  .fx-flash, .fx-ring, .fx-burst, .fx-crest, .fx-slam,
   .fx-rise, .fx-drop, .fx-gat-out { animation: none; }
 }
 `;
@@ -94,6 +92,7 @@ export function SortingReveal({
   house,
   onEnter,
   durationMs = DEFAULT_DURATION_MS,
+  webgl = false,
 }: SortingRevealProps) {
   const instant = durationMs <= 0 || prefersReducedMotion();
   /** 말한 줄 수 (0~2). 외침(done)은 따로 */
@@ -164,7 +163,6 @@ export function SortingReveal({
       role="dialog"
       aria-modal="true"
       aria-label="기숙사 배정"
-      className={done && !instant ? "fx-shake" : undefined}
       style={rootStyle}
     >
       <style>{FX_CSS}</style>
@@ -213,12 +211,22 @@ export function SortingReveal({
             opacity: done ? 0 : 1,
           }}
         >
-          <MagicGat
-            size={192}
-            talking={!done && lines > 0}
-            shout={done}
-            glow="var(--color-scene-flame)"
-          />
+          {webgl ? (
+            <Suspense fallback={null}>
+              <MagicGat3D
+                size={192}
+                talking={!done && lines > 0}
+                shout={done}
+              />
+            </Suspense>
+          ) : (
+            <MagicGat
+              size={192}
+              talking={!done && lines > 0}
+              shout={done}
+              glow="var(--color-scene-flame)"
+            />
+          )}
         </div>
 
         {done && !instant ? (

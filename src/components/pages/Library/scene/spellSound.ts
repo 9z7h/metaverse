@@ -55,7 +55,10 @@ export const SPELL_SOUNDS: Partial<Record<SpellId, SoundSpec>> = {
   },
 };
 
-/** 불빛에는 잔향을, 불꽃에는 불길을, 부운에는 바람과 맑은 울림을 겹친다. */
+/**
+ * 불빛에는 잔향을, 불꽃에는 불길을, 부운에는 바람과 맑은 울림을 겹친다.
+ * 소신은 내려가는 두 음, 거신은 올라가는 두 음, 은형은 숨 같은 바람, 수호령은 종 같은 울림이다.
+ */
 export const SPELL_SOUND_LAYERS: Partial<
   Record<SpellId, ReadonlyArray<{ offsetMs: number; sound: SoundSpec }>>
 > = {
@@ -146,6 +149,107 @@ export const SPELL_SOUND_LAYERS: Partial<
           { ratio: 1, gain: 0.2, decayMs: 650 },
           { ratio: 2, gain: 0.07, decayMs: 350 },
         ],
+      },
+    },
+  ],
+  sosin: [
+    {
+      offsetMs: 0,
+      sound: {
+        kind: "tone",
+        freq: 1318.5,
+        attackMs: 20,
+        partials: [
+          { ratio: 1, gain: 0.26, decayMs: 260 },
+          { ratio: 2, gain: 0.08, decayMs: 140 },
+        ],
+      },
+    },
+    {
+      offsetMs: 110,
+      sound: {
+        kind: "tone",
+        freq: 987.77,
+        attackMs: 20,
+        partials: [
+          { ratio: 1, gain: 0.22, decayMs: 320 },
+          { ratio: 2, gain: 0.06, decayMs: 160 },
+        ],
+      },
+    },
+  ],
+  geosin: [
+    {
+      offsetMs: 0,
+      sound: {
+        kind: "tone",
+        freq: 440,
+        attackMs: 40,
+        partials: [
+          { ratio: 1, gain: 0.32, decayMs: 420 },
+          { ratio: 2, gain: 0.1, decayMs: 220 },
+        ],
+      },
+    },
+    {
+      offsetMs: 140,
+      sound: {
+        kind: "tone",
+        freq: 659.25,
+        attackMs: 50,
+        partials: [
+          { ratio: 1, gain: 0.26, decayMs: 520 },
+          { ratio: 2, gain: 0.08, decayMs: 260 },
+        ],
+      },
+    },
+  ],
+  eunhyeong: [
+    {
+      offsetMs: 0,
+      sound: {
+        kind: "hiss",
+        attackMs: 260,
+        decayMs: 820,
+        fromHz: 1200,
+        toHz: 2600,
+        q: 0.6,
+        gain: 0.3,
+      },
+    },
+  ],
+  suhoryeong: [
+    {
+      offsetMs: 0,
+      sound: {
+        kind: "tone",
+        freq: 587.33,
+        attackMs: 80,
+        partials: [
+          { ratio: 1, gain: 0.3, decayMs: 1100 },
+          { ratio: 2.76, gain: 0.08, decayMs: 600 },
+        ],
+      },
+    },
+    {
+      offsetMs: 180,
+      sound: {
+        kind: "tone",
+        freq: 880,
+        attackMs: 70,
+        partials: [
+          { ratio: 1, gain: 0.22, decayMs: 1000 },
+          { ratio: 2.76, gain: 0.06, decayMs: 500 },
+        ],
+      },
+    },
+    {
+      offsetMs: 380,
+      sound: {
+        kind: "tone",
+        freq: 1174.66,
+        attackMs: 60,
+        partials: [{ ratio: 1, gain: 0.16, decayMs: 1200 }],
       },
     },
   ],

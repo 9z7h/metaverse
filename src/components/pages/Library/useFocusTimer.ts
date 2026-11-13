@@ -16,6 +16,8 @@ export interface FocusTimerState {
  * 실시간 연동 시 사용자 기록(Supabase)으로 옮길 것. */
 
 const STORAGE_KEY = "hanul-academy:focus";
+/** 오늘 이전 날들의 누적 초 — 서버가 없는 데모에서만 쓴다 */
+const PAST_KEY = "hanul-academy:past";
 
 /** 로컬 시간 기준 YYYY-MM-DD */
 export function dayKey(ms: number): string {
@@ -33,6 +35,37 @@ export function loadToday(now: number): number {
     return v.date === dayKey(now) && typeof v.seconds === "number"
       ? Math.max(0, v.seconds)
       : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 오늘 이전의 누적 수련 시간(초). 서버가 없는 데모의 주문 해금용이다.
+ * 어제 이전에 저장된 오늘 기록이 남아 있으면 여기에 합치고, 오늘 기록을 0으로 비운다
+ * (두 번 불려도 한 번만 합쳐진다).
+ */
+export function loadPastSeconds(now: number): number {
+  try {
+    const stored = Number(window.localStorage.getItem(PAST_KEY));
+    let past = Number.isFinite(stored) && stored > 0 ? Math.floor(stored) : 0;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const v = JSON.parse(raw) as { date?: string; seconds?: number };
+      if (
+        typeof v.date === "string" &&
+        v.date !== dayKey(now) &&
+        typeof v.seconds === "number"
+      ) {
+        past += Math.max(0, Math.floor(v.seconds));
+        window.localStorage.setItem(PAST_KEY, String(past));
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ date: dayKey(now), seconds: 0 }),
+        );
+      }
+    }
+    return past;
   } catch {
     return 0;
   }

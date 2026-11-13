@@ -19,6 +19,7 @@ import type {
 } from "three";
 import { Avatar } from "../Avatar";
 import type { AvatarPose } from "../Avatar";
+import type { BodyEffect } from "../spellLogic";
 import { FOLLOW_RATE, IDLE_SEND_MS, MOVE_SEND_MS } from "../Characters";
 import { roundGlowKey, roundGlowShader } from "../MagicEffect";
 import { RUN_MULTIPLIER, cameraRelativeMove, cameraRig } from "../sceneLayout";
@@ -423,6 +424,8 @@ export interface BroomRiderProps {
   /** 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
   wandLightAt?: number | null;
+  /** 이 사람에게 걸린 몸 주문(소신·거신·은형) */
+  bodyEffect?: BodyEffect | null;
   /** 내 위치를 다른 접속자에게 알린다 (이 안에서 빈도를 조절하므로 그대로 보내면 된다) */
   onMove?: (
     x: number,
@@ -457,6 +460,7 @@ export function BroomRider({
   heightRef,
   castAt,
   wandLightAt,
+  bodyEffect,
   onMove,
   spawn,
 }: BroomRiderProps) {
@@ -694,6 +698,7 @@ export function BroomRider({
             footstep="grass"
             castAt={castAt}
             wandLightAt={wandLightAt}
+            bodyEffect={bodyEffect}
             wand={{
               wood: colors["--color-scene-wood-dark"],
               glow: colors["--color-scene-flame"],
@@ -731,6 +736,8 @@ export interface RemoteRiderProps {
   /** 이 사람이 주문을 시전한 시각(performance.now ms) — 지팡이를 휘두르는 연출 */
   castAt?: number | null;
   wandLightAt?: number | null;
+  /** 이 사람에게 걸린 몸 주문(소신·거신·은형) */
+  bodyEffect?: BodyEffect | null;
 }
 
 /**
@@ -745,6 +752,7 @@ export function RemoteRider({
   bubble,
   castAt = null,
   wandLightAt = null,
+  bodyEffect = null,
 }: RemoteRiderProps) {
   const root = useRef<Group>(null);
   const tilt = useRef<Group>(null);
@@ -833,6 +841,7 @@ export function RemoteRider({
             pose={pose}
             castAt={castAt}
             wandLightAt={wandLightAt}
+            bodyEffect={bodyEffect}
             wand={{
               wood: colors["--color-scene-wood-dark"],
               glow: colors["--color-scene-flame"],

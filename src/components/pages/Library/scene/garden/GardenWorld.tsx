@@ -26,7 +26,7 @@ import { MovementJoystick } from "../MovementJoystick";
 import { MyStudyChip } from "../MyStudyChip";
 import { DoorHoverLabel, moveDoorLabel } from "../DoorHoverLabel";
 import { useSpellCaster } from "../useSpellCaster";
-import { CAST_RELEASE_MS, SPELL_ORDER } from "../spellLogic";
+import { CAST_RELEASE_MS, SPELL_ORDER, bodyEffectOf } from "../spellLogic";
 import { playSpellSound } from "../spellSound";
 import type { SpellId } from "../spellLogic";
 import type { FloorPick } from "../Characters";
@@ -70,6 +70,8 @@ export type GardenPresence = Pick<
 export interface GardenWorldProps {
   /** 오늘 누적 수련 시간(초) — 나만 본다. 뜰은 쉬는 곳이라 타이머는 멈춰 있다 */
   todaySeconds?: number;
+  /** 누적 수련 시간(초) — 모자라는 주문은 잠겨 있다 */
+  totalSeconds?: number;
   house: HouseId;
   presence: GardenPresence;
   /** 서고로 돌아가기 (HUD 화살표·서고 문·E 키) */
@@ -132,6 +134,7 @@ const auto: CSSProperties = { pointerEvents: "auto" };
  */
 export function GardenWorld({
   todaySeconds = 0,
+  totalSeconds = 0,
   house,
   presence,
   onBack,
@@ -243,6 +246,7 @@ export function GardenWorld({
       ry: selfFacing.current,
     }),
     enabled: true,
+    totalSeconds,
   });
   const castLocal = spells.cast;
   const addRemoteCast = spells.addRemote;
@@ -319,7 +323,7 @@ export function GardenWorld({
         sync();
         e.preventDefault();
       } else if (
-        /^Digit[1-4]$/.test(e.code) &&
+        /^Digit[1-8]$/.test(e.code) &&
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey
@@ -545,6 +549,11 @@ export function GardenWorld({
                   reducedMotion={reduced}
                   bubble={bubbles.get(w.id)?.text}
                   castAt={remoteCastAt[w.id] ?? null}
+                  bodyEffect={bodyEffectOf(
+                    spells.casts,
+                    w.id,
+                    performance.now(),
+                  )}
                   wandLightAt={
                     spells.casts.find(
                       (c) => c.caster === w.id && c.spell === "myeonggyeong",
@@ -571,6 +580,7 @@ export function GardenWorld({
                 facingRef={selfFacing}
                 heightRef={selfHeight}
                 castAt={spells.castAt}
+                bodyEffect={bodyEffectOf(spells.casts, "me", performance.now())}
                 wandLightAt={
                   spells.casts.find(
                     (c) => c.caster === "me" && c.spell === "myeonggyeong",
@@ -751,6 +761,7 @@ export function GardenWorld({
             onCast={castSpell}
             lightOn={spells.lightOn}
             cooldowns={spells.cooldowns}
+            totalSeconds={totalSeconds}
           />
           <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
             <ButtonLarge style="monolight" onClick={toggleRide}>
