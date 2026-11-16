@@ -944,13 +944,14 @@ export function LibraryWorld({
             </ButtonSmall>
             {viewingBoard ? null : (
               <div className="world-chat-trigger">
-                <ButtonSmall
+                <ButtonMedium
+                  type="icon"
+                  icon="message"
                   style="monolight"
+                  aria-label="대화"
                   aria-expanded={chatOpen}
                   onClick={() => setChatOpen((v) => !v)}
-                >
-                  대화
-                </ButtonSmall>
+                />
               </div>
             )}
           </div>

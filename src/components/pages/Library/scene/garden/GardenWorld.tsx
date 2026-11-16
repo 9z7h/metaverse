@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { CSSProperties, PointerEvent, WheelEvent } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ButtonLarge, ButtonMedium, ButtonSmall } from "../../../../ui/Button";
+import { ButtonLarge, ButtonMedium } from "../../../../ui/Button";
 import { ChatPanel } from "../../ChatPanel";
 import {
   ME_BUBBLE_KEY,
@@ -684,28 +684,29 @@ export function GardenWorld({
               <MyStudyChip todaySeconds={todaySeconds} />
             </div>
             <div className="world-chat-trigger">
-              <ButtonSmall
+              <ButtonMedium
+                type="icon"
+                icon="message"
                 style="monolight"
                 aria-expanded={chatOpen}
                 aria-label={unread ? "대화 (새 글 있음)" : "대화"}
                 onClick={() => setChatOpen((v) => !v)}
-              >
-                대화
-                {unread ? (
-                  <span
-                    aria-hidden
-                    data-testid="chat-unread"
-                    style={{
-                      display: "inline-block",
-                      marginLeft: "var(--spacing-4)",
-                      width: "var(--spacing-8)",
-                      height: "var(--spacing-8)",
-                      borderRadius: "var(--radius-circle)",
-                      background: "var(--color-interactive-primary)",
-                    }}
-                  />
-                ) : null}
-              </ButtonSmall>
+              />
+              {unread ? (
+                <span
+                  aria-hidden
+                  data-testid="chat-unread"
+                  style={{
+                    position: "absolute",
+                    top: "var(--spacing-4)",
+                    right: "var(--spacing-4)",
+                    width: "var(--spacing-8)",
+                    height: "var(--spacing-8)",
+                    borderRadius: "var(--radius-circle)",
+                    background: "var(--color-interactive-primary)",
+                  }}
+                />
+              ) : null}
             </div>
           </div>
           {chatOpen ? (

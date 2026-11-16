@@ -38,6 +38,7 @@ export type IconName =
   | "pencil"
   | "music"
   | "sparkle"
+  | "send"
   | "google";
 
 /** 단색 stroke 아이콘의 공통 path 속성 */
@@ -60,6 +61,24 @@ export const multicolorIcons: readonly IconName[] = ["google"];
  * 각 항목은 외곽 <svg viewBox="0 0 16 16"> 내부에 그대로 삽입된다.
  */
 export const iconPaths: Record<IconName, ReactNode> = {
+  // lucide "send" (24 viewBox → 16 프레임)
+  send: (
+    <svg
+      x={1.333}
+      y={1.333}
+      width={13.334}
+      height={13.334}
+      viewBox="0 0 24 24"
+      overflow="visible"
+    >
+      <path
+        d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"
+        {...strokeProps}
+        strokeWidth={2}
+      />
+      <path d="m21.854 2.147-10.94 10.939" {...strokeProps} strokeWidth={2} />
+    </svg>
+  ),
   sparkle: (
     <>
       <path

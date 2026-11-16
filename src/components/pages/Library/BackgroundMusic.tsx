@@ -164,7 +164,6 @@ export function BackgroundMusic() {
           type="icon"
           icon="music"
           style="monolight"
-          radius="var(--radius-circle)"
           aria-label="음향 설정"
           aria-pressed={open}
           onClick={() => setOpen((value) => !value)}

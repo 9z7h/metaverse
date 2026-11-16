@@ -143,7 +143,6 @@ export function SpellBar({
         type="icon"
         icon="sparkle"
         style="monolight"
-        radius="var(--radius-circle)"
         aria-label="주문 목록"
         aria-pressed={open}
         onClick={() => {

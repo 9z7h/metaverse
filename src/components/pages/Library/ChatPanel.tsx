@@ -105,12 +105,20 @@ export function ChatPanel({
           서고의 속삭임
         </strong>
         <div style={{ display: "flex", gap: "var(--spacing-4)" }}>
-          <ButtonSmall style="monolight" onClick={onToggleEnabled}>
-            {enabled ? "채팅 끄기" : "채팅 켜기"}
-          </ButtonSmall>
-          <ButtonSmall style="monolight" onClick={onClose}>
-            닫기
-          </ButtonSmall>
+          <ButtonSmall
+            type="icon"
+            icon={enabled ? "eye-on" : "eye-off"}
+            style="monolight"
+            aria-label={enabled ? "채팅 끄기" : "채팅 켜기"}
+            onClick={onToggleEnabled}
+          />
+          <ButtonSmall
+            type="icon"
+            icon="close"
+            style="monolight"
+            aria-label="닫기"
+            onClick={onClose}
+          />
         </div>
       </div>
 
@@ -205,12 +213,13 @@ export function ChatPanel({
           style={{ flex: 1, minWidth: 0 }}
         />
         <ButtonSmall
+          type="icon"
+          icon="send"
           style="core"
+          aria-label="보내기"
           onClick={submit}
           disabled={!enabled || !normalizeChatText(draft)}
-        >
-          보내기
-        </ButtonSmall>
+        />
       </form>
     </section>
   );
