@@ -4,6 +4,9 @@ import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import "./index.css";
 import { Library } from "./components/pages/Library";
 import { supabaseOrNull } from "./lib/supabase";
+import { initAnalytics } from "./lib/analytics";
+
+initAnalytics();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
