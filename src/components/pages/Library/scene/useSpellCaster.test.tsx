@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useSpellCaster } from "./useSpellCaster";
-import { BODY_FADE_OUT_MS } from "./spellLogic";
+import { spiritAnimalForIdentity, useSpellCaster } from "./useSpellCaster";
+import { BODY_FADE_OUT_MS, CAST_RELEASE_MS, SPELLS } from "./spellLogic";
 import type { SpellCast } from "./spellLogic";
 
 afterEach(() => vi.restoreAllMocks());
@@ -23,14 +23,14 @@ describe("지팡이 불빛 토글", () => {
     });
     expect(sent[0]?.spell).toBe("myeonggyeong");
     expect(result.current.lightOn).toBe(true);
-    now.mockReturnValue(1500);
+    now.mockReturnValue(2750);
     act(() => {
       const cast = result.current.cast("myeonggyeong");
       if (cast) sent.push(cast);
     });
     expect(sent[1]?.spell).toBe("mukryeong");
     expect(result.current.lightOn).toBe(false);
-    now.mockReturnValue(2000);
+    now.mockReturnValue(4500);
     act(() => {
       const cast = result.current.cast("mukryeong");
       if (cast) sent.push(cast);
@@ -56,25 +56,25 @@ describe("지팡이 불빛 토글", () => {
       results.push(result.current.cast("buun"));
     });
     expect(results.map((c) => c?.spell)).toEqual(["hwaryong", "buun"]);
-    expect(result.current.cooldowns.hwaryong).toBe(8000);
-    expect(result.current.cooldowns.buun).toBe(6000);
-    now.mockReturnValue(6999);
+    expect(result.current.cooldowns.hwaryong).toBe(10000);
+    expect(result.current.cooldowns.buun).toBe(8000);
+    now.mockReturnValue(8999);
     act(() => {
       results.push(result.current.cast("buun"));
     });
     expect(results[2]).toBeNull();
-    now.mockReturnValue(7000);
+    now.mockReturnValue(9000);
     act(() => {
       results.push(result.current.cast("buun"));
     });
     expect(results[3]?.spell).toBe("buun");
     expect(result.current.cooldowns.hwaryong).toBe(2000);
-    now.mockReturnValue(8999);
+    now.mockReturnValue(10999);
     act(() => {
       results.push(result.current.cast("hwaryong"));
     });
     expect(results[4]).toBeNull();
-    now.mockReturnValue(9000);
+    now.mockReturnValue(11000);
     act(() => {
       results.push(result.current.cast("hwaryong"));
     });
@@ -92,6 +92,28 @@ describe("해금과 몸 주문", () => {
         totalSeconds,
       }),
     );
+
+  it("같은 사람의 수호령은 시전마다 유지되고 사람에 따라 배정된다", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const { result } = setup(5 * 3600);
+    const casts: (SpellCast | null)[] = [];
+    act(() => {
+      casts.push(result.current.cast("suhoryeong"));
+    });
+    now.mockReturnValue(12000);
+    act(() => {
+      casts.push(result.current.cast("suhoryeong"));
+    });
+    expect(casts[0]?.spiritAnimal).toBe(spiritAnimalForIdentity("me"));
+    expect(casts[1]?.spiritAnimal).toBe(casts[0]?.spiritAnimal);
+    expect(
+      new Set(
+        Array.from({ length: 50 }, (_, i) =>
+          spiritAnimalForIdentity(`user-${i}`),
+        ),
+      ).size,
+    ).toBe(5);
+  });
 
   it("누적 수련 시간이 모자라면 풀리지 않은 주문을 시전하지 못한다", () => {
     vi.spyOn(performance, "now").mockReturnValue(1000);
@@ -119,7 +141,9 @@ describe("해금과 몸 주문", () => {
       results.push(result.current.cast("sosin"));
     });
     expect(results[0]?.spell).toBe("sosin");
-    expect(result.current.cooldowns.sosin).toBe(1500);
+    expect(result.current.cooldowns.sosin).toBe(
+      SPELLS.sosin.durationMs + CAST_RELEASE_MS,
+    );
     now.mockReturnValue(1000 + 1499);
     act(() => {
       results.push(result.current.cast("sosin"));
@@ -140,6 +164,25 @@ describe("해금과 몸 주문", () => {
       .filter((c) => c.caster === "me")
       .map((c) => c.spell);
     expect(body).toEqual(["eunhyeong"]);
+  });
+
+  it("소신은 효과가 끝날 때까지 재시전할 수 없다", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const { result } = setup(3600);
+    act(() => {
+      result.current.cast("sosin");
+    });
+    now.mockReturnValue(1000 + CAST_RELEASE_MS + SPELLS.sosin.durationMs - 1);
+    let next: SpellCast | null = null;
+    act(() => {
+      next = result.current.cast("sosin");
+    });
+    expect(next).toBeNull();
+    now.mockReturnValue(1000 + CAST_RELEASE_MS + SPELLS.sosin.durationMs);
+    act(() => {
+      next = result.current.cast("sosin");
+    });
+    expect(next).not.toBeNull();
   });
 
   it("소신 중에 거신을 쓰면 원래 크기로 돌아온다", () => {

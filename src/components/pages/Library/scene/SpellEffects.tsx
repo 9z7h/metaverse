@@ -7,9 +7,15 @@ import { useFrame } from "@react-three/fiber";
 import {
   AdditiveBlending,
   CanvasTexture,
+  CapsuleGeometry,
+  CatmullRomCurve3,
   Color,
+  LatheGeometry,
   NormalBlending,
   SRGBColorSpace,
+  TubeGeometry,
+  Vector2,
+  Vector3,
 } from "three";
 import type {
   BufferAttribute,
@@ -613,7 +619,7 @@ function Buun({ cast, colors }: EffectProps) {
   );
 }
 
-/* ── 수호령: 은빛 백호 윤곽이 구역을 한 바퀴 돌고 흩어진다 ───────── */
+/* ── 수호령: 다섯 동물의 은빛 영체이 구역을 한 바퀴 돌고 흩어진다 ───────── */
 
 const TIGER = PARTICLE_COUNTS.suhoryeong;
 /** 호랑이가 도는 반지름 — 구역 반지름(CAST_RADIUS) 안에 머문다 */
@@ -645,9 +651,9 @@ const TIGER_SHAPE: ReadonlyArray<readonly [number, number, number]> = [
   [0.4, 0.66, -1],
   [0.34, 0.65, -1],
   // 꼬리
-  [-0.5, 0.48, -1],
-  [-0.6, 0.55, -1],
-  [-0.66, 0.66, -1],
+  [-0.49, 0.48, -1],
+  [-0.59, 0.5, -1],
+  [-0.67, 0.56, -1],
   // 다리 (앞다리 둘, 뒷다리 둘 — 각 2점)
   [0.26, 0.2, 0],
   [0.26, 0.04, 0],
@@ -662,12 +668,245 @@ const TIGER_SHAPE: ReadonlyArray<readonly [number, number, number]> = [
   [-0.2, 0.46, -1],
 ];
 
+/** 점 목록을 부드러운 곡선으로 이은 뒤 회전체로 빚는다 — 이음매 없는 매끈한 몸. [반지름, 축 위치] */
+function smoothLathe(
+  profile: ReadonlyArray<readonly [number, number]>,
+  segments = 40,
+) {
+  const curve = new CatmullRomCurve3(
+    profile.map(([r, y]) => new Vector3(r, y, 0)),
+    false,
+    "centripetal",
+  );
+  const pts = curve
+    .getPoints(segments)
+    .map((v) => new Vector2(Math.max(0, v.x), v.y));
+  return new LatheGeometry(pts, 36);
+}
+
+/** 몸통: 엉덩이에서 목까지 한 덩이. 축이 앞뒤(+z가 앞)가 되도록 눕힌다. */
+const TORSO_GEOMETRY = (() => {
+  const g = smoothLathe([
+    [0, -0.44],
+    [0.08, -0.41],
+    [0.15, -0.33],
+    [0.18, -0.18],
+    [0.175, 0],
+    [0.185, 0.16],
+    [0.16, 0.29],
+    [0.115, 0.38],
+    [0.08, 0.4],
+    [0, 0.44],
+  ]);
+  g.rotateX(Math.PI / 2);
+  g.scale(0.92, 1.08, 1);
+  return g;
+})();
+
+/** 머리 윤곽은 동물별로 빚는다. 축의 양수 쪽이 주둥이다. */
+const SPIRIT_HEAD_GEOMETRIES = [
+  // 백호: 넓은 볼과 짧고 두툼한 주둥이.
+  [
+    [0, -0.16],
+    [0.13, -0.12],
+    [0.18, -0.03],
+    [0.17, 0.06],
+    [0.105, 0.13],
+    [0.095, 0.19],
+    [0, 0.205],
+  ],
+  // 여우: 작은 뒤통수에서 가늘고 긴 주둥이로 이어진다.
+  [
+    [0, -0.14],
+    [0.09, -0.1],
+    [0.13, -0.02],
+    [0.105, 0.06],
+    [0.065, 0.14],
+    [0.025, 0.245],
+    [0, 0.26],
+  ],
+  // 사슴: 이마가 좁고 콧등이 길다.
+  [
+    [0, -0.14],
+    [0.075, -0.1],
+    [0.105, -0.02],
+    [0.08, 0.08],
+    [0.055, 0.2],
+    [0.045, 0.25],
+    [0, 0.27],
+  ],
+  // 토끼: 둥근 볼과 짧은 코.
+  [
+    [0, -0.13],
+    [0.1, -0.1],
+    [0.145, -0.01],
+    [0.13, 0.07],
+    [0.075, 0.13],
+    [0, 0.15],
+  ],
+  // 반달가슴곰: 넓은 두개골과 앞으로 나온 짧은 주둥이.
+  [
+    [0, -0.17],
+    [0.13, -0.12],
+    [0.18, -0.025],
+    [0.16, 0.07],
+    [0.085, 0.14],
+    [0.075, 0.21],
+    [0, 0.23],
+  ],
+].map((profile) => {
+  const geometry = smoothLathe(profile as Array<[number, number]>);
+  geometry.rotateX(Math.PI / 2);
+  geometry.scale(1, 0.9, 1);
+  return geometry;
+});
+const RABBIT_EAR_GEOMETRY = smoothLathe([
+  [0, -0.035],
+  [0.028, 0],
+  [0.043, 0.12],
+  [0.037, 0.27],
+  [0.02, 0.34],
+  [0, 0.36],
+]);
+const BEAR_CRESCENT_GEOMETRY = new TubeGeometry(
+  new CatmullRomCurve3([
+    new Vector3(-0.14, 0.03, 0.085),
+    new Vector3(-0.085, -0.035, 0.12),
+    new Vector3(0, -0.065, 0.135),
+    new Vector3(0.085, -0.035, 0.12),
+    new Vector3(0.14, 0.03, 0.085),
+  ]),
+  28,
+  0.018,
+  10,
+);
+
+/** 꼬리: 등 뒤로 내려왔다가 끝이 위로 말린다 */
+const TAIL_GEOMETRY = new TubeGeometry(
+  new CatmullRomCurve3([
+    new Vector3(0, 0.0, 0),
+    new Vector3(0, -0.07, -0.12),
+    new Vector3(0, -0.1, -0.26),
+    new Vector3(0, -0.03, -0.38),
+    new Vector3(0, 0.1, -0.44),
+  ]),
+  28,
+  0.028,
+  12,
+);
+const EAR_GEOMETRY = new CapsuleGeometry(0.035, 0.03, 8, 16);
+const POINTED_EAR_GEOMETRY = smoothLathe(
+  [
+    [0, -0.055],
+    [0.035, -0.04],
+    [0.04, 0],
+    [0.028, 0.06],
+    [0, 0.13],
+  ],
+  24,
+);
+const FOX_TAIL_GEOMETRY = (() => {
+  const g = smoothLathe([
+    [0, -0.53],
+    [0.035, -0.47],
+    [0.085, -0.36],
+    [0.105, -0.24],
+    [0.075, -0.12],
+    [0.035, -0.025],
+    [0, 0],
+  ]);
+  g.rotateX(Math.PI / 2);
+  g.rotateX(-0.3);
+  return g;
+})();
+const NECK_GEOMETRY = new CapsuleGeometry(0.105, 0.16, 12, 24);
+const SHORT_TAIL_GEOMETRY = new CapsuleGeometry(0.065, 0.035, 12, 24);
+const ANTLER_STEM = new TubeGeometry(
+  new CatmullRomCurve3([
+    new Vector3(0, 0, 0),
+    new Vector3(0.025, 0.1, -0.015),
+    new Vector3(0.07, 0.19, -0.04),
+    new Vector3(0.12, 0.25, -0.06),
+  ]),
+  20,
+  0.008,
+  8,
+);
+const ANTLER_BRANCH = new TubeGeometry(
+  new CatmullRomCurve3([
+    new Vector3(0, 0, 0),
+    new Vector3(0.025, 0.035, 0.015),
+    new Vector3(0.035, 0.085, 0.02),
+  ]),
+  12,
+  0.006,
+  8,
+);
+const UPPER_LEG_GEOMETRY = new CapsuleGeometry(0.064, 0.085, 12, 24);
+const LOWER_LEG_GEOMETRY = new CapsuleGeometry(0.038, 0.085, 12, 24);
+const PAW_GEOMETRY = new CapsuleGeometry(0.045, 0.035, 12, 24);
+
+/** 표면은 은은하게 남기고 가장자리에 빛이 모이게 한다. */
+function spiritRimShader(shader: {
+  vertexShader: string;
+  fragmentShader: string;
+}) {
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      "void main() {",
+      "varying vec3 vSpiritNormal;\nvarying vec3 vSpiritView;\nvoid main() {",
+    )
+    .replace(
+      "#include <begin_vertex>",
+      "#include <begin_vertex>\nvSpiritNormal = normalize(normalMatrix * normal);\nvSpiritView = normalize(-(modelViewMatrix * vec4(position, 1.0)).xyz);",
+    );
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "void main() {",
+      "varying vec3 vSpiritNormal;\nvarying vec3 vSpiritView;\nvoid main() {",
+    )
+    .replace(
+      "#include <color_fragment>",
+      "#include <color_fragment>\nfloat rim = pow(1.0 - abs(dot(normalize(vSpiritNormal), normalize(vSpiritView))), 1.6);\nfloat softLight = 0.5 + 0.5 * dot(normalize(vSpiritNormal), normalize(vec3(-0.4, 0.8, 0.6)));\ndiffuseColor.rgb *= 0.66 + softLight * 0.22 + rim * 0.12;",
+    );
+}
+
+function tigerSpiritShader(shader: Parameters<typeof spiritRimShader>[0]) {
+  spiritRimShader(shader);
+  shader.vertexShader = shader.vertexShader.replace(
+    "void main() {",
+    "varying vec3 vSpiritLocal;\nvoid main() {\nvSpiritLocal = position;",
+  );
+  shader.fragmentShader = shader.fragmentShader
+    .replace("void main() {", "varying vec3 vSpiritLocal;\nvoid main() {")
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      float wave = abs(sin(vSpiritLocal.z * 29.0 + vSpiritLocal.y * 9.0 + sin(vSpiritLocal.y * 24.0) * 0.45));
+      float stripe = (1.0 - smoothstep(0.16, 0.32, wave)) * smoothstep(0.035, 0.12, abs(vSpiritLocal.x));
+      diffuseColor.rgb *= 1.0 - stripe * 0.38;
+    `,
+    );
+}
+
 function Suhoryeong({ cast, colors }: EffectProps) {
+  // 백호, 여우, 사슴, 토끼, 반달가슴곰 순서. 이전 클라이언트는 백호로 표시한다.
+  const animal = cast.spiritAnimal ?? 0;
   const root = useRef<Group>(null);
   const body = useRef<Points>(null);
   const bodyMat = useRef<PointsMaterial>(null);
   const glow = useRef<Mesh>(null);
   const glowMat = useRef<MeshBasicMaterial>(null);
+  const mist = useRef<Points>(null);
+  const mistMat = useRef<PointsMaterial>(null);
+  const driftingMist = useRef<Points>(null);
+  const driftingMistMat = useRef<PointsMaterial>(null);
+  const driftingMistPos = useMemo(() => new Float32Array(14 * 3), []);
+  const spiritMist = useRef<Group>(null);
+  const spiritForm = useRef<Group>(null);
+  const spiritLegs = useRef<Array<Group | null>>([]);
+  const spiritKnees = useRef<Array<Group | null>>([]);
+  const spiritTail = useRef<Group>(null);
   const pos = useMemo(() => new Float32Array(TIGER * 3), []);
   const halo = useMemo(() => getHalo(), []);
 
@@ -681,25 +920,81 @@ function Suhoryeong({ cast, colors }: EffectProps) {
     // 원의 접선 방향이 호랑이가 바라보는 앞이다
     const tx = -Math.sin(angle);
     const tz = Math.cos(angle);
-    const cx = Math.cos(angle) * TIGER_RING;
-    const cz = Math.sin(angle) * TIGER_RING;
-    const stride = t * 5;
+    // 여우는 긴 꼬리까지 시전 구역 안에 들어오도록 조금 안쪽을 돈다.
+    const ring = animal === 1 ? 0.58 : TIGER_RING;
+    const cx = Math.cos(angle) * ring;
+    const cz = Math.sin(angle) * ring;
+    const stride = t * (animal === 3 ? 6 : animal === 4 ? 3.8 : 4.6);
     for (let i = 0; i < TIGER; i++) {
       const [lx, ly, leg] = TIGER_SHAPE[i];
       const swing = leg < 0 ? 0 : Math.sin(stride + leg * Math.PI) * 0.08;
       const lift =
         leg < 0 ? 0 : Math.max(0, Math.cos(stride + leg * Math.PI)) * 0.03;
-      // 몸이 걸음마다 살짝 오르내리고 윤곽이 은은하게 일렁인다
+      // 윤곽에 고정된 점 대신 작은 빛이 몸 주위에서 느리게 흘러간다.
       const bob = Math.sin(stride * 2) * 0.012;
-      const shimmer = Math.sin(t * 3 + i * 1.7) * 0.006;
-      const along = lx + swing;
-      pos[i * 3] = cx + tx * along;
-      pos[i * 3 + 1] = ly + lift + bob + shimmer;
-      pos[i * 3 + 2] = cz + tz * along;
+      const phase = hash(i, 21) * Math.PI * 2;
+      const drift = t * (0.55 + hash(i, 22) * 0.35) + phase;
+      const along = lx + swing + Math.sin(drift) * 0.015;
+      const across = Math.cos(drift * 0.8 + phase) * 0.025;
+      pos[i * 3] = cx + tx * along - tz * across;
+      pos[i * 3 + 1] = ly + lift + bob + Math.sin(drift * 1.1) * 0.015;
+      pos[i * 3 + 2] = cz + tz * along + tx * across;
     }
     touch(body.current);
+    touch(mist.current);
+    // 빛 안개가 몸에서 뒤쪽으로 길게 흘러나오며 부드럽게 소용돌이친다.
+    for (let i = 0; i < driftingMistPos.length / 3; i++) {
+      const phase = t * (0.55 + hash(i, 48) * 0.25) + hash(i, 49) * Math.PI * 2;
+      const along = -0.18 - hash(i, 51) * 0.55 + Math.sin(phase) * 0.14;
+      const across = Math.cos(phase + i) * (0.12 + hash(i, 52) * 0.18);
+      driftingMistPos[i * 3] = cx + tx * along - tz * across;
+      driftingMistPos[i * 3 + 1] =
+        0.24 + hash(i, 50) * 0.48 + Math.sin(phase * 1.2) * 0.1;
+      driftingMistPos[i * 3 + 2] = cz + tz * along + tx * across;
+    }
+    touch(driftingMist.current);
     const a = fade(p, SPELLS.suhoryeong.durationMs, 700, 1500);
-    if (bodyMat.current) bodyMat.current.opacity = a * 0.95;
+    if (bodyMat.current) bodyMat.current.opacity = a;
+    if (mistMat.current) mistMat.current.opacity = a * 0.16;
+    if (driftingMistMat.current) driftingMistMat.current.opacity = a * 0.28;
+    if (spiritMist.current) {
+      spiritMist.current.position.set(cx, Math.sin(stride * 2) * 0.012, cz);
+      spiritMist.current.rotation.y = Math.atan2(tx, tz);
+      spiritMist.current.children.forEach((sprite) => {
+        const material = (sprite as import("three").Sprite).material;
+        material.opacity = a * (0.15 + Math.sin(t * 1.6) * 0.015);
+      });
+    }
+    if (spiritForm.current) {
+      spiritForm.current.position.set(cx, Math.sin(stride * 2) * 0.012, cz);
+      spiritForm.current.rotation.y = Math.atan2(tx, tz);
+      spiritForm.current.traverse((part) => {
+        if ((part as Mesh).isMesh) {
+          ((part as Mesh).material as MeshBasicMaterial).opacity = a * 0.96;
+        }
+      });
+    }
+    spiritLegs.current.forEach((leg, i) => {
+      const phase =
+        stride +
+        (animal === 3
+          ? i % 2 === 0
+            ? 0
+            : 0.8
+          : i === 0 || i === 3
+            ? 0
+            : Math.PI);
+      if (leg)
+        leg.rotation.x =
+          Math.sin(phase) * (animal === 2 ? 0.38 : animal === 4 ? 0.26 : 0.33);
+      const knee = spiritKnees.current[i];
+      // 발이 뒤에서 앞으로 나올 때만 무릎이 접힌다
+      if (knee) knee.rotation.x = Math.max(0, Math.cos(phase)) * 0.42;
+    });
+    if (spiritTail.current) {
+      spiritTail.current.rotation.y = Math.sin(t * 2.2) * 0.28;
+      spiritTail.current.rotation.x = Math.sin(stride * 2) * 0.05;
+    }
     if (glow.current) {
       glow.current.position.set(cx, 0.02, cz);
       glow.current.scale.setScalar(1 + Math.sin(stride * 2) * 0.04);
@@ -714,8 +1009,351 @@ function Suhoryeong({ cast, colors }: EffectProps) {
         matRef={bodyMat}
         positions={pos}
         color={colors["--color-scene-moonlight"]}
-        size={0.11}
+        size={0.055}
       />
+      {/* 같은 입자 위치에 넓고 흐릿한 푸른 후광을 겹친다. */}
+      <Glow
+        pointsRef={mist}
+        matRef={mistMat}
+        positions={pos}
+        color={colors["--color-scene-moonlight"]}
+        size={0.23}
+      />
+      <Glow
+        pointsRef={driftingMist}
+        matRef={driftingMistMat}
+        positions={driftingMistPos}
+        color={colors["--color-scene-moonlight"]}
+        size={0.55}
+        shape="puff"
+      />
+      {/* 동물별 체형 위로 은빛 광점과 옅은 안개를 겹친다. */}
+      <group ref={spiritForm}>
+        <mesh
+          geometry={TORSO_GEOMETRY}
+          position={[0, animal === 2 ? 0.55 : animal === 3 ? 0.32 : 0.43, 0]}
+          scale={
+            animal === 4
+              ? [1.65, 1.5, 0.95]
+              : animal === 3
+                ? [1.12, 1.12, 0.65]
+                : animal === 2
+                  ? [0.72, 0.92, 0.92]
+                  : animal === 1
+                    ? [0.7, 0.78, 1.08]
+                    : [1.15, 1.08, 1.08]
+          }
+        >
+          <meshBasicMaterial
+            color={colors["--color-scene-moonlight"]}
+            onBeforeCompile={animal === 0 ? tigerSpiritShader : spiritRimShader}
+            transparent
+            opacity={0}
+            depthWrite={true}
+            blending={NormalBlending}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh
+          geometry={NECK_GEOMETRY}
+          position={[
+            0,
+            animal === 2 ? 0.69 : animal === 3 ? 0.37 : 0.45,
+            animal === 3 ? 0.2 : 0.29,
+          ]}
+          rotation={[0.38, 0, 0]}
+          scale={
+            animal === 2
+              ? [0.65, 1.75, 0.75]
+              : animal === 4
+                ? [1.6, 1.05, 1.45]
+                : animal === 1
+                  ? [0.85, 0.75, 0.85]
+                  : animal === 3
+                    ? [0.9, 0.55, 0.9]
+                    : [1.2, 0.9, 1.1]
+          }
+        >
+          <meshBasicMaterial
+            color={colors["--color-scene-moonlight"]}
+            onBeforeCompile={spiritRimShader}
+            transparent
+            opacity={0}
+            depthWrite={true}
+            toneMapped={false}
+          />
+        </mesh>
+        {animal === 4 && (
+          <mesh geometry={BEAR_CRESCENT_GEOMETRY} position={[0, 0.35, 0.33]}>
+            <meshBasicMaterial
+              color={colors["--color-scene-collar"]}
+              transparent
+              opacity={0}
+              depthWrite
+              toneMapped={false}
+            />
+          </mesh>
+        )}
+        <group
+          position={[
+            0,
+            animal === 2
+              ? 0.92
+              : animal === 3
+                ? 0.44
+                : animal === 4
+                  ? 0.56
+                  : 0.51,
+            animal === 3 ? 0.28 : 0.4,
+          ]}
+          rotation={[0.12, 0, 0]}
+          scale={
+            animal === 1
+              ? [0.85, 0.88, 1.14]
+              : animal === 2
+                ? [0.78, 1, 1.08]
+                : animal === 3
+                  ? [0.9, 0.9, 0.8]
+                  : animal === 4
+                    ? [1.15, 1.1, 0.95]
+                    : [1, 1, 1]
+          }
+        >
+          <mesh
+            geometry={
+              SPIRIT_HEAD_GEOMETRIES[animal] ?? SPIRIT_HEAD_GEOMETRIES[0]
+            }
+          >
+            <meshBasicMaterial
+              color={colors["--color-scene-moonlight"]}
+              onBeforeCompile={spiritRimShader}
+              transparent
+              opacity={0}
+              depthWrite={true}
+              blending={NormalBlending}
+              toneMapped={false}
+            />
+          </mesh>
+          {[-1, 1].map((side) => (
+            <mesh
+              key={side}
+              geometry={
+                animal === 3
+                  ? RABBIT_EAR_GEOMETRY
+                  : animal === 1 || animal === 2
+                    ? POINTED_EAR_GEOMETRY
+                    : EAR_GEOMETRY
+              }
+              position={[
+                side * (animal === 4 ? 0.135 : animal === 0 ? 0.12 : 0.075),
+                animal === 3 ? 0.1 : 0.12,
+                -0.065,
+              ]}
+              scale={
+                animal === 3
+                  ? [1, 1, 0.45]
+                  : animal === 1
+                    ? [1.6, 1.35, 0.65]
+                    : animal === 4
+                      ? [1.65, 1.4, 0.85]
+                      : animal === 2
+                        ? [1.25, 0.9, 0.45]
+                        : [1.2, 0.9, 0.8]
+              }
+              rotation={[
+                animal === 3 ? -0.16 : 0,
+                0,
+                side * (animal === 2 ? -0.95 : animal === 3 ? -0.12 : -0.3),
+              ]}
+            >
+              <meshBasicMaterial
+                color={colors["--color-scene-moonlight"]}
+                onBeforeCompile={spiritRimShader}
+                transparent
+                opacity={0}
+                depthWrite={true}
+                blending={NormalBlending}
+                toneMapped={false}
+              />
+            </mesh>
+          ))}
+          {animal === 2 &&
+            [-1, 1].flatMap((side) =>
+              [0, 1, 2].map((branch) => (
+                <mesh
+                  key={`${side}-${branch}`}
+                  geometry={branch === 0 ? ANTLER_STEM : ANTLER_BRANCH}
+                  position={[
+                    side *
+                      (0.055 +
+                        (branch === 0 ? 0 : branch === 1 ? 0.03 : 0.065) *
+                          1.45),
+                    0.11 +
+                      (branch === 0 ? 0 : branch === 1 ? 0.1 : 0.15) * 1.45,
+                    -0.07,
+                  ]}
+                  scale={[side * 1.45, 1.45, 1.25]}
+                >
+                  <meshBasicMaterial
+                    color={colors["--color-scene-moonlight"]}
+                    onBeforeCompile={spiritRimShader}
+                    transparent
+                    opacity={0}
+                    depthWrite={true}
+                    blending={NormalBlending}
+                    toneMapped={false}
+                  />
+                </mesh>
+              )),
+            )}
+        </group>
+        <group
+          ref={spiritTail}
+          position={[
+            0,
+            animal === 3 ? 0.36 : animal === 2 ? 0.59 : 0.48,
+            animal === 3 ? -0.29 : -0.4,
+          ]}
+          scale={
+            animal === 1
+              ? [1.65, 1.65, 1.25]
+              : animal === 3 || animal === 4
+                ? [animal === 3 ? 1.15 : 0.7, 0.85, 1]
+                : animal === 2
+                  ? [0.7, 0.45, 0.4]
+                  : [1, 1, 1]
+          }
+        >
+          <mesh
+            geometry={
+              animal === 1
+                ? FOX_TAIL_GEOMETRY
+                : animal === 3 || animal === 4
+                  ? SHORT_TAIL_GEOMETRY
+                  : TAIL_GEOMETRY
+            }
+          >
+            <meshBasicMaterial
+              color={colors["--color-scene-moonlight"]}
+              onBeforeCompile={spiritRimShader}
+              transparent
+              opacity={0}
+              depthWrite={true}
+              blending={NormalBlending}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+        {[-1, 1].flatMap((side) =>
+          [-1, 1].map((front, i) => {
+            const idx = (side === -1 ? 0 : 2) + i;
+            return (
+              <group
+                key={`${side}-${front}`}
+                position={[
+                  side * (animal === 4 ? 0.18 : animal === 3 ? 0.13 : 0.1),
+                  animal === 2 ? 0.5 : animal === 3 ? 0.25 : 0.34,
+                  front * (animal === 3 ? 0.18 : 0.25),
+                ]}
+                scale={
+                  animal === 2
+                    ? [0.6, 1.45, 0.6]
+                    : animal === 4
+                      ? [1.7, 0.95, 1.5]
+                      : animal === 3
+                        ? [
+                            front === -1 ? 1.8 : 0.7,
+                            0.68,
+                            front === -1 ? 1.85 : 0.7,
+                          ]
+                        : animal === 1
+                          ? [0.7, 0.95, 0.75]
+                          : [1.25, 0.95, 1.25]
+                }
+                ref={(el) => {
+                  spiritLegs.current[idx] = el;
+                }}
+              >
+                <mesh geometry={UPPER_LEG_GEOMETRY} position={[0, -0.07, 0]}>
+                  <meshBasicMaterial
+                    color={colors["--color-scene-moonlight"]}
+                    onBeforeCompile={spiritRimShader}
+                    transparent
+                    opacity={0}
+                    depthWrite={true}
+                    blending={NormalBlending}
+                    toneMapped={false}
+                  />
+                </mesh>
+                <group
+                  position={[0, -0.145, 0]}
+                  ref={(el) => {
+                    spiritKnees.current[idx] = el;
+                  }}
+                >
+                  <mesh geometry={LOWER_LEG_GEOMETRY} position={[0, -0.07, 0]}>
+                    <meshBasicMaterial
+                      color={colors["--color-scene-moonlight"]}
+                      onBeforeCompile={spiritRimShader}
+                      transparent
+                      opacity={0}
+                      depthWrite={true}
+                      blending={NormalBlending}
+                      toneMapped={false}
+                    />
+                  </mesh>
+                  <mesh
+                    geometry={PAW_GEOMETRY}
+                    scale={
+                      animal === 3 && front === -1
+                        ? [1, 1.8, 1]
+                        : animal === 2
+                          ? [0.85, 0.7, 1]
+                          : [1, 1, 1]
+                    }
+                    position={[0, -0.14, 0.03]}
+                    rotation={[Math.PI / 2, 0, 0]}
+                  >
+                    <meshBasicMaterial
+                      color={colors["--color-scene-moonlight"]}
+                      onBeforeCompile={spiritRimShader}
+                      transparent
+                      opacity={0}
+                      depthWrite={true}
+                      blending={NormalBlending}
+                      toneMapped={false}
+                    />
+                  </mesh>
+                </group>
+              </group>
+            );
+          }),
+        )}
+      </group>
+      {/* 경계가 없는 빛을 겹쳐 몸 안쪽에 연기 같은 질감을 만든다. */}
+      <group ref={spiritMist}>
+        {(
+          [
+            [0, 0.43, -0.17, 0.76, 0.6],
+            [0, 0.44, 0.12, 0.77, 0.6],
+            [0, 0.52, 0.42, 0.37, 0.37],
+            [0, 0.22, -0.27, 0.18, 0.32],
+            [0, 0.22, 0.23, 0.18, 0.32],
+          ] as const
+        ).map(([x, y, z, width, height], i) => (
+          <sprite key={i} position={[x, y, z]} scale={[width, height, 1]}>
+            <spriteMaterial
+              map={halo}
+              color={colors["--color-scene-moonlight"]}
+              transparent
+              opacity={0}
+              blending={AdditiveBlending}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </sprite>
+        ))}
+      </group>
       {/* 걷는 자리에 번지는 은빛 */}
       <mesh ref={glow} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[1.3, 1.3]} />

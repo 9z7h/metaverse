@@ -53,11 +53,13 @@ import {
   resolveWalk,
 } from "./gardenLayout";
 import { prefersReducedMotion } from "../useReducedMotion";
+import { trackEvent } from "../../../../../lib/analytics";
 
 /** 정원이 쓰는 접속 정보 — 같은 정원에 있는 다른 사람과 내 위치 알림 */
 export type GardenPresence = Pick<
   LibraryPresence,
   | "walkers"
+  | "userId"
   | "moves"
   | "sendMove"
   | "sendCast"
@@ -239,6 +241,7 @@ export function GardenWorld({
   const selfHeight = useRef(0);
   const spells = useSpellCaster({
     selfId: "me",
+    animalIdentity: presence.userId ?? "demo",
     getPose: () => ({
       x: selfPos.current.x,
       z: selfPos.current.z,
@@ -256,7 +259,14 @@ export function GardenWorld({
     (id: SpellId) => {
       const made = castLocal(id);
       if (made) {
-        sendCast(made.spell, made.x, made.z, made.ry, made.y);
+        sendCast(
+          made.spell,
+          made.x,
+          made.z,
+          made.ry,
+          made.y,
+          made.spiritAnimal,
+        );
         // 소리는 지팡이가 앞으로 나가는 정점에 맞춘다
         playSpellSound(made.spell, CAST_RELEASE_MS);
       }
@@ -273,6 +283,7 @@ export function GardenWorld({
           id: `${c.senderId}-${now}`,
           caster: c.senderId,
           spell: c.spell,
+          spiritAnimal: c.spiritAnimal,
           x: c.x,
           z: c.z,
           y: c.y,
@@ -690,7 +701,12 @@ export function GardenWorld({
                 style="monolight"
                 aria-expanded={chatOpen}
                 aria-label={unread ? "대화 (새 글 있음)" : "대화"}
-                onClick={() => setChatOpen((v) => !v)}
+                onClick={() => {
+                  trackEvent("chat_toggle", {
+                    state: chatOpen ? "close" : "open",
+                  });
+                  setChatOpen(!chatOpen);
+                }}
               />
               {unread ? (
                 <span
@@ -716,7 +732,10 @@ export function GardenWorld({
                 onSend={(text) => presence.chat.send(text, house)}
                 enabled={chatEnabled}
                 onToggleEnabled={() => setChatEnabled((v) => !v)}
-                onClose={() => setChatOpen(false)}
+                onClose={() => {
+                  trackEvent("chat_toggle", { state: "close" });
+                  setChatOpen(false);
+                }}
                 onFocusChange={(focused) => {
                   // 입력을 시작할 때 눌려 있던 이동 키가 남아 계속 걷지 않게 정리
                   if (focused) {
@@ -764,7 +783,7 @@ export function GardenWorld({
             cooldowns={spells.cooldowns}
             totalSeconds={totalSeconds}
           />
-          <div style={{ ...auto, display: "grid", gap: "var(--spacing-8)" }}>
+          <div style={{ ...auto, display: "flex", justifyContent: "center" }}>
             <ButtonLarge style="monolight" onClick={toggleRide}>
               {riding ? "구름에서 내리기" : "구름 타기"}
             </ButtonLarge>

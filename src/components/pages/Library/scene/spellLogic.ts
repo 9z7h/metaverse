@@ -69,8 +69,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     name: "소신",
     hint: "몸 줄이기",
     detail:
-      "내 모습이 0.55배로 작아집니다(10분). 거신을 쓰면 원래 크기로 돌아와요.",
-    durationMs: 10 * 60 * 1000,
+      "내 모습이 0.55배로 작아집니다(60초). 거신을 쓰면 원래 크기로 돌아와요.",
+    durationMs: 60 * 1000,
     unlockSeconds: HOUR,
   },
   geosin: {
@@ -78,8 +78,8 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
     name: "거신",
     hint: "몸 키우기",
     detail:
-      "내 모습이 1.5배로 커집니다(30분). 소신을 쓰면 원래 크기로 돌아와요.",
-    durationMs: 30 * 60 * 1000,
+      "내 모습이 1.5배로 커집니다(60초). 소신을 쓰면 원래 크기로 돌아와요.",
+    durationMs: 60 * 1000,
     unlockSeconds: HOUR,
   },
   eunhyeong: {
@@ -94,8 +94,9 @@ export const SPELLS: Record<SpellId, SpellInfo> = {
   suhoryeong: {
     id: "suhoryeong",
     name: "수호령",
-    hint: "은빛 백호",
-    detail: "은빛 백호의 윤곽이 구역을 한 바퀴 돌고 흩어집니다(8초).",
+    hint: "은빛 수호 동물",
+    detail:
+      "사람마다 정해진 수호 동물이 나타나 구역을 한 바퀴 돌고 흩어집니다(8초).",
     durationMs: 8000,
     unlockSeconds: 5 * HOUR,
   },
@@ -119,15 +120,15 @@ export const CAST_DISTANCE = 1.6;
 export const CAST_RADIUS = 1.2;
 /** 주문별 재시전 간격(ms). 명경·묵령은 같은 토글 간격을 공유한다. */
 export const COOLDOWN_MS: Record<SpellId, number> = {
-  myeonggyeong: 500,
-  mukryeong: 500,
-  hwaryong: 8000,
-  buun: 6000,
+  myeonggyeong: 1750,
+  mukryeong: 1750,
+  hwaryong: 10000,
+  buun: 8000,
   // 소신·거신은 서로를 눌러 원래대로 돌아오는 데도 쓰므로 짧게 둔다
-  sosin: 1500,
-  geosin: 1500,
-  eunhyeong: 10000,
-  suhoryeong: 8000,
+  sosin: 3000,
+  geosin: 3000,
+  eunhyeong: 12000,
+  suhoryeong: 10000,
 };
 /** 한 장면에 동시에 남는 주문 효과 수 (넘으면 가장 오래된 것부터 지운다) */
 export const MAX_ACTIVE = 6;
@@ -197,6 +198,8 @@ export interface SpellCast {
   ry: number;
   /** 시전 시각 ms */
   t0: number;
+  /** 수호령 동물 종류 (0~4) */
+  spiritAnimal?: number;
   /** 주문 기본 지속 시간 대신 쓸 값 ms — 몸 주문을 도중에 되돌릴 때 앞당겨 끝낸다 */
   durationMs?: number;
 }
@@ -250,7 +253,7 @@ export const BODY_SCALE: Record<Exclude<BodyKind, "hidden">, number> = {
 };
 /** 은형일 때 남에게 남는 불투명도 / 내 화면에 남는 불투명도 */
 export const HIDDEN_OPACITY_OTHERS = 0;
-export const HIDDEN_OPACITY_SELF = 0.4;
+export const HIDDEN_OPACITY_SELF = 0.1;
 /** 몸이 바뀌고 돌아오는 데 걸리는 시간 ms */
 export const BODY_FADE_IN_MS = 500;
 export const BODY_FADE_OUT_MS = 700;
@@ -292,7 +295,7 @@ export function bodyEffectOf(
 
 /**
  * 지금 몸이 바뀌거나 돌아오는 중인 몸 주문이 있는가. 장면이 가만히 있어도
- * 이때만 화면을 다시 그려야 모습이 부드럽게 바뀐다(몸 주문은 10분 넘게 남을 수 있다).
+ * 이때만 화면을 다시 그려야 모습이 부드럽게 바뀐다(몸 주문은 효과가 유지되는 동안 남는다).
  */
 export function bodyFadeNow(
   casts: ReadonlyArray<SpellCast>,

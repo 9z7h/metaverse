@@ -1283,10 +1283,12 @@ function Pavilion({ colors }: { colors: SceneColors }) {
 
 /* ── 나무: 소나무·대나무·매화 ────────────────────────────────── */
 
+const PINE_MODEL_URL = `${import.meta.env.BASE_URL}models/pine-sapling.glb`;
+// 정원 코드가 올라오는 즉시 모델을 내려받기 시작해 장면이 그려질 때 기다리지 않게 한다
+useGLTF.preload(PINE_MODEL_URL);
+
 function Pines() {
-  const { scene } = useGLTF(
-    `${import.meta.env.BASE_URL}models/pine-sapling.glb`,
-  );
+  const { scene } = useGLTF(PINE_MODEL_URL);
   const trees = useMemo(
     () =>
       PINES.flatMap((tree, i) => {

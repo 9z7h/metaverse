@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import "./MovementJoystick.css";
+import { trackFirstMove, trackOnce } from "../../../../lib/analytics";
 
 interface MovementJoystickProps {
   onMove: (direction: { x: number; y: number }) => void;
@@ -39,6 +40,8 @@ export function MovementJoystick({
     }
     setPosition({ x, y });
     onMove({ x, y });
+    trackOnce("joystick_used", {});
+    trackFirstMove("joystick");
   };
 
   if (disabled) return null;

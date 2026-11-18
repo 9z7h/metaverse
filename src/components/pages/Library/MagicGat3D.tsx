@@ -563,9 +563,16 @@ export function MagicGat3D({
         <Canvas
           dpr={[1, 2]}
           frameloop={paused ? "never" : "always"}
-          camera={{ position: [0, 0.35, 5.6], fov: 30, near: 0.1, far: 30 }}
+          camera={{ position: [0, 0.35, 5.6], fov: 51.5, near: 0.1, far: 30 }}
           gl={{ alpha: true, antialias: true }}
-          style={{ width: "100%", height: "100%" }}
+          style={{
+            position: "absolute",
+            width: "180%",
+            height: "180%",
+            left: "-40%",
+            top: "-40%",
+            pointerEvents: "none",
+          }}
         >
           <ambientLight
             intensity={0.9}

@@ -5,6 +5,7 @@ import { Input } from "../../ui/Input";
 import { CHAT_MAX_LEN, normalizeChatText } from "./chat";
 import type { ChatMessage } from "./chat";
 import { houseVar } from "./houses";
+import { chatLengthBucket, trackEvent } from "../../../lib/analytics";
 
 export interface ChatPanelProps {
   /** 최근 대화 (오래된 것 → 최근) */
@@ -91,6 +92,7 @@ export function ChatPanel({
       return;
     }
     if (onSend(draft)) {
+      trackEvent("chat_send", { length_bucket: chatLengthBucket(draft) });
       setDraft("");
       setNotice(null);
     } else {

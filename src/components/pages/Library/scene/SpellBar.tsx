@@ -9,6 +9,7 @@ import {
   secondsToUnlock,
 } from "./spellLogic";
 import type { SpellId } from "./spellLogic";
+import { trackEvent, trackOnce } from "../../../../lib/analytics";
 
 /** 터치로 연 말풍선이 저절로 닫히는 시간 */
 const TIP_TOUCH_MS = 4000;
@@ -118,6 +119,15 @@ export function SpellBar({
   });
 
   const tipLocked = tip !== null && !isUnlocked(tip, totalSeconds);
+  useEffect(() => {
+    // 같은 주문 설명을 여러 번 열어도 세션당 한 번만 센다
+    if (tip && tipLocked)
+      trackOnce(
+        "spell_locked_view",
+        { spell_id: tip },
+        `spell_locked_view:${tip}`,
+      );
+  }, [tip, tipLocked]);
   /** 명경 칩은 켜져 있으면 묵령(끄기)으로 바뀐다 */
   const tipSpell =
     tip === null
@@ -146,7 +156,8 @@ export function SpellBar({
         aria-label="주문 목록"
         aria-pressed={open}
         onClick={() => {
-          setOpen((v) => !v);
+          trackEvent("spell_dock_toggle", { state: open ? "close" : "open" });
+          setOpen(!open);
           setTip(null);
         }}
       />

@@ -704,6 +704,7 @@ export function BroomRider({
               glow: colors["--color-scene-flame"],
             }}
             name="나"
+            highlight
             showLabel={false}
             bubble={bubble}
           />

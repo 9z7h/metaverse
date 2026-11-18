@@ -17,7 +17,13 @@ function Tick() {
   return null;
 }
 
-function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
+function SpellPreview({
+  spell = "myeonggyeong",
+  spiritAnimal = 0,
+}: {
+  spell?: SpellId;
+  spiritAnimal?: SpellCast["spiritAnimal"];
+}) {
   const root = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<SceneColors | null>(null);
   const [casts, setCasts] = useState<SpellCast[]>([]);
@@ -37,6 +43,7 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
             id: `preview-${n++}`,
             caster: "me",
             spell,
+            spiritAnimal,
             ...zone,
             ry: 0,
             t0: now,
@@ -49,7 +56,7 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
     if (spell === "myeonggyeong") return;
     const timer = window.setInterval(cast, SPELLS[spell].durationMs + 800);
     return () => window.clearInterval(timer);
-  }, [spell]);
+  }, [spell, spiritAnimal]);
   return (
     <div
       ref={root}
@@ -58,7 +65,11 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
     >
       {colors ? (
         <Canvas
-          camera={{ position: [0, 2.2, -2.2], fov: 40 }}
+          camera={{
+            position:
+              spell === "suhoryeong" ? [-2.6, 1.6, -1.2] : [0, 2.2, -2.2],
+            fov: 40,
+          }}
           aria-label="주문 미리보기"
         >
           <color attach="background" args={[colors["--color-scene-fog"]]} />
@@ -69,24 +80,26 @@ function SpellPreview({ spell = "myeonggyeong" }: { spell?: SpellId }) {
             <meshStandardMaterial color={colors["--color-scene-floor"]} />
           </mesh>
           <SpellEffects colors={colors} casts={casts} />
-          <Avatar
-            house="cheongryong"
-            robe={colors[houseToken("cheongryong", "primary")]}
-            band={colors[houseToken("cheongryong", "accent")]}
-            collar={colors["--color-scene-collar"]}
-            skin={colors["--color-scene-skin"]}
-            hat={colors["--color-scene-hat"]}
-            pose="stand"
-            name="수련생"
-            showLabel={false}
-            wand={{
-              wood: colors["--color-scene-wood-dark"],
-              glow: colors["--color-scene-flame"],
-            }}
-            wandLightAt={
-              casts.find((c) => c.spell === "myeonggyeong")?.t0 ?? null
-            }
-          />
+          {spell !== "suhoryeong" && (
+            <Avatar
+              house="cheongryong"
+              robe={colors[houseToken("cheongryong", "primary")]}
+              band={colors[houseToken("cheongryong", "accent")]}
+              collar={colors["--color-scene-collar"]}
+              skin={colors["--color-scene-skin"]}
+              hat={colors["--color-scene-hat"]}
+              pose="stand"
+              name="수련생"
+              showLabel={false}
+              wand={{
+                wood: colors["--color-scene-wood-dark"],
+                glow: colors["--color-scene-flame"],
+              }}
+              wandLightAt={
+                casts.find((c) => c.spell === "myeonggyeong")?.t0 ?? null
+              }
+            />
+          )}
           <Tick />
           <OrbitControls
             target={[0, 0.8, 1.6]}
@@ -125,3 +138,24 @@ export const Suhoryeong: Story = { args: { spell: "suhoryeong" } };
 export const Sosin: Story = { args: { spell: "sosin" } };
 export const Geosin: Story = { args: { spell: "geosin" } };
 export const Eunhyeong: Story = { args: { spell: "eunhyeong" } };
+
+export const SpiritTiger: Story = {
+  name: "수호령 · 백호",
+  args: { spell: "suhoryeong", spiritAnimal: 0 },
+};
+export const SpiritFox: Story = {
+  name: "수호령 · 여우",
+  args: { spell: "suhoryeong", spiritAnimal: 1 },
+};
+export const SpiritDeer: Story = {
+  name: "수호령 · 사슴",
+  args: { spell: "suhoryeong", spiritAnimal: 2 },
+};
+export const SpiritRabbit: Story = {
+  name: "수호령 · 토끼",
+  args: { spell: "suhoryeong", spiritAnimal: 3 },
+};
+export const SpiritBear: Story = {
+  name: "수호령 · 반달가슴곰",
+  args: { spell: "suhoryeong", spiritAnimal: 4 },
+};

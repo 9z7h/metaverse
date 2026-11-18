@@ -38,6 +38,8 @@ import {
 } from "./useAcademy";
 import { useRemotePresence } from "./remotePresence";
 import { BackgroundMusic } from "./BackgroundMusic";
+import { useLibraryAnalytics } from "./useLibraryAnalytics";
+import { trackEvent, trackWorldLoaded } from "../../../lib/analytics";
 
 // three.js 번들(수백 KB)은 먹빛각에 들어갈 때만 내려받는다
 const GardenWorld = lazy(() =>
@@ -450,6 +452,25 @@ export function Library({
     }
   }, [server, conn.status]);
 
+  const analyticsScene =
+    step === "garden" ? "garden" : step === "world" ? "library" : null;
+  useLibraryAnalytics({
+    scene: analyticsScene,
+    webgl,
+    house,
+    trainedSeconds,
+    todaySeconds: timer.elapsedSeconds,
+    timerRunning: timer.status === "running",
+  });
+  /** 3D 공간으로 들어가기 시작한 시각 — world_loaded의 로딩 시간 기준 */
+  const worldRequestedAt = useRef(0);
+  const inWorld = analyticsScene !== null;
+  useEffect(() => {
+    if (inWorld) worldRequestedAt.current = performance.now();
+  }, [inWorld]);
+  /** 이번 집중을 시작했을 때의 오늘 누적 — 일시정지 때 이번 집중 길이를 잰다 */
+  const focusStartedAt = useRef(0);
+
   const today = serverToday ?? dayKey(Date.now());
   const rerollAvailable = canReroll(rerollDay, today);
 
@@ -488,6 +509,7 @@ export function Library({
   const enter = () => {
     if (working || conn.status === "connecting") return;
     setArrivedByDoor(false);
+    trackEvent("enter_click", { is_new: !house });
     if (house) setStep("world");
     else void assignHouse();
   };
@@ -495,6 +517,7 @@ export function Library({
   const reroll = () => {
     if (working || !house || !canReroll(rerollDay, today)) return;
     setConfirmReroll(false);
+    trackEvent("house_reroll", { from_house: house });
     if (!server) {
       saveRerollDay(today);
       setRerollDay(today);
@@ -509,6 +532,7 @@ export function Library({
   const mySubject = subject.trim() || DEFAULT_SUBJECT;
 
   const handleSit = (seatId: string) => {
+    trackEvent("seat_take", { mode });
     presence.join({
       seatId,
       subject: mySubject,
@@ -538,6 +562,10 @@ export function Library({
   const travel = (to: "garden" | "world") => {
     if (travelling.current) return;
     travelling.current = true;
+    trackEvent("scene_travel", {
+      from: to === "garden" ? "library" : "garden",
+      to: to === "garden" ? "garden" : "library",
+    });
     setCurtain(true);
     later(() => {
       if (to === "garden" && presence.me) handleLeave();
@@ -548,12 +576,19 @@ export function Library({
   };
   /** 새 공간이 그려질 준비가 되면 잠깐 걸어 나오는 모습을 보여 주고 막을 걷는다 */
   const handleWorldReady = () => {
+    if (analyticsScene)
+      trackWorldLoaded(analyticsScene, worldRequestedAt.current);
     if (travelling.current) later(reveal, 250);
   };
 
   /** 자리를 떠나면 일시정지만 — 오늘 누적은 그대로 */
   const handleLeave = () => {
-    if (timer.status === "running") timer.pause();
+    if (timer.status === "running") {
+      trackEvent("focus_pause", {
+        session_sec: timer.elapsedSeconds - focusStartedAt.current,
+      });
+      timer.pause();
+    }
     presence.leave();
   };
 
@@ -561,10 +596,15 @@ export function Library({
   const handleGoGarden = () => travel("garden");
 
   const handleStart = () => {
+    focusStartedAt.current = timer.elapsedSeconds;
+    trackEvent("focus_start", { mode });
     timer.start();
     presence.update({ focusing: true, focusSeconds: timer.elapsedSeconds });
   };
   const handlePause = () => {
+    trackEvent("focus_pause", {
+      session_sec: timer.elapsedSeconds - focusStartedAt.current,
+    });
     timer.pause();
     presence.update({ focusing: false, focusSeconds: timer.elapsedSeconds });
   };
@@ -585,6 +625,7 @@ export function Library({
           durationMs={sortingDurationMs}
           webgl={webgl}
           onEnter={() => {
+            trackEvent("sorting_complete", { house });
             setArrivedByDoor(false);
             setStep("world");
           }}

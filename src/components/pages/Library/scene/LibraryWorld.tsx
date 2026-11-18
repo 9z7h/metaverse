@@ -79,6 +79,7 @@ import {
 } from "./sceneLayout";
 import type { Orbit, SceneColors, Vec2 } from "./sceneLayout";
 import { prefersReducedMotion } from "./useReducedMotion";
+import { trackEvent } from "../../../../lib/analytics";
 
 export interface LibraryWorldProps {
   presence: LibraryPresence;
@@ -366,6 +367,7 @@ export function LibraryWorld({
   /* 주문: 서 있을 때만. 효과는 내 앞 작은 구역에 남고 시전자별로 따로 관리된다 */
   const spells = useSpellCaster({
     selfId: "me",
+    animalIdentity: presence.userId ?? "demo",
     getPose: () => ({
       x: playerPos.current.x,
       z: playerPos.current.z,
@@ -382,7 +384,14 @@ export function LibraryWorld({
     (id: SpellId) => {
       const made = castLocal(id);
       if (made) {
-        sendCast(made.spell, made.x, made.z, made.ry);
+        sendCast(
+          made.spell,
+          made.x,
+          made.z,
+          made.ry,
+          made.y,
+          made.spiritAnimal,
+        );
         // 소리는 지팡이가 앞으로 나가는 정점에 맞춘다
         playSpellSound(made.spell, CAST_RELEASE_MS);
       }
@@ -399,6 +408,7 @@ export function LibraryWorld({
           id: `${c.senderId}-${now}`,
           caster: c.senderId,
           spell: c.spell,
+          spiritAnimal: c.spiritAnimal,
           x: c.x,
           z: c.z,
           ry: c.ry,
@@ -950,7 +960,12 @@ export function LibraryWorld({
                   style="monolight"
                   aria-label="대화"
                   aria-expanded={chatOpen}
-                  onClick={() => setChatOpen((v) => !v)}
+                  onClick={() => {
+                    trackEvent("chat_toggle", {
+                      state: chatOpen ? "close" : "open",
+                    });
+                    setChatOpen(!chatOpen);
+                  }}
                 />
               </div>
             )}
@@ -962,7 +977,10 @@ export function LibraryWorld({
                 onSend={(text) => presence.chat.send(text, house)}
                 enabled={chatEnabled}
                 onToggleEnabled={() => setChatEnabled((v) => !v)}
-                onClose={() => setChatOpen(false)}
+                onClose={() => {
+                  trackEvent("chat_toggle", { state: "close" });
+                  setChatOpen(false);
+                }}
                 onFocusChange={(focused) => {
                   // 입력을 시작할 때 눌려 있던 이동 키가 남아 아바타가 계속 걷지 않게 정리
                   if (focused) {

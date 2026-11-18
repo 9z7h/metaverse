@@ -3,7 +3,7 @@ import { HOUSES } from "./houses";
 import type { HouseId } from "./houses";
 
 export function houseCrestUrl(house: HouseId): string {
-  return `${import.meta.env.BASE_URL}assets/house-crests/${house}.png`;
+  return `${import.meta.env.BASE_URL}assets/house-crests/${house}.webp`;
 }
 
 export interface HouseCrestProps extends Omit<

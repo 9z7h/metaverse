@@ -56,6 +56,7 @@ export interface LibraryChat {
 
 /** 다른 사람이 방송한 주문 시전 — 시각 전용이며 구역 중심 좌표와 방향만 담는다 */
 export interface RemoteCast {
+  spiritAnimal?: number;
   senderId: string;
   spell: SpellId;
   x: number;
@@ -93,6 +94,8 @@ export interface RemoteMove {
 }
 
 export interface LibraryPresence {
+  /** 로그인 계정의 고유 ID. 데모에서는 null이다. */
+  userId?: string | null;
   seats: LibrarySeat[];
   /** 나를 제외한 접속자 */
   others: PresenceStudent[];
@@ -128,6 +131,7 @@ export interface LibraryPresence {
     z: number,
     ry: number,
     y?: number,
+    spiritAnimal?: number,
   ) => void;
   /** 같은 곳에 있는 다른 사람의 시전을 받는다. 돌려주는 함수로 구독을 푼다 */
   onRemoteCast: (listener: (cast: RemoteCast) => void) => () => void;

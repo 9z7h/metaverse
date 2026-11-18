@@ -12,6 +12,7 @@ import {
   activeCasts,
   addCast,
   canCast,
+  castDuration,
   bodyFadeNow,
   bodyKindOf,
   castZone,
@@ -20,6 +21,16 @@ import {
   resolveLightToggle,
 } from "./spellLogic";
 import type { SpellCast, SpellId } from "./spellLogic";
+import { trackEvent } from "../../../../lib/analytics";
+
+/** 같은 계정에는 항상 같은 수호 동물을 배정한다. */
+export function spiritAnimalForIdentity(identity: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < identity.length; i++) {
+    hash = Math.imul(hash ^ identity.charCodeAt(i), 16777619);
+  }
+  return (hash >>> 0) % 5;
+}
 
 export interface CasterPose {
   x: number;
@@ -33,6 +44,8 @@ export interface CasterPose {
 export interface UseSpellCasterOptions {
   /** 내 시전을 가리키는 이름 (효과를 시전자별로 가른다) */
   selfId: string;
+  /** 수호령 배정에 쓰는 계정 고유 ID */
+  animalIdentity?: string;
   /** 시전 순간의 내 위치·방향. 읽을 수 없으면 null */
   getPose: () => CasterPose | null;
   /** false면 시전하지 않는다 (앉아 있음, 구름 타는 중 등) */
@@ -43,6 +56,7 @@ export interface UseSpellCasterOptions {
 
 export function useSpellCaster({
   selfId,
+  animalIdentity = selfId,
   getPose,
   enabled,
   totalSeconds = 0,
@@ -71,15 +85,26 @@ export function useSpellCaster({
       if (!isUnlocked(spell, totalRef.current)) return null;
       const now = performance.now();
       const isLight = spell === "myeonggyeong" || spell === "mukryeong";
+      const isSize = spell === "sosin" || spell === "geosin";
       const cooldownKey = isLight ? "myeonggyeong" : spell;
-      if (!canCast(lastCastAt.current[cooldownKey] ?? null, now, cooldownKey))
+      if (
+        isSize &&
+        activeCasts(castsRef.current, now).some(
+          (c) => c.caster === selfId && c.spell === spell,
+        )
+      )
+        return null;
+      if (
+        !isSize &&
+        !canCast(lastCastAt.current[cooldownKey] ?? null, now, cooldownKey)
+      )
         return null;
       const pose = getPoseRef.current();
       if (!pose) return null;
       lastCastAt.current[cooldownKey] = now;
       setCooldownUntil((current) => ({
         ...current,
-        [cooldownKey]: now + COOLDOWN_MS[cooldownKey],
+        [cooldownKey]: isSize ? now : now + COOLDOWN_MS[cooldownKey],
       }));
       setCooldownNow(now);
       const zone = castZone(pose.x, pose.z, pose.ry);
@@ -91,6 +116,9 @@ export function useSpellCaster({
         id: `${selfId}-${seq.current++}`,
         caster: selfId,
         spell: resolvedSpell,
+        ...(resolvedSpell === "suhoryeong"
+          ? { spiritAnimal: spiritAnimalForIdentity(animalIdentity) }
+          : {}),
         x: zone.x,
         z: zone.z,
         y: pose.y ?? 0,
@@ -101,11 +129,12 @@ export function useSpellCaster({
       const updated = addCast(castsRef.current, next, now);
       castsRef.current = updated;
       setCasts(updated);
+      trackEvent("spell_cast", { spell_id: resolvedSpell });
       setCastAt(now);
       setAnimationAt(now);
       return next;
     },
-    [selfId],
+    [selfId, animalIdentity],
   );
 
   /** 다른 사람의 시전을 보여 준다 (시각 전용, 받은 시각을 시작으로 삼는다) */
@@ -122,7 +151,7 @@ export function useSpellCaster({
   }, []);
 
   // 끝난 효과를 치워 장면이 가만히 있을 때 다시 그리지 않게 한다
-  // 몸 주문은 10분 넘게 남을 수 있어 "효과 진행 중"(화면을 자주 그리는 상태)으로 세지 않는다
+  // 몸 주문은 효과가 오래 남을 수 있어 "효과 진행 중"(화면을 자주 그리는 상태)으로 세지 않는다
   const hasCasts = casts.some(
     (c) => c.spell !== "myeonggyeong" && bodyKindOf(c.spell) === null,
   );
@@ -168,11 +197,39 @@ export function useSpellCaster({
     return () => window.clearInterval(timer);
   }, [cooldownUntil]);
 
+  useEffect(() => {
+    const end = Math.max(
+      0,
+      ...casts
+        .filter(
+          (c) =>
+            c.caster === selfId &&
+            (c.spell === "sosin" || c.spell === "geosin"),
+        )
+        .map((c) => c.t0 + castDuration(c)),
+    );
+    if (end <= performance.now()) return;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      setCooldownNow(now);
+      if (now >= end) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [casts, selfId]);
+
   // 묵령은 명경과 쿨다운을 나눠 쓰므로 따로 두지 않는다
   const cooldowns: Partial<Record<SpellId, number>> = {};
   for (const id of SPELL_ORDER) {
     if (id === "mukryeong") continue;
     cooldowns[id] = Math.max(0, (cooldownUntil[id] ?? 0) - cooldownNow);
+    if (id === "sosin" || id === "geosin") {
+      const own = casts.find((c) => c.caster === selfId && c.spell === id);
+      if (own)
+        cooldowns[id] = Math.max(
+          cooldowns[id] ?? 0,
+          own.t0 + castDuration(own) - cooldownNow,
+        );
+    }
   }
   return {
     casts,

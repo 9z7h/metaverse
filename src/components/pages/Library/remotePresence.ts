@@ -168,6 +168,11 @@ export function parseCast(
   const y = Number(r.y);
   return {
     senderId: r.id,
+    ...(Number.isInteger(r.spiritAnimal) &&
+    Number(r.spiritAnimal) >= 0 &&
+    Number(r.spiritAnimal) < 5
+      ? { spiritAnimal: Number(r.spiritAnimal) }
+      : {}),
     spell: r.spell,
     x: clamp(x, -MAX_COORD, MAX_COORD),
     z: clamp(z, -MAX_COORD, MAX_COORD),
@@ -489,7 +494,14 @@ export function useRemotePresence({
   );
 
   const sendCast = useCallback(
-    (spell: SpellId, x: number, z: number, ry: number, y = 0) => {
+    (
+      spell: SpellId,
+      x: number,
+      z: number,
+      ry: number,
+      y = 0,
+      spiritAnimal?: number,
+    ) => {
       const lobby = lobbyRef.current;
       if (!lobby || !lobbyReady || !userId) return;
       const round = (v: number) => Math.round(v * 100) / 100;
@@ -499,6 +511,7 @@ export function useRemotePresence({
         payload: {
           id: userId,
           spell,
+          ...(spiritAnimal === undefined ? {} : { spiritAnimal }),
           x: round(x),
           z: round(z),
           y: round(y),
@@ -518,6 +531,7 @@ export function useRemotePresence({
 
   return useMemo(
     () => ({
+      userId,
       seats: SEATS,
       others,
       houseTotals: totals,

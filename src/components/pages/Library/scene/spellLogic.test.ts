@@ -140,14 +140,14 @@ describe("canCast", () => {
       expect(canCast(1000, 1000 + COOLDOWN_MS[spell], spell)).toBe(true);
     }
     expect(COOLDOWN_MS).toEqual({
-      myeonggyeong: 500,
-      mukryeong: 500,
-      hwaryong: 8000,
-      buun: 6000,
-      sosin: 1500,
-      geosin: 1500,
-      eunhyeong: 10000,
-      suhoryeong: 8000,
+      myeonggyeong: 1750,
+      mukryeong: 1750,
+      hwaryong: 10000,
+      buun: 8000,
+      sosin: 3000,
+      geosin: 3000,
+      eunhyeong: 12000,
+      suhoryeong: 10000,
     });
   });
 });
@@ -333,9 +333,9 @@ describe("몸 주문", () => {
     expect(list.map((c) => c.spell)).toEqual(["hwaryong", "eunhyeong"]);
   });
 
-  it("소신은 10분, 거신은 30분 남는다", () => {
-    expect(SPELLS.sosin.durationMs).toBe(10 * 60 * 1000);
-    expect(SPELLS.geosin.durationMs).toBe(30 * 60 * 1000);
+  it("소신과 거신은 각각 60초 남는다", () => {
+    expect(SPELLS.sosin.durationMs).toBe(60 * 1000);
+    expect(SPELLS.geosin.durationMs).toBe(60 * 1000);
   });
 
   it("작아진 채 거신을 쓰면 커지지 않고 원래 크기로 돌아온다", () => {

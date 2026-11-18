@@ -62,16 +62,8 @@ export function MysticFox({ colors }: { colors: SceneColors }) {
     <group ref={root} position={[-1, 0, -14]}>
       <group scale={SIZE}>
         {/* 몸통: 가슴은 두툼하고 엉덩이로 갈수록 가늘다. 배는 흰 털 */}
-        <mesh position={[0, 0.43, 0.2]} scale={[0.2, 0.21, 0.23]}>
-          <sphereGeometry args={[1, 32, 24]} />
-          <meshStandardMaterial color={fur} roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.42, -0.05]} scale={[0.18, 0.18, 0.3]}>
-          <sphereGeometry args={[1, 32, 24]} />
-          <meshStandardMaterial color={fur} roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.41, -0.26]} scale={[0.16, 0.16, 0.2]}>
-          <sphereGeometry args={[1, 32, 24]} />
+        <mesh position={[0, 0.43, -0.02]} scale={[0.21, 0.21, 0.43]}>
+          <sphereGeometry args={[1, 48, 32]} />
           <meshStandardMaterial color={fur} roughness={0.9} />
         </mesh>
         <mesh position={[0, 0.33, 0.12]} scale={[0.13, 0.1, 0.3]}>
@@ -84,8 +76,8 @@ export function MysticFox({ colors }: { colors: SceneColors }) {
         </mesh>
 
         {/* 머리: 둥근 두개골 + 흰 볼 + 뾰족한 주둥이 */}
-        <mesh position={[0, 0.64, 0.42]} scale={[0.19, 0.17, 0.2]}>
-          <sphereGeometry args={[1, 32, 24]} />
+        <mesh position={[0, 0.64, 0.42]} scale={[0.205, 0.19, 0.205]}>
+          <sphereGeometry args={[1, 48, 32]} />
           <meshStandardMaterial color={fur} roughness={0.9} />
         </mesh>
         {earSide.map((side) => (
@@ -131,7 +123,7 @@ export function MysticFox({ colors }: { colors: SceneColors }) {
               position={[side * 0.1, 0.77, 0.38]}
               rotation={[-0.2, 0, side * -0.28]}
             >
-              <mesh position={[0, 0.1, 0]} scale={[0.078, 0.155, 0.05]}>
+              <mesh position={[0, 0.1, 0]} scale={[0.09, 0.145, 0.065]}>
                 <sphereGeometry args={[1, 32, 24]} />
                 <meshStandardMaterial color={fur} roughness={0.9} />
               </mesh>
@@ -168,8 +160,8 @@ export function MysticFox({ colors }: { colors: SceneColors }) {
 
         {/* 꼬리: 굵고 풍성하며 끝은 흰색, 끝에서 도깨비불이 인다 */}
         <group ref={tail} position={[0, 0.45, -0.4]} rotation={[-0.5, 0, 0]}>
-          <mesh position={[0, 0, -0.28]} scale={[0.15, 0.15, 0.36]}>
-            <sphereGeometry args={[1, 32, 24]} />
+          <mesh position={[0, 0, -0.28]} scale={[0.18, 0.18, 0.38]}>
+            <sphereGeometry args={[1, 48, 32]} />
             <meshStandardMaterial color={fur} roughness={0.95} />
           </mesh>
           <mesh position={[0, 0, -0.6]} scale={[0.11, 0.11, 0.15]}>
